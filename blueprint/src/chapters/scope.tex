@@ -5,15 +5,15 @@
 \item \lead{Goal} State which \code{\#erase} inputs the verification covers, and why: every closed,
   typed program that Metalean can express and that the eraser handles without a known defect.
 \item \lead{Main results} The fragment in two phases: Phase I adds to the $\lambda\Pi$ fragment
-  everything about inductive types that the eraser handles, \hl{with no recursive definitions by default}
-  (programs recurse through the admitted recursors, and under \code{structural := .kernel} through
-  single definitions by structural recursion; well-founded recursion and mutual blocks are out), so no
-  \code{Nat} arithmetic of \code{Init} by default, and \code{Nat} literals only under
-  \code{nat := .peano}; \hl{\code{Init}'s \code{Nat.add 2 3} is verified end to end} under
-  \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}
-  (Section~\ref{sec:scope-nat-add}); quotients and the recursors of one
+  everything about inductive types that the eraser handles, \hl{with single definitions by
+  structural recursion} (through the compiled pre-definition under the default
+  \code{structural := .unsafeRec}, through the kernel definition under
+  \code{structural := .kernel}) and the admitted recursors; well-founded recursion,
+  \code{partial} definitions and mutual blocks are out, and \code{Nat} literals are in only under
+  \code{nat := .peano}; \hl{\code{Init}'s \code{Nat.add 2 3} is verified end to end} under both
+  values of \code{structural} (Section~\ref{sec:scope-nat-add}); quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
-  the other recursors; structural recursion is in Phase I under \code{structural := .kernel}.
+  the other recursors.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
   its edges.
 \item \lead{Status} \stShipping{} the fragment test of Phase I
@@ -84,6 +84,12 @@ recursors \code{T.rec} of a single inductive without indices, whose induction hy
 other recursors (mutual or indexed blocks, induction hypotheses on functions, \code{Prop}-only
   elimination, \code{Eq.rec}) & II & erased on both paths (S-40); the fragment test excludes them
   (S-47), and no rule covers them \\
+structural recursion under the default \code{structural := .unsafeRec} & I & the compiled
+  pre-definition (\code{preDef?}, the \code{\_unsafe\_rec} companion's value renamed) is erased as
+  a $\lambda_\Box$ fixpoint (S-56); the source evaluates a call with all the arguments the
+  pre-definition takes through it (\code{deltaRec}, under the conversion premise
+  \code{SrcConv}), and a partial application in an evaluated position is stuck (DV-7); the
+  pre-definitions are typed translations by the hypothesis \code{hpre} (DV-31) \\
 structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & the kernel
   definition (\code{T.brecOn}, \code{T.below}, \code{\_f} and the matchers, all ordinary
   definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
@@ -92,19 +98,17 @@ structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & th
   (S-43, S-48); a mutual block (its \code{all} is not its own name alone) is excluded (S-51); a
   recursion on a \code{Nat} literal evaluates (DV-30) \\
 \code{Init}'s \code{Nat.add} on \code{Nat} literals under \code{\{extern := .preferLogical,
-  structural := .kernel, nat := .peano\}} & I & its logical definition, by structural recursion
-  through \code{Nat.brecOn}, is erased as any definition; NV-A is an instance
+  nat := .peano\}} & I & erased through its pre-definition, a fixpoint, under the default
+  \code{structural}, NV-U; through \code{Nat.brecOn} under \code{structural := .kernel}, NV-A
   (Section~\ref{sec:scope-nat-add}) \\
-structural recursion under the default \code{structural := .unsafeRec} & -- & the fragment test
-  excludes it (an \code{\_unsafe\_rec} companion) \\
 quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (S-38), a
   \code{Quot} spine as a type and a \code{Quot.ind} spine as a proof; the source semantics, the
   relation and the simulation have their rules (DV-29), except for \code{Quot.ind}, which a program
   evaluating it makes vacuous; the fragment test admits them (S-39); a regression test pins a
   quotient whose relation identifies distinct values, unordered pairs of \code{B} (S-50) \\
-well-founded recursion & -- & the fragment test rejects it (an \code{\_unsafe\_rec} companion);
-  its recursion reduces only through an opaque accessibility proof, so the source never evaluates
-  it (DV-24) \\
+well-founded recursion, mutual structural blocks & -- & the fragment test rejects them (an
+  \code{\_unsafe\_rec} companion, not \code{isStructuralRecursive}); well-founded recursion
+  reduces only through an opaque accessibility proof, so the source never evaluates it (DV-24) \\
 sparse \code{casesOn}, \code{T.c.elim}, matchers with literal patterns & II & their values reach
   a recursor (\code{T.rec}, \code{Eq.rec}) \\
 \code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0
@@ -130,7 +134,8 @@ free variables, metavariables & -- & closed inputs only \\
 The shipping \code{collectDeps view cfg e} (Definition~\ref{def:Erasure-collectDeps}) rejects a
 program when its closure, as the pure traversal reads it, contains one of the classes below
 (DV-26). The closure holds the term, the types of its constants, the structures of its
-projections (S-30), the values of the definitions and opaques it reads, the types and
+projections (S-30), the values of the definitions and opaques it reads, the compiled
+pre-definitions of the definitions (S-56), the types and
 constructors of the blocks it registers, and the recursors of one-constructor inductives (S-36);
 it skips the values of theorems and of recognized \code{casesOn} constants.
 
@@ -139,7 +144,9 @@ it skips the values of theorems and of recognized \code{casesOn} constants.
   of an inductive \code{T} with one constructor, or in the shape of \code{RecInFragment}
   (\code{recShapeInFragment}: one inductive, no indices, a universe parameter more than the
   inductive's, induction hypotheses without arguments and about the last fields); a constant with an
-  \code{\_unsafe\_rec} companion (structural or well-founded recursion).
+  \code{\_unsafe\_rec} companion (well-founded recursion, a \code{partial} definition, a mutual
+  block), except a definition by structural recursion under \code{structural := .kernel} or with a
+  compiled pre-definition.
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a definition, theorem or opaque of a mutual block, whose
   \code{all} is not its own name alone (S-51); a nested or unsafe inductive; an \code{@[extern]}
@@ -188,6 +195,10 @@ DV-30 & a saturated recursor of the shape of \code{RecInFragment} evaluates its 
   (a \code{Nat} literal read as \code{Nat.zero} or \code{Nat.succ}, as Lean's kernel reads it) and the
   induction hypotheses before applying the minor; other recursors have no rule \\
 DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion classes above \\
+DV-7 & a definition by structural recursion with a compiled pre-definition has no $\delta$; applied
+  to all the arguments the pre-definition takes, it continues with the pre-definition, under
+  Metalean's conversion; $\lambda_\Box$ unfolds the emitted fixpoint at the first argument \\
+DV-31 & the hypothesis \code{hpre} types the pre-definitions, which the program does not declare \\
 \bottomrule
 \end{tabular}
 
@@ -196,23 +207,23 @@ DV-26 & the fragment is an explicit hypothesis, \code{hfrag}, with the exclusion
   condition: out-of-fragment inputs go to the \code{Meta} path, about which nothing is proved.
 \item \lead{Its lower bound} \code{collectDeps\_ok\_of} (Lemma~\ref{lem:EraseProof-collectDeps_ok_of}):
   every typed program whose read closure is inside Phase I, whose recursors, in every read expression,
-  are of the shape \code{RecInFragment} admits (\code{RecShaped}), with no name collision, is
-  accepted.
+  are of the shape \code{RecInFragment} admits (\code{RecShaped}), whose pre-definitions are read
+  as values (\code{PreRead}), with no name collision, is accepted.
 \end{itemize}
 
 \section{Arithmetic of Init}\label{sec:scope-nat-add}
 
 \begin{itemize}
 \item \lead{Verified end to end} \code{Init}'s \code{Nat.add} on the literals \code{2} and
-  \code{3}, under \code{\{extern := .preferLogical, structural := .kernel, nat := .peano\}}: the
-  instance NV-A discharges all eight hypotheses of the final theorem on \code{Nat.add 2 3}, with
-  \code{Init}'s own declarations (Section~\ref{sec:tests-nva}). Other literals have no
-  instance.
+  \code{3}, with \code{Init}'s own declarations, under \code{\{extern := .preferLogical, nat :=
+  .peano\}}: the instance NV-U discharges all nine hypotheses of the final theorem on
+  \code{Nat.add 2 3} \hl{through the compiled pre-definition}, a $\lambda_\Box$ fixpoint
+  (Section~\ref{sec:tests-nvu}), and NV-A through the kernel definition under
+  \code{structural := .kernel} (Section~\ref{sec:tests-nva}). Other literals have no instance.
 \item \lead{Why this configuration} \code{Nat.add} is \code{@[extern]}: under the default
   \code{preferAxiom} the eraser emits it as an axiom, which the source does not unfold (DV-12);
-  under \code{.preferLogical} it erases the kernel definition. That definition is by structural
-  recursion, which the fragment test admits only under \code{structural := .kernel}; the literals
-  need \code{nat := .peano}.
+  under \code{.preferLogical} it erases its definition, by structural recursion, which the
+  fragment test admits; the literals need \code{nat := .peano}.
 \item \lead{The value} the emitted program evaluates to an erasure of
   \code{Nat.succ (Nat.succ (Nat.succ 2))}; the literal \code{2} stays a literal, so the
   first-order corollary does not apply.
@@ -246,10 +257,6 @@ unsafe & 4 & out \\
   classification on every inductive type with a \code{casesOn} of the environment of the
   regression test \code{pure\_inductive} (\code{Init}, \code{Std}, \code{Lean} and the eraser:
   2719 recognized, 244 rejected, none disagreeing), and so do its constructor arities (4856).
-\item \lead{Matchers} 2201 of the 13244 matchers of \code{Init}, \code{Std} and \code{Lean} pass
-  the fragment test under \code{\{nat := .peano\}}; of the others, the test meets first an
-  \code{@[extern]} constructor in 7617, a recursive definition in 1373, a nested inductive in
-  1319, a string literal in 637 and a recursor in 70.
 \item \lead{Prelude} \code{Bool.and} and \code{Bool.not} are defined by \code{Bool.rec} directly,
   a recursor of the shape of \code{RecInFragment}, so the fragment test admits them;
   \code{Eq.ndrec} reaches \code{Eq.rec}, of an indexed block, which it excludes.
@@ -258,11 +265,10 @@ unsafe & 4 & out \\
 \subsection{The corpus}\label{sec:scope-corpus}
 
 The 294 \code{\#erase} commands of the shipping corpus, through the shipping fragment test
-(\code{tests/harness/expected/pure-harness.txt}): \hl{225 in the fragment, 66 out}, and 3 rejected
-for a name collision. With \code{structural := .kernel} the same commands give 233 in, 57 out and 4
-errors; the 8 programs that move in are the structurally recursive ones, and the oracle's recursor
-$\iota$ answers 10462 calls with no failure. Of the 225 pure-path outputs, 58 hold an inductive block, 3 a $\lambda_\Box$
-\code{case} and 9 a projection. The corpus writes 708 files, recorded by their SHA-256 in
+(\code{tests/harness/expected/pure-harness.txt}): \hl{233 in the fragment, 58 out}, and 3 rejected
+for a name collision; the structurally recursive programs are in through their compiled
+pre-definitions, and the pure oracle answers 9949 calls with no failure. The corpus writes 708
+files, recorded by their SHA-256 in
 \code{tests/corpus/SHA256SUMS}; \code{scripts/corpus.sh -{}-check} compares a fresh run with that
 list (S-54).
 
@@ -270,28 +276,29 @@ list (S-54).
 \toprule
 Exclusion class (the first one met) & Programs \\
 \midrule
-\code{nat := .machine}: \code{Nat} literal / \code{Nat.succ} & 21 / 2 \\
-\code{\_unsafe\_rec} companion (recursive definition; one, \code{Defects.log2}, by well-founded
-  recursion) & 21 \\
+\code{nat := .machine}: \code{Nat} literal / \code{Nat.succ} & 23 / 4 \\
 unsafe constant & 6 \\
+\code{\_unsafe\_rec} companion of a definition that is not structurally recursive
+  (\code{Defects.log2} and \code{Nat.bitwise} by well-founded recursion, \code{Defects.fooI} of a
+  mutual block) & 5 \\
+recursor & 4 \\
 level metavariable / metavariable & 4 / 2 \\
 \code{@[implemented\_by]} & 4 \\
 \code{partial def} & 2 \\
-recursor & 1 \\
 \code{casesOn} on a constructor with an index field & 1 \\
 nested inductive & 1 \\
 string literal & 1 \\
+an inductive under \code{remove\_irrel\_constr\_args} & 1 \\
 \bottomrule
 \end{tabular}
 
 \begin{itemize}
-\item \lead{Recursors} the test admits \code{Bool.rec} and \code{False.rec}, of the shape of
-  \code{RecInFragment}; the one program it excludes for a recursor reaches \code{Eq.rec}
-  (\code{Defects/eq\_cast}); \code{Nat.rec} through structural recursion comes after the
-  \code{\_unsafe\_rec} companion, which the default \code{.unsafeRec} meets first.
-\item \lead{Consequence} \hl{Phase I exercises inductive types on few corpus programs}; in
-  \code{Init}, \code{Std} and \code{Lean} most matchers leave the fragment through an
-  \code{@[extern]} constructor, a recursive definition or a nested inductive.
+\item \lead{Recursors} the test admits \code{Bool.rec}, \code{False.rec} and \code{Nat.rec}, of
+  the shape of \code{RecInFragment}; of the four programs it excludes for a recursor, three reach
+  \code{Eq.rec} (\code{Defects/eq\_cast}, \code{PortProbe/bigEq}, \code{PortProbe/colorCode}) and
+  one \code{Nat.rec} under \code{nat := .machine}, which the eraser keeps as a constant
+  (\code{Defects/mli\_fallback}).
+\item \lead{Consequence} \hl{Phase I exercises inductive types on few corpus programs}.
 \end{itemize}
 
 \section*{Caveats}

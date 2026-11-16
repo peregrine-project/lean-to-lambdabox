@@ -7,11 +7,11 @@
 # that `peregrine eval` (with the table's options) prints must be the table's value, the value of
 # the Lean program (eval's output without its "Compiling:" and "Compiled successfully:" lines,
 # whitespace collapsed; `--anf=false` prints □ as `(FIX 0)`). The programs:
-# - NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's and NV-A's programs as the entry
+# - NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's, NV-A's and NV-U's programs as the entry
 #   point of #erase emits them (proof/tools/NVEmit.lean; check.sh's step nv1-emit writes them to
 #   proof/.check/nv1/NV1.ast, NV2.ast, NVQ.ast, NVR.ast, NVS.ast, NVQP.ast and NVQPFT.ast for
-#   NV-QP's two terms, `orU` on the two representatives of one class, NVL.ast and NVA.ast, which
-#   must exist);
+#   NV-QP's two terms, `orU` on the two representatives of one class, NVL.ast, NVA.ast and
+#   NVU.ast, which must exist);
 # - every output of the regression tests (tests/regress) written under `nat := .peano`, read from
 #   tests/regress/expected/, which scripts/regress.sh requires to equal what the tests write;
 # - the regression tests' outputs for the programs of NV-1, NV-P and NV-K (tests/regress/
@@ -46,6 +46,7 @@ proof/.check/nv1/NVQP.ast                             default -           constr
 proof/.check/nv1/NVQPFT.ast                           default -           constr B.t
 proof/.check/nv1/NVL.ast                              peano   -           constr B.t
 proof/.check/nv1/NVA.ast                              peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+proof/.check/nv1/NVU.ast                              peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 tests/regress/expected/entry_route/nv1.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvp.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvk.ast            default -           constr ER.B.t
@@ -93,6 +94,10 @@ tests/regress/expected/structural/useGet.ast          peano   -           constr
 tests/regress/expected/mutual_block/useEven.ast       peano   -           constr MB.LB.f
 tests/regress/expected/mutual_block/useSingle.ast     peano   -           constr MB.LB.t
 tests/regress/expected/peano_literal/small.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/add.ast        peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/beq.ast        peano   -           constr Bool.false
+tests/regress/expected/pure_unsafe_rec/length.ast     peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
+tests/regress/expected/pure_unsafe_rec/metaAdd.ast    peano   -           constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.succ constr Nat.zero
 EOF
 )
 

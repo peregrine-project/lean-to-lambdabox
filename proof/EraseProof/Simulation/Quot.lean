@@ -52,12 +52,12 @@ theorem srcValue_quotMk_arg {c : Name} {us : List Level} {qv : QuotVal} {α r a 
 of `erases_correct` (`MR E/ErasureCorrectness.v:1148`); DV-29. -/
 theorem erases_correct_quotMk (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {c : Name} {us : List Level} {qv : QuotVal} {α r a a' : Expr}
-    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : SrcEval σ a a')
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : SrcEval σ (SrcConv E B lps) a a')
     (iha : ErasesSim E B lps σ lenv a a') :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) [α, r, a].toArray)
       (mkAppN (.const c us) [α, r, a'].toArray) := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hev : SrcEval σ (mkAppN (.const c us) [α, r, a].toArray)
+  have hev : SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) [α, r, a].toArray)
       (mkAppN (.const c us) [α, r, a'].toArray) := .quotMk hc hk ha
   rcases Erases.quot_inv hc (by rw [hk]; rfl) (by simp) her with ⟨rfl, hbx⟩ |
     ⟨_, _, a₁, extra, a'', extra', -, hl₁, ha'', hlex, -, rfl⟩ |
@@ -93,10 +93,10 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {c c' : Name} {us us' : List Level} {qv qv' : QuotVal}
     {α r β f h q α' r' a b v A : Expr} {x : Name} {bi : BinderInfo}
     (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .lift)
-    (hf : SrcEval σ f (.lam x A b bi))
-    (hq : SrcEval σ q (mkAppN (.const c' us') [α', r', a].toArray))
+    (hf : SrcEval σ (SrcConv E B lps) f (.lam x A b bi))
+    (hq : SrcEval σ (SrcConv E B lps) q (mkAppN (.const c' us') [α', r', a].toArray))
     (hc' : findDecl σ.decls c' = some (.quotInfo qv')) (hk' : qv'.kind = .ctor)
-    (hb : SrcEval σ (b.instantiate1' a) v)
+    (hb : SrcEval σ (SrcConv E B lps) (b.instantiate1' a) v)
     (ihf : ErasesSim E B lps σ lenv f (.lam x A b bi))
     (ihq : ErasesSim E B lps σ lenv q (mkAppN (.const c' us') [α', r', a].toArray))
     (ihb : ErasesSim E B lps σ lenv (b.instantiate1' a) v) :
@@ -104,7 +104,7 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
   have hord := henv.metaOrderOK
-  have hev : SrcEval σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v :=
+  have hev : SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v :=
     .quotLift hc hk hf hq hc' hk' hb
   obtain ⟨η, hB⟩ := henv.lookup_quot (SrcDefeq.findDecl_sub hsub hc)
   obtain ⟨η', hB'⟩ := henv.lookup_quot (SrcDefeq.findDecl_sub hsub hc')
@@ -186,7 +186,7 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     have htb'' := InstPre.PreTr.recover hord (InstPre.PreTr.ofTrM hb₀) (InstPre.Thin.id _) hokA
       ⟨T₀, by rw [Metalean.Expr.rename_id]; exact hb₀T''⟩
     have hsubst := Erases.inst henv hE hok hsub hval hbody htb'' hb₀T'' hva ha₀
-      (Defeq.defeqDF hAA htaA) (SimCases.closed0 ha₀ hva)
+      (Defeq.defeqDF hAA htaA) (SimCases.closed0 ha₀ hva) fun _ => rfl
     have hdl' := ErasesDeps.eval hdf hevf
     cases hdl' with
     | lambda hdb =>
@@ -205,7 +205,8 @@ theorem erases_correct_quotLift (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       .box hevf hevq⟩
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hlv (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hlv
+  | bvar | fvar | letE | app | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+    cases hlv
 
 end
 

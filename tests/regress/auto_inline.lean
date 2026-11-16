@@ -12,6 +12,12 @@ candidate is marked only if:
   applied to a call) and `instLet` (a `let` of a call) are refused, `instLam` (a λ) is marked;
 - it is not tagged `@[noinline]`: `instNo` and `dblNo` are refused, `dblYes` is marked;
 - it is not recursive: `depthInst` is erased to a fixpoint and is not considered.
+
+`useAll` is in the fragment (register entry S-56: `depthInst` is erased through its compiled
+pre-definition), where the pure path marks no instance and logs nothing (S-29). `on.ast` and
+`run.ast` are erased under `remove_irrel_constr_args`, under which the fragment test excludes every
+inductive type, so that they take the `Meta` path; no constructor of the program has an irrelevant
+field, so the option does not change their output.
 -/
 
 -- peregrine: validate on.ast --attributes=on.ast.inlinings
@@ -92,7 +98,9 @@ info: Auto-inlining trivial alias Depth.val (inlined size 4).
 info: val main: unit -> unit
 -/
 #guard_msgs (info, drop warning) in
-#erase useAll config {auto_inline_typeclass_dispatch := true} to "on.ast"
+#erase useAll config {auto_inline_typeclass_dispatch := true, remove_irrel_constr_args := true}
+  to "on.ast"
 
 def run : N := useAll (.s .z)
-#erase run config {auto_inline_typeclass_dispatch := true} to "run.ast"
+#erase run config {auto_inline_typeclass_dispatch := true, remove_irrel_constr_args := true}
+  to "run.ast"

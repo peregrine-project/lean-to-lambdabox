@@ -28,7 +28,7 @@ the bridge restates it rule by rule as a relation.
   \lean{EraseProof.MBinding, EraseProof.Binds, EraseProof.MBinding.isSpecial,
     EraseProof.MBinding.wk, EraseProof.Binds.wk, EraseProof.Binds.set}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{38}
+  \srcloc{proof/EraseProof/Spec.lean}{39}
   \lead{In short} \code{Binds $\zeta$ = Name $\to$ Option (MBinding $\zeta$)} maps a Lean name to
   \hl{the Metalean head it denotes}: Metalean's binding table with heads in place of positions.
   \begin{itemize}
@@ -45,7 +45,7 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-TrLevel}
   \lean{EraseProof.TrLevel, EraseProof.TrLevels}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{77}
+  \srcloc{proof/EraseProof/Spec.lean}{78}
   \lead{In short} \code{TrLevel lps u}: the Lean level \code{u} over the parameters \code{lps}
   as \hl{a Metalean level}; level metavariables do not translate.
   \lead{Reference} \code{translateLevel}, \code{translateLevels}
@@ -58,7 +58,7 @@ the bridge restates it rule by rule as a relation.
     EraseProof.RecrLevels, EraseProof.quotArity, EraseProof.LeanLargeElim}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel}
-  \srcloc{proof/EraseProof/Spec.lean}{230}
+  \srcloc{proof/EraseProof/Spec.lean}{249}
   \lead{In short} \code{SatTr E lps b us args t}: the head \code{b} at levels \code{us}, applied to
   the translated arguments \code{args}, is \hl{the saturated Metalean node or the $\eta$-term}
   \code{t}.
@@ -83,7 +83,7 @@ the bridge restates it rule by rule as a relation.
   \lean{EraseProof.natLitM, EraseProof.natSig, EraseProof.natZeroSig, EraseProof.natSuccSig,
     EraseProof.projProofTerm}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{155}
+  \srcloc{proof/EraseProof/Spec.lean}{174}
   \lead{In short} Two terms of Metalean's checker, copied as total definitions.
   \begin{itemize}
   \item \code{natLitM}: a \code{Nat} literal as \hl{its unary constructor chain}, as Metalean's
@@ -99,7 +99,7 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-TypedExt}
   \lean{EraseProof.TypedExt}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{314}
+  \srcloc{proof/EraseProof/Spec.lean}{333}
   \lead{In short} \code{TypedExt E $\Gamma$ e T}: \code{e} has type \code{T} in \hl{a context
   \code{$\Gamma$'} into which $\Gamma$ embeds} by an injective renaming that preserves the types
   of the variables.
@@ -117,14 +117,17 @@ the bridge restates it rule by rule as a relation.
   \label{def:EraseProof-TrM}
   \lean{EraseProof.TrM, EraseProof.MLDecl,
     EraseProof.MLDecl.denote, EraseProof.MLDecl.wk, EraseProof.MLCtx, EraseProof.MLCtx.pushLam,
-    EraseProof.MLCtx.findB, EraseProof.MLCtx.findF}
+    EraseProof.MLCtx.findB, EraseProof.MLCtx.findF, EraseProof.MLDecl.fixVal?,
+    EraseProof.MLCtx.findFix}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TypedExt}
-  \srcloc{proof/EraseProof/Spec.lean}{324}
+  \srcloc{proof/EraseProof/Spec.lean}{343}
   \lead{In short} \code{TrM E B lps $\Gamma$ $\Delta$ e t}: the Lean term \code{e} is \hl{the Lean
   form of the Metalean term \code{t}} in the context $\Gamma$; $\Delta$ (\code{MLCtx}) maps the
-  Lean locals to Metalean variables or let values.
+  Lean locals to Metalean variables (\code{vlam}), let values (\code{vlet}) or, for the fix
+  variable of a fixpoint body, the translation of the constant it stands for (\code{vfix},
+  read by \code{MLCtx.findFix}; DV-7).
   \begin{tabular}{p{0.2\linewidth}p{0.66\linewidth}}
   \toprule
   Rule & Translation \\
@@ -173,11 +176,12 @@ universe instantiation in place of lean4lean's.
     EraseProof.instantiate1'_fvar_getAppFn, EraseProof.instantiate1'_fvar_eq_const,
     EraseProof.instantiate1'_foldl, EraseProof.MLDecl.denote_wk, EraseProof.MLCtx.findB_map_wk,
     EraseProof.MLCtx.findF_map_wk, EraseProof.mkAppN_eq_foldl, EraseProof.foldl_app_getAppFn,
-    EraseProof.foldl_app_const_inj}
+    EraseProof.foldl_app_const_inj, EraseProof.MLCtx.findFix_map_wk, EraseProof.TrM.dropF,
+    EraseProof.MLCtx.Drop, EraseProof.MLCtx.Drop.pushLam, EraseProof.MLCtx.Drop.cons}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-TypedExt, def:EraseProof-TrM,
     def:EraseProof-DepClosed}
-  \srcloc{proof/EraseProof/Bridge/Weak.lean}{297}
+  \srcloc{proof/EraseProof/Bridge/Weak.lean}{298}
   \lead{In short} \code{TrM} is stable under \hl{a new bound or free variable}, and mentions
   only the locals' free variables.
   \begin{itemize}
@@ -189,7 +193,9 @@ universe instantiation in place of lean4lean's.
         does;
   \item \code{fvarsIn}: the free variables of \code{e} are locals of $\Delta$;
   \item \code{wkFrom}: the general form, a variable inserted at any level (\code{MLCtx.Lift}),
-        \code{TypedExt} carried along.
+        \code{TypedExt} carried along;
+  \item \code{dropF}: strengthening, the converse of \code{weakFV}: a term that does not mention
+        \code{x} translates under the locals without \code{x} (\code{MLCtx.Drop}).
   \end{itemize}
   \lead{Reference} lean4lean \code{TrS.weakBV}, \code{TrS.weakFV}, \code{TrS.fvarsIn};
   \leandecl{Metalean.Defeq.wk}.
@@ -250,6 +256,7 @@ universe instantiation in place of lean4lean's.
   \lean{EraseProof.TrM.instLevels, EraseProof.TrM.instL, EraseProof.SatTr.instL,
     EraseProof.RecrLevels.instL, EraseProof.LevelsExt.TypedExt.instL, EraseProof.MLDecl.instL,
     EraseProof.MLCtx.instL, EraseProof.MLCtx.findB_instL, EraseProof.MLCtx.findF_instL,
+    EraseProof.MLCtx.findFix_instL,
     EraseProof.MLCtx.instL_pushLam, EraseProof.TrLevel_instLevel, EraseProof.TrLevels_instLevel,
     EraseProof.mapM_TrLevel_instLevel, EraseProof.TrLevels_get, EraseProof.find_zip_of_finIdxOf,
     EraseProof.mapM_option_get, EraseProof.instLevels_foldl, EraseProof.instLevels_getAppFn,
@@ -264,7 +271,7 @@ universe instantiation in place of lean4lean's.
   \uses{def:EraseProof-MBinding, def:EraseProof-TrLevel, def:EraseProof-SatTr,
     def:EraseProof-natLitM, def:EraseProof-TypedExt, def:EraseProof-TrM,
     def:Erasure-Pure-instLevels}
-  \srcloc{proof/EraseProof/Bridge/Levels.lean}{323}
+  \srcloc{proof/EraseProof/Bridge/Levels.lean}{337}
   \lead{In short} \code{Pure.instLevels lps' us e} translates to \hl{the translation of \code{e}
   with its universe parameters instantiated}, when \code{TrLevels lps us = some ls}.
   \begin{itemize}
@@ -469,7 +476,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:Erasure-casesInfo,
     def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Spec.lean}{547}
+  \srcloc{proof/EraseProof/Spec.lean}{584}
   \lead{In short} \code{ProgEnv P $\zeta$ E B}: the Lean declarations \code{P} (newest first) are
   \hl{those of the Metalean environment \code{E}}, named by \code{B}, as Metalean's loader builds
   it.
@@ -549,7 +556,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-natLitM,
     def:EraseProof-TypedExt, def:EraseProof-TrM}
-  \srcloc{proof/EraseProof/Bridge/WkEnv.lean}{540}
+  \srcloc{proof/EraseProof/Bridge/WkEnv.lean}{541}
   \lead{In short} A translation in \code{E} and \code{B} stays one \hl{after a new environment
   entry}, of the weakened term, when the new table agrees with the old one, weakened, on the old
   names.
@@ -572,7 +579,8 @@ universe instantiation in place of lean4lean's.
     EraseProof.findDecl_append, EraseProof.findDecl_eq_some, EraseProof.not_mem_of_findDecl_none,
     EraseProof.set_wk_ne, EraseProof.quot_names_reverse, EraseProof.ProgEnv.set_ext,
     EraseProof.ProgEnv.ext_ext, EraseProof.ProgEnv.levelParams_nodup, EraseProof.instLevel_self,
-    EraseProof.ProgEnv.ind_inj, EraseProof.wk_ind}
+    EraseProof.ProgEnv.ind_inj, EraseProof.wk_ind, EraseProof.ProgEnv.const_inj,
+    EraseProof.wk_const}
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:Erasure-Pure-instLevels, def:EraseProof-ConstsIn}
@@ -587,8 +595,9 @@ universe instantiation in place of lean4lean's.
         and field orders;
   \item \code{metaOrderOK}: every constructor binding has Metalean's field order;
   \item \code{levelParams\_nodup}: the universe parameters of every declaration are distinct;
-  \item \code{ind\_inj}: the table binds an inductive sort of a block to one name
-        (\code{wk\_ind}: weakening keeps the binding);
+  \item \code{ind\_inj}, \code{const\_inj}: the table binds an inductive sort of a block, and a
+        Metalean constant, to one name (\code{wk\_ind}, \code{wk\_const}: weakening keeps the
+        binding);
   \item \code{set\_ext}, \code{ext\_ext}: each step of \code{ProgEnv} keeps the old bindings,
         weakened.
   \end{itemize}
@@ -644,7 +653,7 @@ universe instantiation in place of lean4lean's.
   \leanok
   \uses{def:EraseProof-MBinding, def:EraseProof-SatTr, def:EraseProof-TrM, def:EraseProof-ProgEnv,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn}
-  \srcloc{proof/EraseProof/Bridge/RecWhred.lean}{698}
+  \srcloc{proof/EraseProof/Bridge/RecWhred.lean}{700}
   \lead{In short} A saturated recursor \code{T.rec} of a single inductive without indices, whose
   recursive fields take no arguments, \hl{reduces on a constructor value} to the translation of
   the constructor's minor applied to the fields and to the induction hypotheses.

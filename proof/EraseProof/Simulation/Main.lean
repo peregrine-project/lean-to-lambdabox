@@ -1,5 +1,6 @@
 import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Rec
+import EraseProof.Simulation.RecPre
 import EraseProof.Statements
 
 /-!
@@ -47,8 +48,9 @@ theorem short_head {XF a : Expr} (h : ShortSpine σ (.app XF a)) :
 /-- The simulation for every head-β-reduct of the evaluated term. -/
 theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hinj : KernameInj σ.decls) (hbinj : BlockNamesInj σ.decls) (harity : ArityTypes σ.decls)
-    {e v : Expr} (hev : SrcEval σ e v) :
-    ∀ X, HeadBeta σ e X → SrcEval σ X v ∧ ErasesSim E B lps σ lenv X v := by
+    {e v : Expr} (hev : SrcEval σ (SrcConv E B lps) e v) :
+    ∀ X, HeadBeta σ (SrcConv E B lps) e X → SrcEval σ (SrcConv E B lps) X v ∧
+      ErasesSim E B lps σ lenv X v := by
   have hsat : ∀ {ι : Metalean.IndSig} (η : Metalean.Head ζ (.inductive ι)) (s : Fin ι.nsorts)
       {us : List Level} {as₁ as₂ : List (Metalean.Expr ζ lps.length 0)}
       {t₁ t T : Metalean.Expr ζ lps.length 0},
@@ -64,7 +66,8 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
       E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁ :=
     fun η _ _ _ _ _ _ h₁ h ht => SatTr.typed (b := .quot η .type) hE SrcDefeq.nil_ok
       (fun _ _ _ _ h => nomatch h) (fun _ _ _ h => nomatch h) h₁ h ht
-  have spine : ∀ {c us} {as : List Expr} {X}, HeadBeta σ (mkAppN (.const c us) as.toArray) X →
+  have spine : ∀ {c us} {as : List Expr} {X},
+      HeadBeta σ (SrcConv E B lps) (mkAppN (.const c us) as.toArray) X →
       X = mkAppN (.const c us) as.toArray := fun hX => hX.eq_of_head fun _ _ _ n A b bi h => by
     rw [SrcDefeq.getAppFn_mkAppN_const] at h; cases h
   induction hev with
@@ -107,6 +110,12 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     intro X hX
     obtain rfl := hX.eq_of_head fun _ _ h => by cases h
     exact ⟨.delta hu hb, erases_correct_delta henv hE hsub hinj hu hb (ih _ .refl).2⟩
+  | deltaRec hc hdef hco hat hax hrp hpos hlen hlen' hev hconv hb ih ihb =>
+    intro X hX
+    obtain rfl := spine hX
+    exact ⟨.deltaRec hc hdef hco hat hax hrp hpos hlen hlen' hev hconv hb,
+      erases_correct_deltaRec henv hE hsub hinj hc hdef hco hat hax hrp hpos hlen hlen'
+        hev hconv hb (fun i a v h₁ h₂ => (ih i a v h₁ h₂ _ .refl).2) (ihb _ .refl).2⟩
   | constAtom ha =>
     intro X hX
     obtain rfl := hX.eq_of_head fun _ _ h => by cases h

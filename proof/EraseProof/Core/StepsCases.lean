@@ -251,8 +251,8 @@ def CasesSatSpec (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView) (cfg : Er
     ⦃S : Name → Prop⦄ ⦃us : List Level⦄ ⦃as : List Expr⦄ ⦃t : Metalean.Expr ζ lps.length n⦄
     ⦃st : ErasureState⦄ ⦃tc : TravCtx⦄ ⦃ps : PureState⦄ ⦃r : LBTerm⦄ ⦃st' : ErasureState⦄
     ⦃ps' : PureState⦄,
-    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-    (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
+    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+    (∀ d ls, OccursAt d ls (mkAppN (.const c us) as.toArray) → InScope tc lps S d ls) →
     MachineFree cfg (mkAppN (.const c us) as.toArray) →
     NatPlain cfg (mkAppN (.const c us) as.toArray) →
     RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
@@ -281,8 +281,8 @@ theorem go_spec (hG : CoreEnv E B P decls view cfg) {j : Nat} {c : Name} {ci : C
       {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {as : List Expr} {T : Expr}
       {t : Metalean.Expr ζ lps.length n} {st : ErasureState} {tc : TravCtx} {ps : PureState}
       {r : LBTerm} {st' : ErasureState} {ps' : PureState},
-      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-      (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
+      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+      (∀ d ls, OccursAt d ls (mkAppN (.const c us) as.toArray) → InScope tc lps S d ls) →
       MachineFree cfg (mkAppN (.const c us) as.toArray) →
       NatPlain cfg (mkAppN (.const c us) as.toArray) →
       RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
@@ -358,7 +358,11 @@ theorem go_spec (hG : CoreEnv E B P decls view cfg) {j : Nat} {c : Name} {ci : C
         simp only [List.length_append, List.length_singleton]
         omega
       have ⟨hshort, hsat', hdeps, hgr⟩ := ih (S := S) hctx' hsc
-        (fun d hd' => hocc d (by rw [hsnoc] at hd'; simpa [nameOccurs] using hd'))
+        (fun d ls hd' => hocc d ls (by
+          rw [hsnoc] at hd'
+          rcases hd' with h | h
+          · exact h
+          · exact h.elim))
         (by rw [hsnoc]; exact ⟨hmf, trivial⟩) (by rw [hsnoc]; exact ⟨hnp, trivial⟩)
         (by rw [hsnoc]; exact ⟨hrf, trivial⟩) hok he' ⟨_, ht'⟩
         (fun _ => ⟨hpi', hTa', B₁, TrM.inst_fvar hxΔ hb, ht'⟩) hgo

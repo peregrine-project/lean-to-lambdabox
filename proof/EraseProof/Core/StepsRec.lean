@@ -31,6 +31,8 @@ namespace Steps
 open TravFrame
 
 section
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
   {view : EnvView} {cfg : ErasureConfig}
 
@@ -89,8 +91,8 @@ theorem visitExpr_mapM {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e)
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {tc : TravCtx} :
     ∀ {args : List Expr} {st st' : ErasureState} {ps ps' : PureState} {ms : List LBTerm},
-    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-    (∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+    (∀ a ∈ args, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
     StateOK E B (evalEnvOf view cfg decls) st →
     (args.mapM (visitExpr (m := PureM) j)).runPure st tc ⟨decls, view⟩ ps = .ok ((ms, st'), ps') →
@@ -434,8 +436,8 @@ theorem visitRec_spec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm}
     {e : Expr} {t : Metalean.Expr ζ lps.length n} (hfn : e.getAppFn = .const c us)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ U, E[Γ] ⊢ t : U)
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ spineArgs e, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hrun : (visitRec (m := PureM) fuel rv e).runPure st tc ⟨decls, view⟩ ps =
@@ -561,8 +563,9 @@ theorem visitRec_spec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   dsimp only at hr6
   -- the arguments
   have hsub : ∀ l : List Expr, (∀ a ∈ l, a ∈ as) → ∀ a ∈ l,
-      (∀ d, nameOccurs d a = true → S' d) ∧ MachineFree cfg a ∧ NatPlain cfg a ∧ RecShaped cfg decls a ∧
-        ∃ a', TrM E B lps' Γ' Δ' a a' ∧ ∃ A, E[Γ'] ⊢ a' : A := fun l hl a ha => hargs' a (hl a ha)
+      (∀ d ls, OccursAt d ls a → InScope tc' lps' S' d ls) ∧ MachineFree cfg a ∧ NatPlain cfg a ∧
+        RecShaped cfg decls a ∧ ∃ a', TrM E B lps' Γ' Δ' a a' ∧ ∃ A, E[Γ'] ⊢ a' : A :=
+    fun l hl a ha => hargs' a (hl a ha)
   -- the minor premises
   rw [runPure_bind] at hr6
   obtain ⟨⟨⟨ms, st₈⟩, ps₈⟩, hms, hr7⟩ := OracleWhnf.ok_of_bind hr6
@@ -850,8 +853,8 @@ theorem visitApp_rec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls e → InScope tc lps S d ls) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
     (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hrun : (visitApp (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps =
@@ -862,9 +865,8 @@ theorem visitApp_rec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) → Q e →
       Q e.getAppFn ∧ ∀ a ∈ spineArgs e, Q a := fun hQ' h =>
     foldl_pred hQ' (by rw [← mkAppN_toArray, mkAppN_spine]; exact h)
-  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d ls, OccursAt d ls x → InScope tc lps S d ls)
+    (fun f a h => ⟨fun d ls hd => h d ls (.inl hd), fun d ls hd => h d ls (.inr hd)⟩) hocc
   obtain ⟨-, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   obtain ⟨-, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   obtain ⟨hrfF, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
@@ -874,7 +876,7 @@ theorem visitApp_rec (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hcT : c = mkRecName T := (findDecl_eq_some hrv).2.symm.trans hRn
   obtain ⟨U, hU⟩ := ht
   have htyped := rec_args_typed hG hrv hall hcT hblk hsh (hihs _ _ hsh) hctx.wf hfn he hU
-  have hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+  have hargs : ∀ a ∈ spineArgs e, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyped a ha⟩
   cases fuel with

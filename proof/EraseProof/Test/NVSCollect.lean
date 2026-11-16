@@ -11,8 +11,8 @@ with the closure `D` (`Test/NVSRun.lean`) and the view that holds `add`'s compil
 (`isStructuralRecursive`), the other definitions have no companion; `N.rec` through the recognized
 `N.casesOn`, `PProd.rec` and `PUnit.rec` through their single constructor. The values of
 `N.brecOn.go` and `N.below` read `N.rec`, in the shape the fragment admits (`RecInFragment`); it is
-the only recursor the term and the read expressions name. `ok_of` applies `collectDeps_ok_of` to
-them.
+the only recursor the term and the read expressions name. No declaration of `D` has a compiled
+pre-definition (`preD`). `ok_of` applies `collectDeps_ok_of` to them.
 -/
 
 open Lean Erasure
@@ -111,6 +111,14 @@ theorem recShapedD :
   ⟨recShaped_of recInFragD (by krfl) (by krfl), fun ci hci x hx =>
     recShaped_of recInFragD (by krfl) (readAll_of (by krfl) ci hci x hx)⟩
 
+/-- No declaration of `D` has a compiled pre-definition (`preDef?` is `none`:
+the configuration is `structural := .kernel`), so `D` reads them vacuously. -/
+theorem preD : PreRead view cfg D := by
+  intro ci hci _ h
+  have hn : D.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci hci)] at h
+  cases h
+
 /-- The kernames of `D` are distinct. -/
 theorem kernD : KernameInj D := kernameInj_of (by krfl)
 
@@ -133,7 +141,7 @@ theorem blockD : BlockNamesInj D := by
 /-- The fragment test accepts NV-S's term under `structural := .kernel`, by `collectDeps_ok_of`
 from the premises above. -/
 theorem ok_of : ∃ decls', collectDeps view cfg e = .ok decls' :=
-  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD kernD blockD
+  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD preD kernD blockD
     (by decide)
 
 end EraseProof.Test.NVS

@@ -9,12 +9,12 @@ The premises of `collectDeps_ok_of` on NV-A (`Test/NVAData.lean`) under
 (`Test/NVARun.lean`) and the view that holds `Nat.add`'s compiled companion `Nat.add._unsafe_rec`,
 proved from the declarations, not from a run of the fragment test, as for NV-S
 (`Test/NVSCollect.lean`). `Nat.add` is in Phase I as a definition by structural recursion
-(`isStructuralRecursive`), the other definitions have no companion; `Nat.rec` through the
-recognized `Nat.casesOn`, `PProd.rec`, `PUnit.rec` and `OfNat.rec` through their single
-constructor. The values of `Nat.casesOn`, `Nat.brecOn.go` and `Nat.below` read `Nat.rec`, in the
-shape the fragment admits (`RecInFragment`); it is the only recursor the term and the read
-expressions name. The term holds Nat literals, which `nat := .peano` admits (`plainP`). `ok_of`
-applies `collectDeps_ok_of` to them.
+(`isStructuralRecursive`), the other definitions have no companion; `Nat.rec` through the recognized
+`Nat.casesOn`, `PProd.rec`, `PUnit.rec` and `OfNat.rec` through their single constructor. The values
+of `Nat.casesOn`, `Nat.brecOn.go` and `Nat.below` read `Nat.rec`, in the shape the fragment admits
+(`RecInFragment`); it is the only recursor the term and the read expressions name. The term holds
+Nat literals, which `nat := .peano` admits (`plainP`). No declaration of `D` has a compiled
+pre-definition (`preD`). `ok_of` applies `collectDeps_ok_of` to them.
 -/
 
 open Lean Erasure
@@ -160,6 +160,14 @@ theorem recShapedD :
   ⟨recShaped_of recInFragD (by krfl) (by krfl), fun ci hci x hx =>
     recShaped_of recInFragD (by krfl) (readAll_of (by krfl) ci hci x hx)⟩
 
+/-- No declaration of `D` has a compiled pre-definition (`preDef?` is `none`:
+the configuration is `structural := .kernel`), so `D` reads them vacuously. -/
+theorem preD : PreRead view cfg D := by
+  intro ci hci _ h
+  have hn : D.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci hci)] at h
+  cases h
+
 /-- The kernames of `D` are distinct. -/
 theorem kernD : KernameInj D := kernameInj_of (by krfl)
 
@@ -182,7 +190,7 @@ theorem blockD : BlockNamesInj D := by
 `extern := .preferLogical, structural := .kernel, nat := .peano`, by `collectDeps_ok_of` from the
 premises above. -/
 theorem ok_of : ∃ decls', collectDeps view cfg e = .ok decls' :=
-  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD kernD blockD
+  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD preD kernD blockD
     (by decide)
 
 end EraseProof.Test.NVA

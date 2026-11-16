@@ -4,7 +4,7 @@
 \begin{itemize}
 \item \lead{Goal} Show on concrete programs that \hl{every hypothesis of the final theorem holds},
   so that it is not vacuous, and apply it to them.
-\item \lead{Main results} \code{erase\_correct} applied with all eight hypotheses to ten
+\item \lead{Main results} \code{erase\_correct} applied with all nine hypotheses to eleven
   programs: NV-1 (a \code{casesOn} on \code{inductive B | f | t}), NV-P and NV-K (an
   \code{Eq.casesOn} on a constructor and on a lemma), NV-2 (a \code{casesOn} that binds a data
   field and a proof field), NV-Q (a \code{Quot.lift} over a \code{Quot.mk}, applied beyond
@@ -13,7 +13,10 @@
   \code{2} under \code{nat := .peano}), NV-QP (a \code{Quot.lift} over unordered pairs, a quotient
   whose relation identifies distinct values, on both representatives of a class), NV-A
   (\code{Init}'s \code{Nat.add 2 3} under \code{\{extern := .preferLogical, structural := .kernel,
-  nat := .peano\}}); the first-order corollary on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP; the lower
+  nat := .peano\}}), NV-U (the same term under the default \code{structural := .unsafeRec},
+  \hl{\code{Nat.add} erased as a $\lambda_\Box$ fixpoint of its compiled pre-definition}); the
+  hypothesis \code{hpre} on the other ten, none of whose declarations has a compiled
+  pre-definition; the first-order corollary on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP; the lower
   bound \code{collectDeps\_ok\_of} on NV-1, NV-Q, NV-R, NV-S, NV-QP and NV-A; Lean's large
   elimination against Metalean's; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
@@ -24,7 +27,7 @@
   NVQData, NVQModel, NVQRun, NVQFinal, NVRData, NVRModel, NVRRun, NVRFinal, NVSData, NVSRun, NVSBlocks, NVSDefs, NVSFuns, NVSModel, NVSFinal, NVLData, NVLRun, NVLModel,
   NVLFinal, NVQCollect, NVQPData, NVQPRun, NVQPBlocks, NVQPDefs, NVQPResp, NVQPModel, NVQPFinal,
   NVQPCollect, NVAData, NVARun, NVADefs, NVAFuns, NVAOfNat, NVAModel, NVAEval, NVAFinal,
-  NVACollect, LargeElim, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
+  NVACollect, NVUData, NVUCollect, NVURun, NVUModel, NVUEval, NVUFinal, LargeElim, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
 \item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}).
 \end{itemize}
@@ -210,18 +213,22 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 \begin{lemma}[NV-1: the final theorem]
   \label{lem:EraseProof-Test-NV1-final}
   \lean{EraseProof.Test.NV1.final, EraseProof.Test.NV1.mem_P, EraseProof.Test.NV1.hview,
-    EraseProof.Test.NV1.hfrag, EraseProof.Test.NV1.casesOn_B, EraseProof.Test.NV1.ev_ctor0,
-    EraseProof.Test.NV1.hev}
+    EraseProof.Test.NV1.hpre, EraseProof.Test.NV1.hfrag, EraseProof.Test.NV1.casesOn_B,
+    EraseProof.Test.NV1.ev_ctor0, EraseProof.Test.NV1.hev}
   \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
     def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv,
-    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
-    lem:EraseProof-Test-NV1-hrun, def:EraseProof-Test-NV1-E, def:LBTerm, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV1Final.lean}{56}
-  \lead{In short} \code{erase\_correct} applied to NV-1 with \hl{all eight hypotheses}: the
+    def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-PreDefsOK,
+    def:EraseProof-Test-NV1-P, lem:EraseProof-Test-NV1-hrun, def:EraseProof-Test-NV1-E, def:LBTerm,
+    def:ASTType}
+  \srcloc{proof/EraseProof/Test/NV1Final.lean}{65}
+  \lead{In short} \code{erase\_correct} applied to NV-1 with \hl{all nine hypotheses}: the
   program \code{p0} is untyped, and its main term evaluates to an erasure of \code{B.t}.
   \begin{itemize}
   \item \code{hview}: the view of the closure agrees with \code{P};
+  \item \code{hpre}: vacuous, since no declaration of \code{P} has a compiled pre-definition:
+        the view holds no \code{\_unsafe\_rec} companion; the same holds on every instance but
+        NV-U, on NV-S and NV-A because \code{structural := .kernel};
   \item \code{hfrag}: \code{hcollect};
   \item \code{hev}: \code{B.neg B.f} evaluates to \code{B.t}, by $\delta$ on \code{B.neg}, $\beta$,
         and $\iota$ on the saturated \code{B.casesOn} (\code{casesOn\_B}, \code{ev\_ctor0}).
@@ -240,7 +247,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \leanok
   \uses{def:EraseProof-FirstOrderValue, def:EraseProof-LBEval, def:EraseProof-EvalEnv,
     def:EraseProof-Test-NV1-P, lem:EraseProof-Test-NV1-hrun, def:LBTerm, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV1Final.lean}{70}
+  \srcloc{proof/EraseProof/Test/NV1Final.lean}{79}
   \lead{In short} \code{erase\_correct\_firstorder} applied to NV-1: the main term of \code{p0}
   \hl{evaluates to \code{.construct iidB 1 []}}, which is \code{B.t}.
   \begin{itemize}
@@ -263,6 +270,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     EraseProof.Test.NV1.mem_D, EraseProof.Test.NV1.subD, EraseProof.Test.NV1.casesOnD,
     EraseProof.Test.NV1.readExpr_D, EraseProof.Test.NV1.inD, EraseProof.Test.NV1.constsD,
     EraseProof.Test.NV1.readD, EraseProof.Test.NV1.phaseD, EraseProof.Test.NV1.plainD,
+    EraseProof.Test.NV1.preD,
     EraseProof.Test.NV1.notRecD, EraseProof.Test.NV1.recShapedOf, EraseProof.Test.NV1.recShapedD,
     EraseProof.Test.NV1.findDecl_isSome, EraseProof.Test.NV1.kernD, EraseProof.Test.NV1.blockD,
     EraseProof.Test.readAll, EraseProof.Test.readAll_of, EraseProof.Test.notRec,
@@ -272,7 +280,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
     lem:EraseProof-Test-NV1-hrun, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Test/NV1Collect.lean}{266}
+  \srcloc{proof/EraseProof/Test/NV1Collect.lean}{275}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-1 with \hl{every premise proved from
   the declarations}, not from a run of \code{collectDeps}.
   \begin{itemize}
@@ -452,7 +460,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 \begin{lemma}[NV-P and NV-K: the final theorem]
   \label{lem:EraseProof-Test-NVP-final}
   \lean{EraseProof.Test.NVP.final, EraseProof.Test.NVP.mem_P, EraseProof.Test.NVP.hview,
-    EraseProof.Test.NVP.hfrag, EraseProof.Test.NVP.hrun, EraseProof.Test.NVP.casesOn_Eq,
+    EraseProof.Test.NVP.hpre, EraseProof.Test.NVK.hpre, EraseProof.Test.NVP.hfrag,
+    EraseProof.Test.NVP.hrun, EraseProof.Test.NVP.casesOn_Eq,
     EraseProof.Test.NVP.reflE, EraseProof.Test.NVP.ev_refl, EraseProof.Test.NVP.hev,
     EraseProof.Test.NVK.mem_P, EraseProof.Test.NVK.hview, EraseProof.Test.NVK.hfrag,
     EraseProof.Test.NVK.hrun, EraseProof.Test.NVK.casesOn_Eq, EraseProof.Test.NVK.hev,
@@ -463,8 +472,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-Test-NV1-P,
     def:EraseProof-Test-NVP-P, lem:EraseProof-Test-NVPK-hrun, def:EraseProof-Test-NVP-EB,
     def:LBTerm, def:toKername, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NVPFinal.lean}{63}
-  \lead{In short} \code{erase\_correct} applied to NV-P and NV-K with \hl{all eight hypotheses}:
+  \srcloc{proof/EraseProof/Test/NVPFinal.lean}{72}
+  \lead{In short} \code{erase\_correct} applied to NV-P and NV-K with \hl{all nine hypotheses}:
   the emitted program evaluates to an erasure of \code{fun y => y}.
   \begin{itemize}
   \item \code{NVP.hev}: $\iota$ on \code{Eq.refl} (\code{SrcEval.casesIota});
@@ -635,7 +644,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 \begin{lemma}[NV-2: the final theorem]
   \label{lem:EraseProof-Test-NV2-final}
   \lean{EraseProof.Test.NV2.final, EraseProof.Test.NV2.mem_P, EraseProof.Test.NV2.hview,
-    EraseProof.Test.NV2.hfrag, EraseProof.Test.NV2.casesOn_W, EraseProof.Test.NV2.ev_ctor0,
+    EraseProof.Test.NV2.hpre, EraseProof.Test.NV2.hfrag, EraseProof.Test.NV2.casesOn_W,
+    EraseProof.Test.NV2.ev_ctor0,
     EraseProof.Test.NV2.ev_mj, EraseProof.Test.NV2.ev_alt, EraseProof.Test.NV2.hev}
   \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
@@ -643,8 +653,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NV1-P,
     def:EraseProof-Test-NV2-P, lem:EraseProof-Test-NV2-hrun, def:EraseProof-Test-NV2-E, def:LBTerm,
     def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV2Final.lean}{69}
-  \lead{In short} \code{erase\_correct} applied to NV-2 with \hl{all eight hypotheses}: the
+  \srcloc{proof/EraseProof/Test/NV2Final.lean}{78}
+  \lead{In short} \code{erase\_correct} applied to NV-2 with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}.
   \begin{itemize}
   \item \code{hev}: the major evaluates to a constructor value (\code{ev\_mj}), $\iota$ selects the
@@ -665,7 +675,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \uses{def:EraseProof-FirstOrderValue, def:EraseProof-LBEval, def:EraseProof-EvalEnv,
     def:EraseProof-Test-NV1-P, lem:EraseProof-Test-NV1-hrun, def:EraseProof-Test-NV2-P,
     lem:EraseProof-Test-NV2-hrun, def:LBTerm, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NV2Final.lean}{84}
+  \srcloc{proof/EraseProof/Test/NV2Final.lean}{93}
   \lead{In short} \code{erase\_correct\_firstorder} applied to NV-2: the emitted program
   \hl{evaluates to \code{B.t}}, as on NV-1.
 \end{lemma}
@@ -789,7 +799,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 
 \begin{lemma}[NV-Q: the final theorem]
   \label{lem:EraseProof-Test-NVQ-final}
-  \lean{EraseProof.Test.NVQ.mem_P, EraseProof.Test.NVQ.hview, EraseProof.Test.NVQ.hfrag,
+  \lean{EraseProof.Test.NVQ.mem_P, EraseProof.Test.NVQ.hview, EraseProof.Test.NVQ.hpre,
+   EraseProof.Test.NVQ.hfrag,
    EraseProof.Test.NVQ.ev_lam, EraseProof.Test.NVQ.ev_lift, EraseProof.Test.NVQ.ev_cT,
    EraseProof.Test.NVQ.hev, EraseProof.Test.NVQ.final, EraseProof.Test.NVQ.qT,
    EraseProof.Test.NVQ.quot_not_blocksCong, EraseProof.Test.NVQ.quot_not_short,
@@ -802,7 +813,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NVQ-P,
     lem:EraseProof-Test-NVQ-hrun, def:EraseProof-Test-NVQ-E, def:LBTerm, def:ASTType}
   \srcloc{proof/EraseProof/Test/NVQFinal.lean}{25}
-  \lead{In short} \code{erase\_correct} applied to NV-Q with \hl{all eight hypotheses}: the
+  \lead{In short} \code{erase\_correct} applied to NV-Q with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}.
   \begin{itemize}
   \item \code{hfrag}: the closure contains \code{Quot}, \code{Quot.mk} and \code{Quot.lift};
@@ -828,12 +839,12 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \lean{EraseProof.Test.NVQ.mem_D, EraseProof.Test.NVQ.subD, EraseProof.Test.NVQ.inD,
    EraseProof.Test.NVQ.readD, EraseProof.Test.NVQ.phaseD, EraseProof.Test.NVQ.plainD,
    EraseProof.Test.NVQ.recShapedOf, EraseProof.Test.NVQ.recShapedD, EraseProof.Test.NVQ.kernD,
-   EraseProof.Test.NVQ.blockD, EraseProof.Test.NVQ.ok_of}
+   EraseProof.Test.NVQ.blockD, EraseProof.Test.NVQ.preD, EraseProof.Test.NVQ.ok_of}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig,
     def:EraseProof-Test-NVQ-P, lem:EraseProof-Test-NVQ-hrun, lem:EraseProof-Test-NV1-ok_of}
-  \srcloc{proof/EraseProof/Test/NVQCollect.lean}{22}
+  \srcloc{proof/EraseProof/Test/NVQCollect.lean}{23}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-Q, whose closure \code{D} holds the
   quotient constants, the axioms \code{R} and \code{hR}, \code{B}, and \code{Eq} with
   \code{Eq.rec}: \hl{every premise proved from the declarations}, not from a run of the fragment
@@ -985,7 +996,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
 
 \begin{lemma}[NV-R: the final theorem]
   \label{lem:EraseProof-Test-NVR-final}
-  \lean{EraseProof.Test.NVR.mem_P, EraseProof.Test.NVR.hview, EraseProof.Test.NVR.hfrag,
+  \lean{EraseProof.Test.NVR.mem_P, EraseProof.Test.NVR.hview, EraseProof.Test.NVR.hpre,
+   EraseProof.Test.NVR.hfrag,
    EraseProof.Test.NVR.ev_ctor0, EraseProof.Test.NVR.ev_mj, EraseProof.Test.NVR.ev_mins,
    EraseProof.Test.NVR.minors_shape, EraseProof.Test.NVR.ev_ih, EraseProof.Test.NVR.ev_minS,
    EraseProof.Test.NVR.hev, EraseProof.Test.NVR.final, EraseProof.Test.NVR.fo_cT,
@@ -996,8 +1008,8 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
     def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NVR-P,
     lem:EraseProof-Test-NVR-hrun, def:EraseProof-Test-NVR-E, def:LBTerm, def:ASTType,
     cor:EraseProof-erase_correct_firstorder}
-  \srcloc{proof/EraseProof/Test/NVRFinal.lean}{27}
-  \lead{In short} \code{erase\_correct} applied to NV-R with \hl{all eight hypotheses}: the
+  \srcloc{proof/EraseProof/Test/NVRFinal.lean}{28}
+  \lead{In short} \code{erase\_correct} applied to NV-R with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}.
   \begin{itemize}
   \item \code{hfrag}: the closure contains \code{N.rec}, which \code{RecInFragment} admits;
@@ -1019,12 +1031,12 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \lean{EraseProof.Test.NVR.ok_of, EraseProof.Test.NVR.mem_D, EraseProof.Test.NVR.subD,
     EraseProof.Test.NVR.inD, EraseProof.Test.NVR.readD, EraseProof.Test.NVR.recInFragD,
     EraseProof.Test.NVR.phaseD, EraseProof.Test.NVR.plainD, EraseProof.Test.NVR.recShapedD,
-    EraseProof.Test.NVR.kernD, EraseProof.Test.NVR.blockD}
+    EraseProof.Test.NVR.kernD, EraseProof.Test.NVR.blockD, EraseProof.Test.NVR.preD}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NVR-P,
     lem:EraseProof-Test-NVR-hrun, lem:EraseProof-Test-NV1-ok_of, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Test/NVRCollect.lean}{91}
+  \srcloc{proof/EraseProof/Test/NVRCollect.lean}{100}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-R, whose term reads the recursor
   \code{N.rec}: \hl{every premise proved from the declarations}, not from a run of the fragment
   test.
@@ -1150,14 +1162,14 @@ A function by structural recursion, erased through the kernel definitions under
    EraseProof.Test.NVS.hrun}
   \leanok
   \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM, def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:EraseProof-Test-NVS-P, lem:EraseProof-Test-NVR-hrun, def:LBTerm, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-EraseT}
-  \srcloc{proof/EraseProof/Test/NVSRun.lean}{32}
+  \srcloc{proof/EraseProof/Test/NVSRun.lean}{33}
   \lead{In short} \code{\#erase} takes the pure path on NV-S and returns \code{p0}, with the
   inlinings \code{[Unit.unit, add.match\_1]}: the fragment test accepts the closure and the
   traversal erases every declaration it reads.
   \begin{itemize}
   \item \code{hcollect}: the closure is \code{D}, by evaluation; \code{hcollect\_default}: under
-        the default configuration the test rejects the program as outside the fragment, since the
-        view holds the companion;
+        the default configuration the test returns the same closure, \code{add} being in the
+        fragment through its compiled pre-definition;
   \item the runs, bottom-up: the blocks of \code{N}, \code{PProd} and \code{PUnit}
         (\code{register\_\ldots}); \code{N.brecOn.go} through \code{visitRec}; \code{N.brecOn},
         \code{add.match\_1} (a \code{casesOn}), \code{add.\_f} (a projection of \code{PProd}) and
@@ -1414,7 +1426,8 @@ A function by structural recursion, erased through the kernel definitions under
 
 \begin{lemma}[NV-S: the final theorem]
   \label{lem:EraseProof-Test-NVS-final}
-  \lean{EraseProof.Test.NVS.mem_P, EraseProof.Test.NVS.hview, EraseProof.Test.NVS.hfrag,
+  \lean{EraseProof.Test.NVS.mem_P, EraseProof.Test.NVS.hview, EraseProof.Test.NVS.hpre,
+   EraseProof.Test.NVS.hfrag,
    EraseProof.Test.NVS.σ, EraseProof.Test.NVS.ml, EraseProof.Test.NVS.ssz,
    EraseProof.Test.NVS.ns_lam, EraseProof.Test.NVS.ns_const, EraseProof.Test.NVS.ev_atom,
    EraseProof.Test.NVS.ev_delta, EraseProof.Test.NVS.ev_cZ, EraseProof.Test.NVS.ev_mj,
@@ -1438,7 +1451,7 @@ A function by structural recursion, erased through the kernel definitions under
   \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError, def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases, def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn, def:EraseProof-Test-NVS-P, lem:EraseProof-Test-NVS-hrun, def:EraseProof-Test-NVS-E, def:LBTerm, def:ASTType, cor:EraseProof-erase_correct_firstorder}
   \srcloc{proof/EraseProof/Test/NVSFinal.lean}{30}
-  \lead{In short} \code{erase\_correct} applied to NV-S with \hl{all eight hypotheses}: the
+  \lead{In short} \code{erase\_correct} applied to NV-S with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{N.s (N.s N.z)}.
   \begin{itemize}
   \item \code{hfrag}: the fragment test accepts the closure (\code{hcollect}), with
@@ -1463,12 +1476,13 @@ A function by structural recursion, erased through the kernel definitions under
   \lean{EraseProof.Test.NVS.ok_of, EraseProof.Test.NVS.mem_D, EraseProof.Test.NVS.subD,
     EraseProof.Test.NVS.inD, EraseProof.Test.NVS.readD, EraseProof.Test.NVS.recInFragD,
     EraseProof.Test.NVS.phaseD, EraseProof.Test.NVS.notElimPU, EraseProof.Test.NVS.plainD,
-    EraseProof.Test.NVS.recShapedD, EraseProof.Test.NVS.kernD, EraseProof.Test.NVS.blockD}
+    EraseProof.Test.NVS.recShapedD, EraseProof.Test.NVS.kernD, EraseProof.Test.NVS.blockD,
+    EraseProof.Test.NVS.preD}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:EraseProof-Test-NVS-P,
     lem:EraseProof-Test-NVS-hrun, lem:EraseProof-Test-NV1-ok_of, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Test/NVSCollect.lean}{133}
+  \srcloc{proof/EraseProof/Test/NVSCollect.lean}{141}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-S under \code{structural := .kernel}, on
   the view that holds \code{add.\_unsafe\_rec}: \hl{every premise proved from the declarations}.
   \begin{itemize}
@@ -1618,7 +1632,8 @@ A function by structural recursion, erased through the kernel definitions under
 
 \begin{lemma}[NV-L: the final theorem]
   \label{lem:EraseProof-Test-NVL-final}
-  \lean{EraseProof.Test.NVL.mem_P, EraseProof.Test.NVL.hview, EraseProof.Test.NVL.hfrag,
+  \lean{EraseProof.Test.NVL.mem_P, EraseProof.Test.NVL.hview, EraseProof.Test.NVL.hpre,
+   EraseProof.Test.NVL.hfrag,
    EraseProof.Test.NVL.ev_ctor0, EraseProof.Test.NVL.ev_mins, EraseProof.Test.NVL.minors_shape,
    EraseProof.Test.NVL.ev_lit, EraseProof.Test.NVL.ev_ih0, EraseProof.Test.NVL.ev_minS,
    EraseProof.Test.NVL.ev_succ, EraseProof.Test.NVL.hev, EraseProof.Test.NVL.final,
@@ -1630,7 +1645,7 @@ A function by structural recursion, erased through the kernel definitions under
     def:EraseProof-Test-NVL-P, lem:EraseProof-Test-NVL-hrun, def:EraseProof-Test-NVL-E,
     def:LBTerm, def:ASTType, cor:EraseProof-erase_correct_firstorder}
   \srcloc{proof/EraseProof/Test/NVLFinal.lean}{29}
-  \lead{In short} \code{erase\_correct} applied to NV-L with \hl{all eight hypotheses}: the
+  \lead{In short} \code{erase\_correct} applied to NV-L with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}.
   \begin{itemize}
   \item \code{hfrag}: the closure contains \code{Nat.rec}, which \code{RecInFragment} admits;
@@ -1993,7 +2008,8 @@ A function by structural recursion, erased through the kernel definitions under
 
 \begin{lemma}[NV-QP: the final theorem]
   \label{lem:EraseProof-Test-NVQP-final}
-  \lean{EraseProof.Test.NVQP.mem_P, EraseProof.Test.NVQP.hview, EraseProof.Test.NVQP.hfrag,
+  \lean{EraseProof.Test.NVQP.mem_P, EraseProof.Test.NVQP.hview, EraseProof.Test.NVQP.hpre,
+   EraseProof.Test.NVQP.hfrag,
    EraseProof.Test.NVQP.σ, EraseProof.Test.NVQP.ns_const, EraseProof.Test.NVQP.ns_lam,
    EraseProof.Test.NVQP.ev_atom, EraseProof.Test.NVQP.ev_cT, EraseProof.Test.NVQP.ev_cF,
    EraseProof.Test.NVQP.ev_tB, EraseProof.Test.NVQP.ev_pair, EraseProof.Test.NVQP.ev_class,
@@ -2009,8 +2025,8 @@ A function by structural recursion, erased through the kernel definitions under
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-ConstsIn,
     def:EraseProof-Test-NVQP-P, lem:EraseProof-Test-NVQP-hrun, def:EraseProof-Test-NVQP-E,
     def:LBTerm, def:ASTType, cor:EraseProof-erase_correct_firstorder}
-  \srcloc{proof/EraseProof/Test/NVQPFinal.lean}{32}
-  \lead{In short} \code{erase\_correct} applied to NV-QP with \hl{all eight hypotheses}: the
+  \srcloc{proof/EraseProof/Test/NVQPFinal.lean}{33}
+  \lead{In short} \code{erase\_correct} applied to NV-QP with \hl{all nine hypotheses}: the
   emitted program evaluates to an erasure of \code{B.t}; and \code{hevFT}, \hl{the second
   representative of the class evaluates to \code{B.t} too}.
   \begin{itemize}
@@ -2035,12 +2051,13 @@ A function by structural recursion, erased through the kernel definitions under
   \lean{EraseProof.Test.NVQP.mem_D, EraseProof.Test.NVQP.subD, EraseProof.Test.NVQP.inD,
    EraseProof.Test.NVQP.readD, EraseProof.Test.NVQP.phaseD, EraseProof.Test.NVQP.plainD,
    EraseProof.Test.NVQP.recShapedOf, EraseProof.Test.NVQP.recShapedD,
-   EraseProof.Test.NVQP.kernD, EraseProof.Test.NVQP.blockD, EraseProof.Test.NVQP.ok_of}
+   EraseProof.Test.NVQP.kernD, EraseProof.Test.NVQP.blockD, EraseProof.Test.NVQP.preD,
+   EraseProof.Test.NVQP.ok_of}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig,
     def:EraseProof-Test-NVQP-P, lem:EraseProof-Test-NVQP-hrun, lem:EraseProof-Test-NV1-ok_of}
-  \srcloc{proof/EraseProof/Test/NVQPCollect.lean}{24}
+  \srcloc{proof/EraseProof/Test/NVQPCollect.lean}{25}
   \lead{In short} \code{collectDeps\_ok\_of} applied to NV-QP: \hl{every premise proved from the
   declarations}.
   \begin{itemize}
@@ -2093,7 +2110,7 @@ A function by structural recursion, erased through the kernel definitions under
   \leanok
   \uses{def:Erasure-EnvView, def:Erasure-findConst, def:EraseProof-Test-NVS-P,
     def:EraseProof-Test-NVL-P, def:Erasure-ErasureConfig}
-  \srcloc{proof/EraseProof/Test/NVAData.lean}{42}
+  \srcloc{proof/EraseProof/Test/NVAData.lean}{43}
   \lead{In short} \code{e = Nat.add 2 3} over \code{Init}'s \code{Nat}, \code{Nat.add} and
   \code{OfNat}, erased with \code{\{extern := .preferLogical, structural := .kernel, nat :=
   .peano\}}, which \hl{evaluates to \code{Nat.succ (Nat.succ (Nat.succ 2))}}.
@@ -2176,13 +2193,14 @@ A function by structural recursion, erased through the kernel definitions under
     def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:LBTerm, def:ASTType,
     def:Erasure-ErasureConfig, def:Erasure-EraseT, def:EraseProof-Test-NVA-P,
     lem:EraseProof-Test-NVS-hrun, lem:EraseProof-Test-NVL-hrun}
-  \srcloc{proof/EraseProof/Test/NVARun.lean}{42}
+  \srcloc{proof/EraseProof/Test/NVARun.lean}{43}
   \lead{In short} \code{\#erase} takes the pure path on NV-A and returns \code{p0}: \hl{the
   kernel definition of the \code{@[extern]} \code{Nat.add}}, erased through \code{Nat.brecOn},
   and the numerals as constructor chains.
   \begin{itemize}
   \item \code{hcollect}: the closure is \code{D}, by evaluation; \code{hcollect\_default}: under
-        the default configuration the test rejects the program, since the view holds the companion;
+        \code{structural := .unsafeRec} the test returns the same closure, \code{Nat.add} being
+        in the fragment through its compiled pre-definition;
   \item \code{kername\_add}: the eraser reads \code{Nat.add}'s \code{@[extern]} attribute and,
         under \code{.preferLogical}, erases its kernel definition;
   \item \code{kername\_brecOn}, \code{kername\_f}: \code{Nat.brecOn.go} through \code{visitRec};
@@ -2497,15 +2515,15 @@ A function by structural recursion, erased through the kernel definitions under
 
 \begin{lemma}[NV-A: the final theorem]
   \label{lem:EraseProof-Test-NVA-final}
-  \lean{EraseProof.Test.NVA.mem_P, EraseProof.Test.NVA.hview, EraseProof.Test.NVA.hfrag,
-    EraseProof.Test.NVA.final}
+  \lean{EraseProof.Test.NVA.mem_P, EraseProof.Test.NVA.hview, EraseProof.Test.NVA.hpre,
+    EraseProof.Test.NVA.hfrag, EraseProof.Test.NVA.final}
   \leanok
   \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:Erasure-EraseError,
     def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases,
     def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-Test-NVA-P,
     lem:EraseProof-Test-NVA-hrun, def:EraseProof-Test-NVA-E, def:LBTerm, def:ASTType}
-  \srcloc{proof/EraseProof/Test/NVAFinal.lean}{25}
-  \lead{In short} \code{erase\_correct} applied to NV-A with \hl{all eight hypotheses}: the program
+  \srcloc{proof/EraseProof/Test/NVAFinal.lean}{26}
+  \lead{In short} \code{erase\_correct} applied to NV-A with \hl{all nine hypotheses}: the program
   \code{\#erase} emits for \code{Init}'s \code{Nat.add 2 3} evaluates to an erasure of
   \code{Nat.succ (Nat.succ (Nat.succ 2))}.
   \begin{itemize}
@@ -2529,7 +2547,7 @@ A function by structural recursion, erased through the kernel definitions under
     EraseProof.Test.NVA.subD, EraseProof.Test.NVA.inD, EraseProof.Test.NVA.readD,
     EraseProof.Test.NVA.recInFragD, EraseProof.Test.NVA.notElimPU, EraseProof.Test.NVA.phaseD,
     EraseProof.Test.NVA.plainD, EraseProof.Test.NVA.recShapedD, EraseProof.Test.NVA.kernD,
-    EraseProof.Test.NVA.blockD, EraseProof.Test.NVA.ok_of}
+    EraseProof.Test.NVA.blockD, EraseProof.Test.NVA.preD, EraseProof.Test.NVA.ok_of}
   \leanok
   \uses{def:EraseProof-PhaseIDecl, def:Erasure-EraseError, def:Erasure-collectDeps,
     def:EraseProof-EvalEnv, def:EraseProof-ConstsIn, def:Erasure-ErasureConfig,
@@ -2557,6 +2575,194 @@ A function by structural recursion, erased through the kernel definitions under
   \leanok
   \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by
   \code{decide}.
+\end{proof}
+
+\section{NV-U}\label{sec:tests-nvu}
+
+The term \code{Nat.add 2 3} of NV-A under the default \code{structural := .unsafeRec}:
+\code{Nat.add} is erased through its compiled pre-definition, as a $\lambda_\Box$ fixpoint.
+
+\begin{definition}[NV-U: the program and the pre-definition]
+  \label{def:EraseProof-Test-NVU-P}
+  \lean{EraseProof.Test.NVU.cfgU, EraseProof.Test.NVU.cfgU_eq, EraseProof.Test.NVU.motPre,
+    EraseProof.Test.NVU.altPre1, EraseProof.Test.NVU.altPre2, EraseProof.Test.NVU.preVal,
+    EraseProof.Test.NVU.preVal_eq, EraseProof.Test.NVU.preDef_add}
+  \leanok
+  \uses{def:EraseProof-Test-NVA-P, def:Erasure-preDef, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVUData.lean}{34}
+  \lead{In short} NV-A's \code{P}, \code{e} and view under \code{cfgU}, \code{\{extern :=
+  .preferLogical, nat := .peano\}} with the default \code{structural := .unsafeRec}: \hl{the
+  view's companion \code{Nat.add.\_unsafe\_rec} gives \code{Nat.add} the pre-definition
+  \code{preVal}}.
+  \begin{itemize}
+  \item \code{preVal}: \code{fun x y => Nat.add.match\_1 (fun x y => Nat) x y (fun a => a) (fun a
+        b => Nat.succ (Nat.add a b))}, the recursive call saturated under the second
+        alternative's $\lambda$s;
+  \item \code{preVal\_eq}: \code{renameUnsafeRec} of the companion's value;
+        \code{preDef\_add}: \code{preDef? view cfgU Nat.add = some preVal};
+  \item \code{cfgU\_eq}: \code{cfgU} is the configuration written with its defaults.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-U: the fragment test and the run]
+  \label{lem:EraseProof-Test-NVU-hrun}
+  \lean{EraseProof.Test.NVU.hcollect, EraseProof.Test.NVU.register_Nat_new,
+    EraseProof.Test.NVU.register_Of_new, EraseProof.Test.NVU.fvar_run,
+    EraseProof.Test.NVU.sArg_run, EraseProof.Test.NVU.lit0_run, EraseProof.Test.NVU.litS_run,
+    EraseProof.Test.NVU.lit2_run, EraseProof.Test.NVU.lit3_run, EraseProof.Test.NVU.lsA,
+    EraseProof.Test.NVU.lsM, EraseProof.Test.NVU.motM, EraseProof.Test.NVU.alt1,
+    EraseProof.Test.NVU.alt2, EraseProof.Test.NVU.mB, EraseProof.Test.NVU.withApp_mB,
+    EraseProof.Test.NVU.alt1L, EraseProof.Test.NVU.alt2L, EraseProof.Test.NVU.alt1_run,
+    EraseProof.Test.NVU.alt2_run, EraseProof.Test.NVU.altsM, EraseProof.Test.NVU.altsM_z,
+    EraseProof.Test.NVU.altsM_s, EraseProof.Test.NVU.altsM_all, EraseProof.Test.NVU.caseM,
+    EraseProof.Test.NVU.visitCasesOn_run, EraseProof.Test.NVU.visitCases_run,
+    EraseProof.Test.NVU.mB_run, EraseProof.Test.NVU.matchVLU, EraseProof.Test.NVU.matchV_run,
+    EraseProof.Test.NVU.stMt, EraseProof.Test.NVU.visitMutual_match,
+    EraseProof.Test.NVU.kername_match, EraseProof.Test.NVU.fixM, EraseProof.Test.NVU.fixM_add,
+    EraseProof.Test.NVU.fixM_add', EraseProof.Test.NVU.fixM_match, EraseProof.Test.NVU.lsB,
+    EraseProof.Test.NVU.callB, EraseProof.Test.NVU.withApp_callB, EraseProof.Test.NVU.callBL,
+    EraseProof.Test.NVU.callB_run, EraseProof.Test.NVU.preB, EraseProof.Test.NVU.withApp_preB,
+    EraseProof.Test.NVU.altP1L, EraseProof.Test.NVU.altP2L, EraseProof.Test.NVU.preBL,
+    EraseProof.Test.NVU.preB_run, EraseProof.Test.NVU.preVL, EraseProof.Test.NVU.preV_run,
+    EraseProof.Test.NVU.addU, EraseProof.Test.NVU.addDefL, EraseProof.Test.NVU.addFixL,
+    EraseProof.Test.NVU.addFixL_eq, EraseProof.Test.NVU.mkDef_run, EraseProof.Test.NVU.stAdd,
+    EraseProof.Test.NVU.visitMutual_add, EraseProof.Test.NVU.kername_add, EraseProof.Test.NVU.lsO,
+    EraseProof.Test.NVU.projOf_run, EraseProof.Test.NVU.ofNatVLU, EraseProof.Test.NVU.stON,
+    EraseProof.Test.NVU.visitMutual_ofNat, EraseProof.Test.NVU.kername_ofNat,
+    EraseProof.Test.NVU.mkB, EraseProof.Test.NVU.withApp_mkB, EraseProof.Test.NVU.mkBL,
+    EraseProof.Test.NVU.mkB_run, EraseProof.Test.NVU.instVLU, EraseProof.Test.NVU.stIn,
+    EraseProof.Test.NVU.visitMutual_inst, EraseProof.Test.NVU.kername_inst,
+    EraseProof.Test.NVU.instK_run, EraseProof.Test.NVU.numK_run, EraseProof.Test.NVU.stE,
+    EraseProof.Test.NVU.withApp_e, EraseProof.Test.NVU.e_run, EraseProof.Test.NVU.pU,
+    EraseProof.Test.NVU.hpure, EraseProof.Test.NVU.hrun}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM,
+    def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:Erasure-preDef,
+    def:LBTerm, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-EraseT,
+    def:EraseProof-Test-NVU-P, lem:EraseProof-Test-NVA-hrun}
+  \srcloc{proof/EraseProof/Test/NVUCollect.lean}{19}
+  \lead{In short} \code{\#erase} takes the pure path on NV-U and returns \code{pU}: NV-A's
+  program with \hl{\code{Nat.add} the $\lambda_\Box$ fixpoint \code{addFixL}}, and without
+  \code{Nat.add.\_f}, \code{Nat.brecOn}, \code{Nat.brecOn.go}, \code{PUnit} and \code{PProd}.
+  \begin{itemize}
+  \item \code{hcollect}: the closure is NV-A's \code{D}, in the same order, by evaluation;
+  \item \code{kername\_add}: \code{declInfo?} gives \code{Nat.add} with \code{preVal} as its
+        value, which mentions \code{Nat.add}, so \code{visitMutual} takes its fixpoint branch:
+        the fix variable (\code{fixM}), the body erased, then abstracted (\code{mkDef\_run});
+  \item \code{callB\_run}: the recursive call \code{Nat.add a b} erases to the fix variable
+        applied to \code{a} and \code{b}; \code{kername\_match}: \code{Nat.add.match\_1}, a
+        $\lambda_\Box$ constant whose \code{casesOn} is a \code{case};
+  \item \code{addFixL\_eq}: the closed form of the fixpoint, recursive-argument index 0;
+        \code{pU} is the output \code{add.ast} of the regression test
+        \leanfile{tests/regress/pure\_unsafe\_rec.lean}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-EnvView, lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} One traversal call at a time, with NV-S's and NV-A's steps; the fresh locals
+  numbered in the order the traversal opens them, the fix variable first.
+\end{proof}
+
+\begin{lemma}[NV-U: the pre-definition is typed]
+  \label{lem:EraseProof-Test-NVU-hpre}
+  \lean{EraseProof.Test.NVU.m13, EraseProof.Test.NVU.B13_match, EraseProof.Test.NVU.t_mt13,
+    EraseProof.Test.NVU.motPM, EraseProof.Test.NVU.alt1PM, EraseProof.Test.NVU.alt2PM,
+    EraseProof.Test.NVU.preValM, EraseProof.Test.NVU.tr_preVal, EraseProof.Test.NVU.tr_addTy,
+    EraseProof.Test.NVU.motPM_typed, EraseProof.Test.NVU.motPM_beta,
+    EraseProof.Test.NVU.preValM_typed, EraseProof.Test.NVU.preDef_P, EraseProof.Test.NVU.hpre}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-PreDefsOK,
+    def:EraseProof-Test-NVU-P, def:EraseProof-Test-NVA-E}
+  \srcloc{proof/EraseProof/Test/NVUModel.lean}{29}
+  \lead{In short} \code{hpre} on NV-U: in NV-A's model, \hl{\code{preVal} is the Lean form of the
+  closed Metalean term \code{preValM}, typed at \code{Nat.add}'s type}.
+  \begin{itemize}
+  \item \code{tr\_preVal}, \code{preValM\_typed}: the match \code{Nat.add.match\_1} at the motive
+        \code{fun x y => Nat}, its alternatives typed at the motive applied after two $\beta$-steps
+        (\code{motPM\_beta}), the recursive call through the constant \code{Nat.add} of \code{E};
+  \item \code{preDef\_P}: \code{Nat.add} is the only declaration of \code{P} with a
+        pre-definition under \code{cfgU};
+  \item \code{hpre}: \code{preVal} names only \code{Nat.add} and declarations after it in
+        \code{P}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVA-henv, lem:EraseProof-Test-NVA-funs}
+  \leanok
+  \lead{Idea} Metalean's typing rules on the match, as for NV-A's \code{Nat.add.match\_1}; the
+  order of the names by evaluation of a Boolean test.
+\end{proof}
+
+\begin{lemma}[NV-U: the source evaluation]
+  \label{lem:EraseProof-Test-NVU-hev}
+  \lean{EraseProof.Test.NVU.σU, EraseProof.Test.NVU.CU, EraseProof.Test.NVU.ev_recZ,
+    EraseProof.Test.NVU.ev_go, EraseProof.Test.NVU.ev_brecOn, EraseProof.Test.NVU.ev_kernel,
+    EraseProof.Test.NVU.nsU_lam, EraseProof.Test.NVU.nsU_const, EraseProof.Test.NVU.evU_delta,
+    EraseProof.Test.NVU.evU_tN, EraseProof.Test.NVU.evU_succ, EraseProof.Test.NVU.evU_mkOf,
+    EraseProof.Test.NVU.evU_instK, EraseProof.Test.NVU.evU_numK, EraseProof.Test.NVU.find_add,
+    EraseProof.Test.NVU.casesOn_add, EraseProof.Test.NVU.atom_add, EraseProof.Test.NVU.ax_add,
+    EraseProof.Test.NVU.pre_add, EraseProof.Test.NVU.arity_pre, EraseProof.Test.NVU.inst_pre,
+    EraseProof.Test.NVU.mkAppN_two, EraseProof.Test.NVU.deltaRec_add, EraseProof.Test.NVU.m5P,
+    EraseProof.Test.NVU.casesArgsP, EraseProof.Test.NVU.casesOn_N, EraseProof.Test.NVU.evU_m5P,
+    EraseProof.Test.NVU.evU_m5P0, EraseProof.Test.NVU.evU_m5PS, EraseProof.Test.NVU.evU_pre_of,
+    EraseProof.Test.NVU.subU, EraseProof.Test.NVU.subA, EraseProof.Test.NVU.preAppM,
+    EraseProof.Test.NVU.tr_preApp, EraseProof.Test.NVU.preAppM_typed,
+    EraseProof.Test.NVU.conv_add, EraseProof.Test.NVU.ev_add, EraseProof.Test.NVU.hev}
+  \leanok
+  \uses{def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcConv,
+    def:EraseProof-Test-NVU-P}
+  \srcloc{proof/EraseProof/Test/NVUEval.lean}{34}
+  \lead{In short} \code{hev}: at \code{$\sigma$U}, under the conversion premise \code{SrcConv E B
+  []}, \code{e = Nat.add 2 3} \hl{evaluates through \code{deltaRec} at every call} to
+  \code{Nat.succ (Nat.succ (Nat.succ 2))}.
+  \begin{itemize}
+  \item \code{deltaRec\_add}: \code{Nat.add a b} evaluates \code{a} and \code{b}, then
+        \code{preVal} at their values, given the conversion; the other premises of
+        \code{deltaRec} by kernel evaluation;
+  \item \code{ev\_add}: for every \code{k}, \code{preVal 2 k} and \code{Nat.add 2 k} evaluate to
+        \code{V k}; the match is a \code{casesOn} on the literal \code{k} (\code{casesLitZero},
+        \code{casesLitSucc});
+  \item \code{conv\_add}: the conversion at \code{Nat.add 2 k}, by \code{SrcEval.defeq} on two
+        evaluations to \code{V k}, through the kernel definition (\code{ev\_kernel}, NV-A's steps
+        at every \code{k}) and through \code{preVal}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVA-hev, lem:EraseProof-Test-NVU-hpre, lem:EraseProof-SrcEval-defeq,
+    lem:EraseProof-TrM-dcong}
+  \leanok
+  \lead{Idea} One induction on \code{k} for the evaluation and the conversion, which need each
+  other: the inner call is at \code{k - 1}.
+\end{proof}
+
+\begin{lemma}[NV-U: the final theorem]
+  \label{lem:EraseProof-Test-NVU-final}
+  \lean{EraseProof.Test.NVU.henv, EraseProof.Test.NVU.hwf, EraseProof.Test.NVU.hview,
+    EraseProof.Test.NVU.he, EraseProof.Test.NVU.hty, EraseProof.Test.NVU.hfrag,
+    EraseProof.Test.NVU.final}
+  \leanok
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:EraseProof-PreDefsOK,
+    def:Erasure-EraseError, def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcConv,
+    def:EraseProof-Test-NVU-P, lem:EraseProof-Test-NVU-hrun, def:EraseProof-Test-NVA-E,
+    def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NVUFinal.lean}{24}
+  \lead{In short} \code{erase\_correct} applied to NV-U with \hl{all nine hypotheses}: the program
+  \code{\#erase} emits for \code{Init}'s \code{Nat.add 2 3} under the default \code{structural},
+  \code{Nat.add} a $\lambda_\Box$ fixpoint, evaluates to an erasure of
+  \code{Nat.succ (Nat.succ (Nat.succ 2))}.
+  \begin{itemize}
+  \item \code{henv}, \code{hwf}, \code{hview}, \code{he}, \code{hty}: NV-A's;
+  \item \code{hfrag}: \code{hcollect}; \code{hpre}, \code{hrun}, \code{hev}: the nodes above;
+  \item no first-order instance: the value keeps the literal \code{2}, as for NV-A.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct, lem:EraseProof-Test-NVA-henv, lem:EraseProof-Test-NVA-final,
+    lem:EraseProof-Test-NVU-hpre, lem:EraseProof-Test-NVU-hev}
+  \leanok
+  \lead{Idea} The hypotheses from the nodes above and from NV-A's.
 \end{proof}
 
 \section{Large elimination}\label{sec:tests-largeelim}

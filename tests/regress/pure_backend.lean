@@ -4,7 +4,8 @@ import LeanToLambdaBox
 `Erasure.erasePure view cfg decls e` runs the traversal of `#erase` (`Erasure.visitExpr`) with the
 pure backend `PureM` over the declarations `decls` (register entry S-20). `#erase` calls it on the
 programs in the fragment (S-21). The test checks:
-- the operations of the instance `Backend PureM`: `declInfo?` is `findConst?`, `unsafeRecBase?` is
+- the operations of the instance `Backend PureM`: `declInfo?` is `PureM.declInfo?` (register entry
+  S-56; the test `pure_unsafe_rec` checks it), `unsafeRecBase?` is
   always `none`, `prepare` returns its term, no constant is an instance, `log` does nothing,
   `instantiate1` is `Expr.instantiate1'` (by `rfl`); every constructor field is kept,
   and a missing constant, fuel exhaustion, `error` and `fail` are errors of the pure path, also
@@ -76,7 +77,7 @@ def erasePureElab : CommandElab
 /-! ## The operations of the pure backend -/
 
 theorem declInfo?_eq (cfg : ErasureConfig) (n : Name) :
-    Backend.declInfo? (m := PureM) cfg n = PureM.findConst? n := rfl
+    Backend.declInfo? (m := PureM) cfg n = PureM.declInfo? cfg n := rfl
 theorem findConst?_eq (n : Name) : Backend.findConst? (m := PureM) n = PureM.findConst? n := rfl
 theorem unsafeRecBase?_eq (n : Name) : Backend.unsafeRecBase? (m := PureM) n = none := rfl
 theorem remove_unsafe_rec_eq (n : Name) : remove_unsafe_rec (m := PureM) n = n := rfl

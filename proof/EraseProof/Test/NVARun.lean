@@ -7,8 +7,9 @@ import EraseProof.Test.NVLRun
 
 The hypotheses `hfrag` and `hrun` of the final theorem (`MR E/ErasureFunctionProperties.v:657
 erase_correct`) on NV-A (`Test/NVAData.lean`). `hcollect` computes the fragment test's closure `D`
-by kernel evaluation (and `hcollect_default` shows that under the default configuration it rejects
-`e`: `Nat.add` has a compiled companion in the view). `hrun` is the run of the entry point,
+by kernel evaluation (and `hcollect_default` shows that `structural := .unsafeRec`, which erases
+`Nat.add` through its compiled companion in the view, gives the same closure). `hrun` is the run of
+the entry point,
 evaluated one traversal call at a time (`Test/Run.lean`), cut at every read of the traversal's
 maps, with NV-S's steps on any closure (`lam_run`, `appArgs_cons`, `register_found`,
 `kername_found`). `e` erases `Nat.add` (`kername_add`: its `@[extern]` attribute is read and, under
@@ -53,11 +54,10 @@ environment `Σ'` of `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
 theorem hcollect : collectDeps view cfg e = .ok D := rfl
 
 /-- Under the default structural configuration (`structural := .unsafeRec`) the fragment test
-rejects `e` as outside the fragment (`#erase` reports "recursive definition Nat.add"): the view
-has `Nat.add`'s compiled companion `Nat.add._unsafe_rec`. -/
-theorem hcollect_default :
-    (match collectDeps view { cfg with structural := .unsafeRec } e with
-      | .error (.outOfFragment _) => true | _ => false) = true := by
+accepts `e` as well and returns the same closure `D`: `Nat.add` is in the fragment through its
+compiled pre-definition (`preDef?`, the value of `Nat.add._unsafe_rec` with `Nat.add` for the
+companion's name), whose constants `D` holds already. -/
+theorem hcollect_default : collectDeps view { cfg with structural := .unsafeRec } e = .ok D := by
   krfl
 
 /-- The pure backend's context over the closure. -/
@@ -1194,7 +1194,9 @@ theorem visitMutual_add {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Na
     (visitMutual (m := PureM) (n + 65) `Nat.add).runPure {} ⟨L, [], F, cfg, dc⟩ pc ⟨0⟩ =
       .ok (((), stAdd), ⟨24⟩) := by
   rw [visitMutual]
-  iterate 7 apply bind_ok rfl
+  apply bind_ok rfl
+  refine bind_ok (a := some (.defnInfo add_def)) (st' := {}) (ps' := ⟨0⟩) (by krfl) ?_
+  iterate 5 apply bind_ok rfl
   simp only [show pc.view.isExtern `Nat.add = true from rfl,
     show (ConstantInfo.defnInfo add_def).value? true = some addVal from rfl,
     show cfg.1 = .preferLogical from rfl]

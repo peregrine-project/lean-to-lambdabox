@@ -429,10 +429,20 @@ theorem NamesIn.exprConsts {cfg : ErasureConfig} {x : Expr} {cs : List Name} (hx
     (h : exprConsts cfg x = .ok cs) : ∀ c ∈ cs, c ∈ P.map (·.name) :=
   exprConsts_mem h hx.1 hx.2
 
-/-- On a declaration of the program, a step of the closure reads names of the program and adds a
-companion of the program. -/
+/-- The names of a compiled pre-definition of a declaration of the program are names of the
+program: it is translated (`PreDefsOK`). -/
+theorem PreDefsOK.namesIn (hP : ProgEnv P ζ E B) {view : EnvView} {cfg : ErasureConfig}
+    (hpre : PreDefsOK E B view cfg P) {ci : ConstantInfo} (hci : ci ∈ P) {p : Expr}
+    (hp : preDef? view cfg ci = some p) : NamesIn P p := by
+  obtain ⟨P₁, P₀, hsplit⟩ := List.append_of_mem hci
+  obtain ⟨-, -, q, -, htr, -, -⟩ := hpre P₁ ci P₀ p hsplit hp
+  exact TrM.namesIn hP htr
+
+/-- On a declaration of the program whose compiled pre-definition, if any, has names of the
+program, a step of the closure reads names of the program and adds a companion of the program. -/
 theorem closureStep_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees view P)
-    {cfg : ErasureConfig} {ci : ConstantInfo} (hci : ci ∈ P) {ns : List Name}
+    {cfg : ErasureConfig} {ci : ConstantInfo} (hci : ci ∈ P)
+    (hpn : ∀ p, preDef? view cfg ci = some p → NamesIn P p) {ns : List Name}
     {ro : Option ConstantInfo} (h : closureStep view cfg ci = .ok (ns, ro)) :
     (∀ n ∈ ns, n ∈ P.map (·.name)) ∧ ∀ r, ro = some r → r ∈ P := by
   have hc := ProgEnv.names_closed hP ci hci
@@ -455,14 +465,22 @@ theorem closureStep_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAg
         · exact List.mem_map_of_mem hI
         · exact hc.all n hn
       · cases hr; exact hR
-    · obtain ⟨vs, hvs, h⟩ := OracleWhnf.ok_of_bind h
+    · obtain ⟨ps, hps, h⟩ : ∃ ps, (∀ n ∈ ps, n ∈ P.map (·.name)) ∧
+          (do let __do_lift ← exprConsts cfg d.value
+              pure (ty ++ __do_lift ++ ps ++ d.all, none) : Except EraseError _) = .ok (ns, ro) := by
+        rcases hp : preDef? view cfg (.defnInfo d) with _ | p <;> rw [hp] at h
+        · exact ⟨[], nofun, h⟩
+        · obtain ⟨ps, hps, h⟩ := OracleWhnf.ok_of_bind h
+          exact ⟨ps, (hpn p hp).exprConsts hps, h⟩
+      obtain ⟨vs, hvs, h⟩ := OracleWhnf.ok_of_bind h
       cases h
       have hv' := (hc.defn d rfl).exprConsts hvs
       refine ⟨fun n hn => ?_, fun r hr => nomatch hr⟩
       simp only [List.mem_append] at hn
-      rcases hn with (hn | hn) | hn
+      rcases hn with ((hn | hn) | hn) | hn
       · exact hty' n hn
       · exact hv' n hn
+      · exact hps n hn
       · exact hc.all n hn
   | thmInfo t =>
     cases h
@@ -518,9 +536,10 @@ theorem dropKnown_sub {view : EnvView} {cfg : ErasureConfig} {acc : List Constan
     · cases h; exact fun _ h => h
 
 /-- A run of the closure from declarations and names of the program returns declarations of the
-program. -/
+program, when the compiled pre-definitions of the program have names of the program. -/
 theorem closure_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees view P)
-    {cfg : ErasureConfig} : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
+    {cfg : ErasureConfig} (hpn : ∀ ci ∈ P, ∀ p, preDef? view cfg ci = some p → NamesIn P p) :
+    ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
     {cases : List Name} {res : List ConstantInfo × List Name},
     closure view cfg f todo acc cases = .ok res → (∀ ci ∈ acc, ci ∈ P) →
     (∀ n ∈ todo, n ∈ P.map (·.name)) → ∀ ci ∈ res.1, ci ∈ P
@@ -551,7 +570,7 @@ theorem closure_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees
         · rw [ite_eq_left hname] at h; cases h
         rw [ite_eq_right hname] at h
         obtain ⟨⟨ns, ro⟩, hcs, h⟩ := OracleWhnf.ok_of_bind h
-        obtain ⟨hns, hro⟩ := closureStep_sub hP hview hciP hcs
+        obtain ⟨hns, hro⟩ := closureStep_sub hP hview hciP (hpn ci hciP) hcs
         have hacc' : ∀ cj ∈ ci :: acc, cj ∈ P := by
           intro cj hcj
           rcases List.mem_cons.1 hcj with rfl | hcj
@@ -563,17 +582,17 @@ theorem closure_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees
           · exact hns m hm
           · exact htl m hm
         cases ro with
-        | none => exact closure_sub hP hview h hacc' hnt
+        | none => exact closure_sub hP hview hpn h hacc' hnt
         | some r =>
           have hrP := hro r rfl
           dsimp only at h
           by_cases hfa : (findConst acc r.name).isSome = true
           · rw [ite_eq_left hfa] at h
-            exact closure_sub hP hview h hacc' hnt
+            exact closure_sub hP hview hpn h hacc' hnt
           · rw [ite_eq_right hfa] at h
             obtain ⟨tys, htys, h⟩ := OracleWhnf.ok_of_bind h
             have hty' := (ProgEnv.names_closed hP r hrP).type.exprConsts htys
-            refine closure_sub hP hview h ?_ fun m hm => ?_
+            refine closure_sub hP hview hpn h ?_ fun m hm => ?_
             · intro cj hcj
               rcases List.mem_cons.1 hcj with rfl | hcj
               · exact hrP
@@ -587,18 +606,20 @@ theorem closure_sub (hP : ProgEnv P ζ E B) {view : EnvView} (hview : ViewAgrees
 end CollectSub
 
 open CollectSub in
-/-- The closure of a translated term is a sub-environment of the program (port of
-`L4 Core/Scope.lean:279`). -/
+/-- The closure of a translated term is a sub-environment of the program, when the compiled
+pre-definitions are well formed (port of `L4 Core/Scope.lean:279`). -/
 theorem collectDeps_sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
     {P decls : List ConstantInfo} {lps : List Name} {e : Expr}
     {t : Metalean.Expr ζ lps.length 0} {view : EnvView} {cfg : ErasureConfig}
-    (henv : ProgEnv P ζ E B) (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
-    (h : collectDeps view cfg e = .ok decls) : SubEnv decls P := by
+    (henv : ProgEnv P ζ E B) (hview : ViewAgrees view P) (hpre : PreDefsOK E B view cfg P)
+    (he : TrM E B lps .nil [] e t) (h : collectDeps view cfg e = .ok decls) :
+    SubEnv decls P := by
   unfold collectDeps at h
   obtain ⟨cs, hcs, h⟩ := OracleWhnf.ok_of_bind h
   obtain ⟨⟨ds, cases⟩, hcl, h⟩ := OracleWhnf.ok_of_bind h
   have hds : ∀ ci ∈ ds, ci ∈ P :=
-    closure_sub henv hview hcl nofun ((TrM.namesIn henv he).exprConsts hcs)
+    closure_sub henv hview (fun _ hci _ hp => PreDefsOK.namesIn henv hpre hci hp) hcl nofun
+      ((TrM.namesIn henv he).exprConsts hcs)
   have hdecls : decls = ds := by
     dsimp only at h
     repeat' (first | (cases h; rfl) | cases h | split at h)

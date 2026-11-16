@@ -105,8 +105,10 @@ have the shape `recShapeInFragment` admits (a mutual or indexed block, eliminati
 `Prop`, an induction hypothesis with arguments or before a non-recursive field); this is checked
 only for a recursor the closure reads, not for one it adds as a companion; an `unsafe` or
 `partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
-companion), except, under `structural := .kernel`, a definition by structural recursion
-(`isStructuralRecursive`), which both paths erase through its kernel definition; a definition,
+companion), except a definition by structural recursion (`isStructuralRecursive`) under
+`structural := .kernel`, which both paths erase through its kernel definition, and one under
+`structural := .unsafeRec` that has a compiled pre-definition (`preDef?`), which both paths erase
+through that pre-definition; a definition,
 theorem or opaque of a mutual block (whose `all` is not the list of its own name alone); an
 `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
@@ -126,7 +128,8 @@ def declExclusion (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Exce
   | .defnInfo d => do
     unless d.safety matches .safe do throw (.outOfFragment s!"unsafe or partial {d.name}")
     if (view.find? (Compiler.mkUnsafeRecName d.name)).isSome &&
-        !(cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) then
+        !(isStructuralRecursive (.defnInfo d) &&
+          (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome)) then
       throw (.outOfFragment s!"recursive definition {d.name}")
     if (view.implementedBy? d.name).isSome then
       throw (.outOfFragment s!"{d.name} has an implemented_by target")
@@ -185,8 +188,9 @@ def dropKnown (view : EnvView) (cfg : ErasureConfig) (acc : List ConstantInfo) :
 /-- One declaration added to the closure: the names it makes the closure read, and the companion
 recursor `T.rec` if it is a recognized `T.casesOn` or an inductive `T` with one constructor (the
 oracle reads its universe parameters to type a projection of `T`). The read names: the constants
-of its type; of its value if it is a definition that is not a recognized `casesOn`, or an opaque
-(not of a theorem's value, which the traversal erases as a proof); its block members
+of its type; of its value if it is a definition that is not a recognized `casesOn`, and of its
+compiled pre-definition (`preDef?`) if it has one, or an opaque (not of a theorem's value, which
+the traversal erases as a proof); its block members
 (`ConstantInfo.all`); the constructors of an inductive; the inductive of a constructor; for a
 recognized `T.casesOn`, `T` (its value is not read; a constructor field that is an index of the
 constructor's type is an exclusion, since `visitAlt` substitutes such fields). Reference: the
@@ -203,7 +207,11 @@ def closureStep (view : EnvView) (cfg : ErasureConfig) (ci : ConstantInfo) :
           unless (indexFields cv.numParams cv.type).all (·.isNone) do
             throw (.outOfFragment s!"{ci.name} on a constructor with an index field")
       pure (ty ++ I.name :: d.all, some (.recInfo R))
-    | none => return (ty ++ (← exprConsts cfg d.value) ++ d.all, none)
+    | none =>
+      let pre ← match preDef? view cfg ci with
+        | some p => exprConsts cfg p
+        | none => pure []
+      return (ty ++ (← exprConsts cfg d.value) ++ pre ++ d.all, none)
   | .thmInfo t => pure (ty ++ t.all, none)
   | .opaqueInfo o => return (ty ++ (← exprConsts cfg o.value) ++ o.all, none)
   | .inductInfo iv => pure (ty ++ iv.all ++ iv.ctors, match iv.ctors, viewFind view (mkRecName iv.name) with
@@ -271,7 +279,8 @@ def findBlockCollision (decls : List ConstantInfo) : Option (Name × Name) :=
 /-- The fragment test: the program's closure as the pure traversal reads it, or the first
 exclusion. The closure holds the constants of the term and, for each of its declarations, those
 of its type; of its value if it is a definition that is not a recognized `casesOn` (`casesInfo?`),
-or an opaque (not of theorems); its block members; the constructors of an inductive; the inductive
+and of its compiled pre-definition (`preDef?`) if it has one, or an opaque (not of theorems); its
+block members; the constructors of an inductive; the inductive
 of a constructor; the structure of a projection; `Nat` for a Nat literal; for a recognized `T.casesOn`, `T` and `T.rec` (the
 recognizer reads them; the value is not read, the recursor is not an exclusion); for an inductive
 `T` with one constructor, `T.rec` (the oracle reads it to type a projection; not an exclusion).
@@ -282,8 +291,9 @@ the traversal keeps as a constant (`recStaysConstant`: a nested block, `Nat` or 
 of the constructor's type) or whose shape `recShapeInFragment` does not admit (a mutual or indexed
 block, elimination only into `Prop`, an induction hypothesis that takes arguments or precedes a
 field); a string literal; an
-`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except, under
-`structural := .kernel`, a definition by structural recursion) or an `implemented_by` target; a
+`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except a definition by
+structural recursion, under `structural := .kernel`, or under `structural := .unsafeRec` if it has
+a compiled pre-definition) or an `implemented_by` target; a
 definition, theorem or opaque of a mutual block; a nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index
