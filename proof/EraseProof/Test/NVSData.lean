@@ -21,8 +21,8 @@ against the environment's), newest first:
 `P = [add, add._f, add.match_1, N.brecOn, N.brecOn.go, N.below, N.casesOn, N.rec, N.z, N.s, N,
 PProd.rec, PProd.mk, PProd, Unit.unit, Unit, PUnit.rec, PUnit.unit, PUnit]` (the dependency closure
 of the term, `Init`'s `PUnit`, `Unit` and `PProd` included); the term `e`; the view `#erase` reads
-(`P` and the compiled companion `add._unsafe_rec`, which the fragment test admits only under
-`structural := .kernel`; `@[inline]` on `add.match_1`, as on every matcher, and on the
+(`P` and the compiled companion `add._unsafe_rec`, through which the eraser erases `add` under the
+default `structural := .unsafeRec`; `@[inline]` on `add.match_1`, as on every matcher, and on the
 abbreviations `Unit` and `Unit.unit`); the configuration `structural := .kernel`. Toward a non-vacuity instance of the final theorem
 (`MR E/ErasureFunctionProperties.v:657 erase_correct`) through the kernel definitions of
 structural recursion: `Test/NVSRun.lean` discharges its hypotheses `hfrag` and `hrun`.

@@ -21,12 +21,13 @@ against the environment's), newest first:
 `P = [instOfNatNat, OfNat.ofNat, OfNat.rec, OfNat.mk, OfNat, Nat.add, Nat.add._f, Nat.add.match_1,
 Nat.brecOn, Nat.brecOn.go, Nat.below, Nat.casesOn, Nat.rec, Nat.zero, Nat.succ, Nat, PProd.rec,
 PProd.mk, PProd, PUnit.rec, PUnit.unit, PUnit]` (the dependency closure of the term); the term `e`;
-the view `#erase` reads (`P` and the compiled companion `Nat.add._unsafe_rec`, which the fragment
-test admits only under `structural := .kernel`; `@[extern]` on `Nat.add`; no inline or
-`implemented_by` attribute); the configuration. A non-vacuity instance of the final theorem
-(`MR E/ErasureFunctionProperties.v:657 erase_correct`) on `Init`'s arithmetic: `Test/NVARun.lean`
-discharges the hypotheses `hfrag` and `hrun`, `Test/NVAModel.lean` `henv`, `hwf`, `he` and `hty`,
-and `Test/NVAFinal.lean` the others and applies the final theorem.
+the view `#erase` reads (`P` and the compiled companion `Nat.add._unsafe_rec`, through which the
+eraser erases `Nat.add` under the default `structural := .unsafeRec`, `Test/NVUData.lean`;
+`@[extern]` on `Nat.add`; no inline or `implemented_by` attribute); the configuration. A
+non-vacuity instance of the final theorem (`MR E/ErasureFunctionProperties.v:657 erase_correct`)
+on `Init`'s arithmetic: `Test/NVARun.lean` discharges the hypotheses `hfrag` and `hrun`,
+`Test/NVAModel.lean` `henv`, `hwf`, `he` and `hty`, and `Test/NVAFinal.lean` the others and
+applies the final theorem.
 -/
 
 open Lean Erasure
