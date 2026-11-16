@@ -18,8 +18,9 @@ companion's name,
 whose recursive call is saturated under the second alternative's λs (`preVal`), and emits it as a
 λ□ fixpoint. A non-vacuity instance of the final theorem
 (`MR E/ErasureFunctionProperties.v:657 erase_correct`) on a definition erased as a fixpoint:
-`Test/NVUCollect.lean` evaluates the fragment test, `Test/NVURun.lean` discharges `hrun` and
-`Test/NVUModel.lean` `hpre`.
+`Test/NVUCollect.lean` evaluates the fragment test, `Test/NVURun.lean` discharges `hrun`,
+`Test/NVUModel.lean` `hpre`, `Test/NVUEval.lean` `hev`, and `Test/NVUFinal.lean` applies the final
+theorem.
 -/
 
 open Lean Erasure
