@@ -8,7 +8,8 @@ import Metalean.Typing.Substitution
 Inserting a Metalean variable at level `cut` (`Expr.wkFrom`, `Ctx.insert`, `ML Syntax/Weakening.lean`)
 together with a Lean local, bound (the source's loose bound variables are lifted) or free (the
 source is unchanged), keeps a translation (`TrM.wkFrom`). The two instances the development uses
-are `TrM.weakBV` and `TrM.weakFV`.
+are `TrM.weakBV` and `TrM.weakFV`. Conversely, a free local that the term does not mention can be
+dropped (`TrM.dropF`).
 -/
 
 open Lean Erasure
@@ -309,6 +310,73 @@ theorem TrM.weakFV {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx �
   have h' := TrM.wkFrom (Γ₁ := .nil) A h (MLCtx.Lift.fv hx)
   rw [liftLooseBVars'_zero] at h'
   exact h'
+
+end
+
+section
+variable {ζ : Metalean.Sigs} {ℓ n : Nat}
+
+/-- The locals `Δ₀` answer every lookup of `Δ` but those of the free variable `x`: `Δ₀` is `Δ`
+without `x`. -/
+def MLCtx.Drop (x : FVarId) (Δ Δ₀ : MLCtx ζ ℓ n) : Prop :=
+  (∀ i t, Δ.findB i = some t → Δ₀.findB i = some t) ∧
+  ∀ y t, y ≠ x → Δ.findF y = some t → Δ₀.findF y = some t
+
+/-- `MLCtx.Drop` is preserved by entering a binder. -/
+theorem MLCtx.Drop.pushLam {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.Drop x Δ Δ₀) :
+    MLCtx.Drop x (Δ.pushLam none) (Δ₀.pushLam none) := by
+  constructor
+  · intro i t ht
+    cases i with
+    | zero => simpa [MLCtx.pushLam, MLCtx.findB] using ht
+    | succ i =>
+      simp only [MLCtx.pushLam, MLCtx.findB, MLCtx.findB_map_wk, Option.map_eq_some_iff] at ht ⊢
+      obtain ⟨u, hu, rfl⟩ := ht
+      exact ⟨u, h.1 i u hu, rfl⟩
+  · intro y t hy ht
+    simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht ⊢
+    obtain ⟨u, hu, rfl⟩ := ht
+    exact ⟨u, h.2 y u hy hu, rfl⟩
+
+/-- `MLCtx.Drop` is preserved by pushing a bound local. -/
+theorem MLCtx.Drop.cons {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.Drop x Δ Δ₀)
+    (v : MLDecl ζ ℓ n) : MLCtx.Drop x ((none, v) :: Δ) ((none, v) :: Δ₀) := by
+  constructor
+  · intro i t ht
+    cases i with
+    | zero => simpa [MLCtx.findB] using ht
+    | succ i => simpa [MLCtx.findB] using h.1 i t (by simpa [MLCtx.findB] using ht)
+  · intro y t hy ht
+    simpa [MLCtx.findF] using h.2 y t hy (by simpa [MLCtx.findF] using ht)
+
+end
+
+section
+variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
+
+/-- Strengthening: a translation of a term that does not mention the free variable `x` is a
+translation under the locals without `x`. The converse of `TrM.weakFV`. Reference: none (lean4lean
+has no strengthening of `TrExprS` by free variables; DV-13). -/
+theorem TrM.dropF {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ Δ₀ : MLCtx ζ lps.length n}
+    {x : FVarId} {e : Expr} {t : Metalean.Expr ζ lps.length n} (h : TrM E B lps Γ Δ e t)
+    (W : MLCtx.Drop x Δ Δ₀) (he : FVarsIn (· ≠ x) e) : TrM E B lps Γ Δ₀ e t := by
+  induction h with
+  | bvar hb => exact .bvar (W.1 _ _ hb)
+  | fvar hf => exact .fvar (W.2 _ _ he hf)
+  | sort hl => exact .sort hl
+  | const h₁ h₂ => exact .const h₁ h₂
+  | special hb hs hlen _ hsat ih =>
+    rw [mkAppN_toArray, FVarsIn_foldl] at he
+    exact .special hb hs hlen (fun i a a' ha ha' =>
+      ih i a a' ha ha' W (he.2 a (List.mem_of_getElem? ha))) hsat
+  | app hns _ _ ih₁ ih₂ => exact .app hns (ih₁ W he.1) (ih₂ W he.2)
+  | lam _ _ ih₁ ih₂ => exact .lam (ih₁ W he.1) (ih₂ W.pushLam he.2)
+  | forallE _ _ ih₁ ih₂ => exact .forallE (ih₁ W he.1) (ih₂ W.pushLam he.2)
+  | letE _ _ _ ih₁ ih₂ ih₃ => exact .letE (ih₁ W he.1) (ih₂ W he.2.1) (ih₃ (W.cons _) he.2.2)
+  | mdata _ ih => exact .mdata (ih W he)
+  | lit h h₀ h₁ => exact .lit h h₀ h₁
+  | projStruct hst hi hS _ hty ih => exact .projStruct hst hi hS (ih W he) hty
+  | projProof hi hS hs hc hr hf hns _ hty ih => exact .projProof hi hS hs hc hr hf hns (ih W he) hty
 
 end
 
