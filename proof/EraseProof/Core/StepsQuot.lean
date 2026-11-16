@@ -31,7 +31,7 @@ closed. -/
 theorem closed_of_arg {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {tc : TravCtx} {ps : PureState} {as : List Expr}
     (hctx : CtxOK E B lps Γ Δ cfg tc ps)
-    (hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hargs : ∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     {x : Expr} {x' : LBTerm} (hx : x ∈ as)
     (h : Erases E B lps (evalEnvOf view cfg decls) Γ Δ x x') : closedn 0 x' = true := by
@@ -44,7 +44,7 @@ are closed. -/
 theorem closed_of_args {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {tc : TravCtx} {ps : PureState}
     {as rest : List Expr} {rest' : List LBTerm} (hctx : CtxOK E B lps Γ Δ cfg tc ps)
-    (hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hargs : ∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hsub : ∀ x ∈ rest, x ∈ as) (hlen : rest.length = rest'.length)
     (hers : ∀ (i : Nat) a a', rest[i]? = some a → rest'[i]? = some a' →
@@ -70,8 +70,8 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls e → InScope tc lps S d ls) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
     (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hrun : (visitApp (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps =
@@ -84,16 +84,15 @@ theorem visitApp_quot (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) → Q e →
       Q e.getAppFn ∧ ∀ a ∈ spineArgs e, Q a := fun hQ' h =>
     foldl_pred hQ' (by rw [← mkAppN_toArray, mkAppN_spine]; exact h)
-  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d ls, OccursAt d ls x → InScope tc lps S d ls)
+    (fun f a h => ⟨fun d ls hd => h d ls (.inl hd), fun d ls hd => h d ls (.inr hd)⟩) hocc
   obtain ⟨-, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   obtain ⟨-, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   obtain ⟨-, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
   have hcP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hqv
   obtain ⟨η, hB⟩ := hG.prog.lookup_quot hcP
   have htyped := TrM.quot_args_typed hB (by rw [hsp]; exact he) ht
-  have hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+  have hargs : ∀ a ∈ spineArgs e, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyped a ha⟩
   have hshape := ProgEnv.quot_shape hG.prog hcP
