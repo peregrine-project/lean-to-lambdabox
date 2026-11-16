@@ -332,4 +332,82 @@ theorem ProgEnv.ind_inj (h : ProgEnv P ζ E B) {ι : Metalean.IndSig} {s : Fin �
     cases hη
     exact ih hx' hy'
 
+/-- A weakened binding of a constant weakens one. -/
+theorem wk_const {ζ : Metalean.Sigs} {sig : Metalean.Sig} {b : Option (MBinding ζ)}
+    {kind : Metalean.ConstKind} {nl : Nat} {η : Metalean.Head (ζ.snoc sig) (.const kind nl)}
+    (h : b.map MBinding.wk = some (.const η)) :
+    ∃ η₀ : Metalean.Head ζ (.const kind nl), η = η₀.there ∧ b = some (.const η₀) := by
+  obtain ⟨b, rfl, hb⟩ := Option.map_eq_some_iff.mp h
+  cases b with
+  | const η₀ =>
+    simp only [MBinding.wk, MBinding.const.injEq] at hb
+    obtain ⟨rfl, rfl, h1⟩ := hb
+    cases h1
+    exact ⟨η₀, rfl, rfl⟩
+  | ind | ctor | recr | quot => simp [MBinding.wk] at hb
+
+/-- The table binds a Metalean constant to at most one name. -/
+theorem ProgEnv.const_inj (h : ProgEnv P ζ E B) :
+    ∀ {kind : Metalean.ConstKind} {nl : Nat} {η : Metalean.Head ζ (.const kind nl)} {x y : Name},
+      B x = some (.const η) → B y = some (.const η) → x = y := by
+  induction h with
+  | nil => intro _ _ _ _ _ hx; simp at hx
+  | @«axiom» _ _ _ _ v _ _ _ _ _ _ ih | @defn _ _ _ _ v _ _ _ _ _ _ _ _ _ ih
+  | @thm _ _ _ _ v _ _ _ _ _ _ _ _ ih | @«opaque» _ _ _ _ v _ _ _ _ _ _ _ _ _ _ ih =>
+    intro kind nl η x y hx hy
+    by_cases hxn : x = v.name <;> by_cases hyn : y = v.name
+    · rw [hxn, hyn]
+    · simp only [Binds.set, hxn, ite_true, Option.some.injEq, MBinding.const.injEq] at hx
+      obtain ⟨rfl, rfl, h1⟩ := hx
+      cases h1
+      rw [set_wk_ne hyn] at hy
+      obtain ⟨η₀, hη, -⟩ := wk_const hy
+      cases hη
+    · simp only [Binds.set, hyn, ite_true, Option.some.injEq, MBinding.const.injEq] at hy
+      obtain ⟨rfl, rfl, h1⟩ := hy
+      cases h1
+      rw [set_wk_ne hxn] at hx
+      obtain ⟨η₀, hη, -⟩ := wk_const hx
+      cases hη
+    · rw [set_wk_ne hxn] at hx
+      rw [set_wk_ne hyn] at hy
+      obtain ⟨η₀, rfl, hx'⟩ := wk_const hx
+      obtain ⟨η₁, hη, hy'⟩ := wk_const hy
+      cases hη
+      exact ih hx' hy'
+  | @induct _ _ _ _ ι' _ B' _ Is Cs Rs _ _ _ _ _ hext hblk _ ih =>
+    intro kind nl η x y hx hy
+    have out : ∀ {z : Name}, B' z = some (.const η) → z ∉ (IndBlock.decls Is Cs Rs).map (·.name) := by
+      intro z hb hz
+      obtain ⟨ci, hci, rfl⟩ := List.mem_map.mp hz
+      rcases IndBlock.mem_decls hci with ⟨t, rfl⟩ | ⟨t, c, rfl⟩ | ⟨t, rfl⟩
+      · rw [show (ConstantInfo.recInfo (Rs t)).name = (Rs t).name from rfl,
+          (hblk.recr t).2.1] at hb
+        cases hb
+      · rw [show (ConstantInfo.ctorInfo (Cs t c)).name = (Cs t c).name from rfl,
+          (hblk.ctor t c).1] at hb
+        cases hb
+      · rw [show (ConstantInfo.inductInfo (Is t)).name = (Is t).name from rfl,
+          (hblk.ind t).1] at hb
+        cases hb
+    rw [hext x (out hx)] at hx; simp only [Binds.wk] at hx
+    rw [hext y (out hy)] at hy; simp only [Binds.wk] at hy
+    obtain ⟨η₀, rfl, hx'⟩ := wk_const hx
+    obtain ⟨η₁, hη, hy'⟩ := wk_const hy
+    cases hη
+    exact ih hx' hy'
+  | @quot _ _ _ _ _ qs B' _ _ _ _ _ hext hq ih =>
+    intro kind nl η x y hx hy
+    have out : ∀ {z : Name}, B' z = some (.const η) → z ∉ qs.map (·.name) := by
+      intro z hz hm
+      obtain ⟨q, hq', rfl⟩ := List.mem_map.mp hm
+      rw [(hq q hq').1] at hz
+      cases hz
+    rw [hext x (out hx)] at hx; simp only [Binds.wk] at hx
+    rw [hext y (out hy)] at hy; simp only [Binds.wk] at hy
+    obtain ⟨η₀, rfl, hx'⟩ := wk_const hx
+    obtain ⟨η₁, hη, hy'⟩ := wk_const hy
+    cases hη
+    exact ih hx' hy'
+
 end EraseProof

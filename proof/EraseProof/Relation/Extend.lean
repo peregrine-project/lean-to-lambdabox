@@ -18,7 +18,7 @@ namespace EraseProof
 
 namespace Extend
 
-variable {D P : List ConstantInfo}
+variable {D P : List ConstantInfo} {rp : ConstantInfo → Option Expr}
 
 /-- A declaration of the sub-environment is the program's. -/
 theorem findDecl_sub (hsub : SubEnv D P) {c : Name} {ci : ConstantInfo}
@@ -199,7 +199,7 @@ which inductive, is the same in the program: when either recognizes it, the recu
 recognize the constant), hence by `DepClosed` its block, `T` and `T`'s constructors. -/
 theorem casesOn?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
     (hc : (findDecl D c).isSome) (a a' : ConstantInfo → Bool) :
-    EvalEnv.casesOn? ⟨D, a, fun _ => none⟩ c = EvalEnv.casesOn? ⟨P, a', fun _ => none⟩ c := by
+    EvalEnv.casesOn? ⟨D, a, rp⟩ c = EvalEnv.casesOn? ⟨P, a', rp⟩ c := by
   -- From `T.rec ∈ D` the recognizer reads the same in `D` and `P`, and `T ∈ D`.
   have key : ∀ T R, c = .str T "casesOn" → findDecl D (mkRecName T) = some (.recInfo R) →
       T ∈ R.all → casesInfo? D c = casesInfo? P c ∧ (findDecl D T).isSome := by
@@ -233,7 +233,7 @@ theorem casesOn?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
       | some ci =>
         obtain ⟨T, d, I, R, hT, hci, hd, hI, hR, hTR⟩ := casesInfo?_reads hP
         -- `D` does not recognize `c`, so it reads `c`'s value, whose head is `T.rec`.
-        have hσ : EvalEnv.casesOn? ⟨P, a', fun _ => none⟩ c = some I := by
+        have hσ : EvalEnv.casesOn? ⟨P, a', rp⟩ c = some I := by
           unfold EvalEnv.casesOn?
           rw [hP]; dsimp only; rw [hci, hI]
         obtain ⟨d', R', -, -, -, body, args, -, hd', -, hR', -, -, -, -, -, -, -, hb, hbody, -⟩ :=
@@ -271,7 +271,7 @@ variable {a a' : ConstantInfo → Bool}
 
 /-- Constructor and `casesOn` arities agree on the sub-environment's names. -/
 theorem specialArity_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : specialArity ⟨D, a, fun _ => none⟩ c = specialArity ⟨P, a, fun _ => none⟩ c := by
+    (hc : (findDecl D c).isSome) : specialArity ⟨D, a, rp⟩ c = specialArity ⟨P, a, rp⟩ c := by
   unfold specialArity
   rw [casesOn?_agree hsub hcl hc a a]
   dsimp only
@@ -279,7 +279,7 @@ theorem specialArity_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
 
 /-- δ agrees on the sub-environment's names. -/
 theorem unfold?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : EvalEnv.unfold? ⟨D, a, fun _ => none⟩ c = EvalEnv.unfold? ⟨P, a, fun _ => none⟩ c := by
+    (hc : (findDecl D c).isSome) : EvalEnv.unfold? ⟨D, a, rp⟩ c = EvalEnv.unfold? ⟨P, a, rp⟩ c := by
   unfold EvalEnv.unfold?
   rw [casesOn?_agree hsub hcl hc a a]
   dsimp only
@@ -304,7 +304,7 @@ theorem EvidentProp_agree (hsub : SubEnv D P) (x : Expr)
 
 /-- Atoms agree on the sub-environment's names. -/
 theorem isAtom_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : EvalEnv.isAtom ⟨D, a, fun _ => none⟩ c = EvalEnv.isAtom ⟨P, a, fun _ => none⟩ c := by
+    (hc : (findDecl D c).isSome) : EvalEnv.isAtom ⟨D, a, rp⟩ c = EvalEnv.isAtom ⟨P, a, rp⟩ c := by
   unfold EvalEnv.isAtom
   rw [casesOn?_agree hsub hcl hc a a, unfold?_agree hsub hcl hc]
   dsimp only
@@ -318,8 +318,8 @@ theorem isAtom_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
 
 /-- Special spines of the program whose head is in the sub-environment are special there. -/
 theorem specialSpine_of_agree (hsub : SubEnv D P) (hcl : DepClosed D) {f : Expr}
-    (hf : ConstsIn (fun c => (findDecl D c).isSome) f) (h : SpecialSpine ⟨P, a, fun _ => none⟩ f) :
-    SpecialSpine ⟨D, a, fun _ => none⟩ f := by
+    (hf : ConstsIn (fun c => (findDecl D c).isSome) f) (h : SpecialSpine ⟨P, a, rp⟩ f) :
+    SpecialSpine ⟨D, a, rp⟩ f := by
   obtain ⟨c, us, hfn, hs⟩ := h
   have hc : (findDecl D c).isSome := by
     have := ConstsIn_getAppFn hf
@@ -331,7 +331,7 @@ theorem specialSpine_of_agree (hsub : SubEnv D P) (hcl : DepClosed D) {f : Expr}
   exact hs
 
 theorem IndIdOf_sub (hsub : SubEnv D P) {T : Name} {iid : InductiveId}
-    (h : IndIdOf ⟨D, a, fun _ => none⟩ T = some iid) : IndIdOf ⟨P, a, fun _ => none⟩ T = some iid := by
+    (h : IndIdOf ⟨D, a, rp⟩ T = some iid) : IndIdOf ⟨P, a, rp⟩ T = some iid := by
   unfold IndIdOf at h ⊢
   dsimp only at h ⊢
   split at h
@@ -339,7 +339,7 @@ theorem IndIdOf_sub (hsub : SubEnv D P) {T : Name} {iid : InductiveId}
   next => cases h
 
 theorem ctorFields_sub (hsub : SubEnv D P) {c : Name} {k : Nat}
-    (h : ctorFields ⟨D, a, fun _ => none⟩ c = some k) : ctorFields ⟨P, a, fun _ => none⟩ c = some k := by
+    (h : ctorFields ⟨D, a, rp⟩ c = some k) : ctorFields ⟨P, a, rp⟩ c = some k := by
   unfold ctorFields at h ⊢
   dsimp only at h ⊢
   split at h
@@ -359,7 +359,7 @@ theorem mapM_sub {α β : Type} {f g : α → Option β} (hfg : ∀ x y, f x = s
 
 /-- The block of a recursor read in the sub-environment is the program's. -/
 theorem recBlock?_sub (hsub : SubEnv D P) {rv : RecursorVal} {r}
-    (h : EvalEnv.recBlock? ⟨D, a, fun _ => none⟩ rv = some r) : EvalEnv.recBlock? ⟨P, a', fun _ => none⟩ rv = some r := by
+    (h : EvalEnv.recBlock? ⟨D, a, rp⟩ rv = some r) : EvalEnv.recBlock? ⟨P, a', rp⟩ rv = some r := by
   unfold EvalEnv.recBlock? at h ⊢
   simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at h ⊢
   obtain ⟨ivs, hivs, cvs, hcvs, rfl⟩ := h
@@ -376,14 +376,14 @@ theorem recBlock?_sub (hsub : SubEnv D P) {rv : RecursorVal} {r}
 /-- The members of a recursor's block built in the sub-environment are the program's. -/
 theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
     ∀ {gi : Nat} {ivs : List InductiveVal} {xss : List (List Name)} {ms : List RecMember},
-      recMembers ⟨D, a, fun _ => none⟩ minors gi ivs xss = some ms → recMembers ⟨P, a', fun _ => none⟩ minors gi ivs xss = some ms
+      recMembers ⟨D, a, rp⟩ minors gi ivs xss = some ms → recMembers ⟨P, a', rp⟩ minors gi ivs xss = some ms
   | _, [], _, _, h => by simpa [recMembers] using h
   | _, _ :: _, [], _, h => by simpa [recMembers] using h
   | gi, iv :: ivs, xs :: xss, ms, h => by
     simp only [recMembers, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
       Option.some.injEq] at h ⊢
     obtain ⟨indid, hid, masks, hmasks, rest, hrest, rfl⟩ := h
-    have hid' : IndIdOf ⟨P, a', fun _ => none⟩ iv.name = some indid := by
+    have hid' : IndIdOf ⟨P, a', rp⟩ iv.name = some indid := by
       unfold IndIdOf at hid ⊢
       dsimp only at hid ⊢
       split at hid
@@ -392,7 +392,7 @@ theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
     refine ⟨indid, hid', masks, mapM_sub (fun x y hx => ?_) hmasks, rest, recMembers_sub hsub hrest,
       rfl⟩
     obtain ⟨k, hk, rfl⟩ := Option.map_eq_some_iff.1 hx
-    have hk' : ctorFields ⟨P, a', fun _ => none⟩ x = some k := by
+    have hk' : ctorFields ⟨P, a', rp⟩ x = some k := by
       unfold ctorFields at hk ⊢
       dsimp only at hk ⊢
       split at hk
@@ -403,7 +403,7 @@ theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
 /-- A recursor's fixpoint read in the sub-environment is the program's. -/
 theorem RecFixOf.sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} (hsub : SubEnv D P)
     {rv : RecursorVal} {us : List Level} {minors : List RecMinor} {F : LBTerm}
-    (h : RecFixOf E B ⟨D, a, fun _ => none⟩ rv us minors F) : RecFixOf E B ⟨P, a', fun _ => none⟩ rv us minors F := by
+    (h : RecFixOf E B ⟨D, a, rp⟩ rv us minors F) : RecFixOf E B ⟨P, a', rp⟩ rv us minors F := by
   obtain ⟨ivs, cvs, motives, members, T, ivT, j, direct, hb, hs, hl, hm, hT, hiv, hj, h1, h2, h3,
     hF, hc, hx⟩ := h
   exact ⟨ivs, cvs, motives, members, T, ivT, j, direct, recBlock?_sub hsub hb, hs, hl,
@@ -412,9 +412,9 @@ theorem RecFixOf.sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} (
 /-- The η-expansion of a spine of the sub-environment is the program's, and its constants are in
 the sub-environment. -/
 theorem etaSpine?_sub (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {us : List Level}
-    {as : List Expr} {e' : Expr} (h : EvalEnv.etaSpine? ⟨D, a, fun _ => none⟩ c us as = some e')
+    {as : List Expr} {e' : Expr} (h : EvalEnv.etaSpine? ⟨D, a, rp⟩ c us as = some e')
     (hc : ConstsIn (fun c => (findDecl D c).isSome) (mkAppN (.const c us) as.toArray)) :
-    EvalEnv.etaSpine? ⟨P, a, fun _ => none⟩ c us as = some e' ∧ ConstsIn (fun c => (findDecl D c).isSome) e' := by
+    EvalEnv.etaSpine? ⟨P, a, rp⟩ c us as = some e' ∧ ConstsIn (fun c => (findDecl D c).isSome) e' := by
   have hcD : (findDecl D c).isSome := (ConstsIn_mkAppN.1 hc).1
   refine ⟨?_, ?_⟩
   · unfold EvalEnv.etaSpine? at h ⊢
@@ -444,13 +444,16 @@ end Extend
 
 open Extend in
 /-- Moving the relation from a dependency-closed sub-environment to the program (the final
-theorem's last step): the relation reads, about the constants of the term, only what `decls` and
-`P` agree on. Reference: `erases_extends` (`MR E/ESubstitution.v:73`), weakening of the global
+theorem's last step): the relation reads, about the constants of the term and of the compiled
+pre-definitions of `decls` (the bodies of `Erases.constFix`), only what `decls` and `P` agree on.
+Reference: `erases_extends` (`MR E/ESubstitution.v:73`), weakening of the global
 environment. -/
 theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
     {decls P : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {e : Expr} {tb : LBTerm}
     (hsub : SubEnv decls P) (hcl : DepClosed decls)
+    (hpcl : ∀ ci ∈ decls, ∀ pre, preDef? view cfg ci = some pre →
+      ConstsIn (fun c => (findDecl decls c).isSome) pre)
     (hc : ConstsIn (fun c => (findDecl decls c).isSome) e)
     (h : Erases E B lps (evalEnvOf view cfg decls) Γ Δ e tb) :
     Erases E B lps (evalEnvOf view cfg P) Γ Δ e tb := by
@@ -461,8 +464,8 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
       Erases E B lps (evalEnvOf view cfg P) Γ Δ e tb)
     (motive_2 := fun Γ Δ k e br _ => ConstsIn (fun c => (findDecl decls c).isSome) e →
       ErasesAlt E B lps (evalEnvOf view cfg P) Γ Δ k e br)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hc
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hc
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam => intro _ _ _ _ _ _ _ _ _ hA hAt _ ih hC; exact .lam hA hAt (ih hC.2)
@@ -478,6 +481,15 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     · exact (isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat
     · exact (specialArity_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hsa
     · exact (findDecl_agree hsub hC).trans hrv
+  case fixVar =>
+    intro c _ _ _ _ _ _ _ _ _ hat hB hF hC
+    exact .fixVar ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hB hF
+  case constFix =>
+    intro c ci pre _ _ _ _ _ _ hci hdef hat hax hpre _ hcl' hfv ih hC
+    refine .constFix (findDecl_sub hsub hci) hdef
+      ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hax hpre
+      (fun us' t ht => ih us' t ht (ConstsIn_instLevels ?_)) hcl' hfv
+    exact hpcl ci (findDecl_eq_some hci).1 pre hpre
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hC
     have has := (ConstsIn_mkAppN.1 hC).2

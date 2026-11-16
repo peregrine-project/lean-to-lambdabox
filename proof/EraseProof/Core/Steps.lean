@@ -207,46 +207,64 @@ theorem mem_rel {α β : Type} {as : List α} {bs : List β} {R : α → β → 
 section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {σ : EvalEnv} {lps : List Name}
 
-/-- The free variables of an erasure are free variables of the parts of the source it keeps.
-Reference: none (`LBTerm.fvar` has no MetaRocq counterpart, DV-13). -/
+/-- The free variables of an erasure are free variables of the parts of the source it keeps, or
+free variables of the locals (the fix variable of `Erases.fixVar`). Reference: none (`LBTerm.fvar`
+has no MetaRocq counterpart, DV-13). -/
 theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {e : Expr} {tb : LBTerm} (h : Erases E B lps σ Γ Δ e tb) :
-    ∀ (p : FVarId → Prop), KFV p e → ∀ x, hasFVar x tb = true → p x := by
+    ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) → KFV p e →
+      ∀ x, hasFVar x tb = true → p x := by
+  have push : ∀ {n : Nat} {Δ : MLCtx ζ lps.length n} {p : FVarId → Prop},
+      (∀ y t, Δ.findF y = some t → p y) → ∀ y t, (Δ.pushLam none).findF y = some t → p y := by
+    intro _ _ _ hΔ y t ht
+    simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht
+    obtain ⟨u, hu, -⟩ := ht
+    exact hΔ y u hu
   refine Erases.rec
-    (motive_1 := fun _ _ e tb _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x, hasFVar x tb = true → p x)
-    (motive_2 := fun _ _ _ e br _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x,
-      hasFVar x br.2 = true → p x)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
+    (motive_1 := fun _ Δ e tb _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) →
+      KFV p e → ∀ x, hasFVar x tb = true → p x)
+    (motive_2 := fun _ Δ _ e br _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) →
+      KFV p e → ∀ x, hasFVar x br.2 = true → p x)
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar | const | box | litZero => intros; simp_all [hasFVar, hasFVarL]
   case fvar =>
-    intro _ _ _ y p hk x hx
+    intro _ _ _ y p _ hk x hx
     simp only [hasFVar] at hx
     rw [(fvarId_beq_iff x y).mp hx]; exact hk
-  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
+  case fixVar =>
+    intro _ _ _ _ _ y _ _ _ _ _ _ hF p hΔ _ x hx
+    simp only [hasFVar] at hx
+    rw [(fvarId_beq_iff x y).mp hx]; exact hΔ y _ hF
+  case constFix =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
+    simp only [hasFVar, hasFVarD, Bool.or_false, hfv x] at hx
+    cases hx
+  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb p hk x hx
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
-    exact hx.elim (ihv p hk.1 x) (ihb p hk.2 x)
+    exact hx.elim (ihv p hΔ hk.1 x)
+      (ihb p (fun y t ht => hΔ y t (by simpa [MLCtx.findF] using ht)) hk.2 x)
   case app =>
-    intro _ _ _ _ _ _ _ _ _ _ ihf iha p hk x hx
+    intro _ _ _ _ _ _ _ _ _ _ ihf iha p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
-    exact hx.elim (ihf p hk.1 x) (iha p hk.2 x)
+    exact hx.elim (ihf p hΔ hk.1 x) (iha p hΔ hk.2 x)
   case ctor =>
-    intro _ _ _ _ _ _ _ as as' _ _ _ _ hlen _ ih p hk x hx
+    intro _ _ _ _ _ _ _ as as' _ _ _ _ hlen _ ih p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
     · simp [hasFVar, hasFVarL] at h
     · obtain ⟨a, ha, hr⟩ := mem_rel hlen ih a' ha'
-      exact hr p (hk.2 a ha) x h
+      exact hr p hΔ (hk.2 a ha) x h
   case cases =>
     intro _ iv _ _ _ _ _ maj _ pre alts extra brs _ _ _ _ _ _ hlalts _ hlbrs hcf _ hlex _ ihm iha
-      ihe p hk x hx
+      ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
     · simp only [hasFVar, Bool.or_eq_true] at h
       rcases h with h | h
-      · exact ihm p (hk.2 maj (by simp)) x h
+      · exact ihm p hΔ (hk.2 maj (by simp)) x h
       · have key : ∀ brs' : List (List BinderName × LBTerm), hasFVarB x brs' = true →
             ∃ br ∈ brs', hasFVar x br.2 = true := by
           intro brs' h'
@@ -265,51 +283,51 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
         have hic : i < iv.ctors.length := hlalts ▸ hia
         obtain ⟨kf, hkf⟩ := Option.isSome_iff_exists.1 (hcf i _ (List.getElem?_eq_getElem hic))
         exact iha i _ _ _ kf (List.getElem?_eq_getElem hic) (List.getElem?_eq_getElem hia)
-          (List.getElem?_eq_getElem hi) hkf p (hk.2 _ (by simp [List.getElem_mem hia])) x hb
+          (List.getElem?_eq_getElem hi) hkf p hΔ (hk.2 _ (by simp [List.getElem_mem hia])) x hb
     · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case casesReduced =>
-    intro _ _ _ _ _ _ _ alt _ _ _ _ extra extra' _ _ _ _ _ _ _ hlex _ iha ihe p hk x hx
+    intro _ _ _ _ _ _ _ alt _ _ _ _ extra extra' _ _ _ _ _ _ _ hlex _ iha ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact iha p (hk.2 alt (by simp)) x h
+    · exact iha p hΔ (hk.2 alt (by simp)) x h
     · rcases List.mem_append.1 ha' with ha' | ha'
       · rw [List.eq_of_mem_replicate ha'] at h; cases h
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
-  case eta => intro _ _ _ _ _ _ _ _ heta _ ih p hk x hx; exact ih p (KFV_etaSpine heta hk) x hx
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
+  case eta => intro _ _ _ _ _ _ _ _ heta _ ih p hΔ hk x hx; exact ih p hΔ (KFV_etaSpine heta hk) x hx
   case quotMk =>
-    intros; rename_i hlex _ iha ihe p hk x hx
+    intros; rename_i hlex _ iha ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact iha p (hk.2 _ (by simp)) x h
+    · exact iha p hΔ (hk.2 _ (by simp)) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case quotLift =>
-    intros; rename_i hlex _ ihf ihq ihe p hk x hx
+    intros; rename_i hlex _ ihf ihq ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact ihf p (hk.2 _ (by simp)) x h
+    · exact ihf p hΔ (hk.2 _ (by simp)) x h
     · rcases List.mem_cons.1 ha' with rfl | ha'
-      · exact ihq p (hk.2 _ (by simp)) x h
+      · exact ihq p hΔ (hk.2 _ (by simp)) x h
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case recLet =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' _ hF _ _ _ _ hlm _
-      hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+      hli _ _ hle _ ihmin ihis ihmaj ihext p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     obtain ⟨-, -, hFx⟩ := RecLam.RecFixOf.closed hF
     rcases RecLam.hasFVar_recLetTerm hFx hx with ⟨a', ha', h⟩ | ⟨a', ha', h⟩ | h | ⟨a', ha', h⟩
     · obtain ⟨a, ha, hr⟩ := mem_rel hlm ihmin a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
-    · exact ihmaj p (hk.2 maj (by simp)) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
+    · exact ihmaj p hΔ (hk.2 maj (by simp)) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case recFix =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' _ hF _ _ hmins _ hlw _
-      hws hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+      hws hli _ _ hle _ ihmin ihis ihmaj ihext p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     obtain ⟨-, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
     have hG := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
@@ -319,20 +337,20 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     · rcases List.mem_append.1 ha' with ha' | ha'
       · rcases List.mem_append.1 ha' with ha' | ha'
         · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
-          exact hr p (hk.2 a (by simp [ha])) x h
+          exact hr p hΔ (hk.2 a (by simp [ha])) x h
         · rw [List.mem_singleton.1 ha'] at h
-          exact ihmaj p (hk.2 maj (by simp)) x h
+          exact ihmaj p hΔ (hk.2 maj (by simp)) x h
       · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
-  case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
+  case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p hΔ hk x hx
   case litSucc =>
-    intro _ _ _ _ _ _ _ _ ih p _ x hx
+    intro _ _ _ _ _ _ _ _ ih p hΔ _ x hx
     simp only [hasFVar, hasFVarL, Bool.false_or] at hx
-    exact ih p trivial x hx
-  case mdata => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case done => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case alam => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case intro => intros; rename_i ih p hk x hx; exact ih p ⟨KFV_lift hk, trivial⟩ x hx
+    exact ih p hΔ trivial x hx
+  case mdata => intros; rename_i ih p hΔ hk x hx; exact ih p hΔ hk x hx
+  case done => intros; rename_i ih p hΔ hk x hx; exact ih p hΔ hk x hx
+  case alam => intros; rename_i ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
+  case intro => intros; rename_i ih p hΔ hk x hx; exact ih p (push hΔ) ⟨KFV_lift hk, trivial⟩ x hx
 
 end
 
@@ -1923,7 +1941,8 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       refine ⟨hdeps, by simpa using Erases.closed htr her, fun x => ?_⟩
       cases hx : hasFVar x t
       · rfl
-      · exact (Erases.hasFVar_of her (fun _ => False) (KFV.of_fvarsIn hvcl) x hx).elim
+      · exact (Erases.hasFVar_of her (fun _ => False) (fun _ _ h => nomatch h)
+          (KFV.of_fvarsIn hvcl) x hx).elim
     refine ⟨⟨StateOK.congr hok₃ hc' hi' hg', ?_, hps ▸ hgr.next, ?_⟩, toKername c, ?_⟩
     · rw [hg', ← hgb]
       exact LenvExt.trans hgr.ext hext₃

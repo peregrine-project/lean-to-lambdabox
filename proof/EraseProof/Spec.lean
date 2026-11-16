@@ -1374,14 +1374,14 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
       {ls : Fin nl → Metalean.Level lps.length} :
       σ.isAtom c = false → B c = some (.const η) → Δ.findF x = some (.const η ls) →
       Erases E B lps σ Γ Δ (.const c us) (.fvar x)
-  /-- A constant erased through its compiled pre-definition `pre`, as its λ□ fixpoint (the form
+  /-- A definition erased through its compiled pre-definition `pre`, as its λ□ fixpoint (the form
   the unfolding of `tFix` substitutes for the recursive calls): one definition named after `c`,
   recursive-argument index 0, whose body abstracts the fix variable `x` from an erasure of `pre`,
   at every level instance; closed, without free variables. Reference: `erases_tFix`
   (`MR E/Extract.v:122`); DV-7. -/
   | constFix {x : FVarId} {b : LBTerm} :
-      findDecl σ.decls c = some ci → σ.isAtom c = false → σ.axiomatized ci = false →
-      σ.recPre? ci = some pre →
+      findDecl σ.decls c = some ci → ci.isDefinition = true → σ.isAtom c = false →
+      σ.axiomatized ci = false → σ.recPre? ci = some pre →
       (∀ (us' : List Level) (t : Metalean.Expr ζ lps.length 0),
         TrM E B lps .nil [] (.const c us') t →
         Erases E B lps σ .nil [(some x, .vlet t)] (Pure.instLevels ci.levelParams us' pre) b) →
