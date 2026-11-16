@@ -366,13 +366,15 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
       (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
-    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv)
-    (hmajS : SrcDefeq.Sound E B lps maj mj) (hfields : ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ C f)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv →
+      SrcEval σ (SrcConv E B lps) m mv)
+    (hmajS : SrcDefeq.Sound E B lps maj mj)
+    (hfields : ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ (SrcConv E B lps) f)
     (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+      SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
     (ihmaj : ErasesSim E B lps σ lenv maj mj₀)
     (hconv : ∀ mb, Erases E B lps σ .nil [] mj₀ mb → ¬ PropInductive E B T →
       Erases E B lps σ .nil [] mj mb)
@@ -673,7 +675,7 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
       cases hB'
       exact hnz (by rw [hl, Metalean.Level.inst_zero])
     have hmb := hconv mb hmb hnpT
-    rcases Erases.ctor_inv hC (by omega) hmb with ⟨rfl, hbx⟩ | ⟨iid, as', hid', rfl, hlen', hallE⟩
+    rcases Erases.ctor_inv hC (by omega) (fun _ => rfl) hmb with ⟨rfl, hbx⟩ | ⟨iid, as', hid', rfl, hlen', hallE⟩
     · exfalso
       obtain ⟨w, hw, Tw, hwT, hwA⟩ := hbx
       exact SimIota.ind_not_erasable hE hmajT hnz
@@ -691,7 +693,7 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
         | case hidT hindT _ _ => exact ⟨_, hidT, hindT⟩
     rw [SimInd.indIdOf_inj hbinj hidT hid] at hindT
     have hnp : ¬ PropInductive E B cv.induct := fun hp =>
-      SimInd.mkApps_construct_ne_box (Erases.ctorProp_box hC hp (by omega) hmb)
+      SimInd.mkApps_construct_ne_box (Erases.ctorProp_box hC hp (by omega) (fun _ => rfl) hmb)
     obtain ⟨mib, ob, cb, hlk, hnpars, hnargs, hprop⟩ :=
       SimInd.lookupCtor_of henv hsub hC (by rw [hind]; exact hid) (by rw [hind]; exact hindT)
     have hpf : ob.propositional = false := by
@@ -823,7 +825,7 @@ theorem erases_natLitCtor (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {
     | litSucc => cases hx
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | mdata => cases hx
   | succ k =>
     obtain ⟨cv, ps, hC, hind, -, hps, hfs, hpf⟩ :=
       ctorValue_spine (as := [.lit (.natVal k)]) hcv rfl
@@ -852,7 +854,7 @@ theorem erases_natLitCtor (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {
     | litZero => cases hx
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | mdata => cases hx
 
 theorem kfv_of_fvarsIn {p : FVarId → Prop} : ∀ {e : Lean.Expr}, FVarsIn p e → Steps.KFV p e
   | .fvar _, h => h
@@ -870,7 +872,7 @@ theorem noFVar_of_tr {e : Lean.Expr} {t : Metalean.Expr ζ lps.length 0} {tb : L
   intro x
   cases hx : hasFVar x tb
   · rfl
-  · have := Steps.Erases.hasFVar_of h _ (kfv_of_fvarsIn he.fvarsIn) x hx
+  · have := Steps.Erases.hasFVar_of h _ (fun _ _ h => nomatch h) (kfv_of_fvarsIn he.fvarsIn) x hx
     simp [MLCtx.findF] at this
 
 /-- A recursor spine split as `Erases.recLet` and `Erases.recFix` read it, without indices. -/
@@ -967,13 +969,15 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
-    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv)
-    (hmaj : SrcEval σ C maj mj) (hcv : CtorValue σ T (natLitCtor mj) k fs) (hmi : minors[k]? = some mi)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv →
+      SrcEval σ (SrcConv E B lps) m mv)
+    (hmaj : SrcEval σ (SrcConv E B lps) maj mj) (hcv : CtorValue σ T (natLitCtor mj) k fs)
+    (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
-    (hv : SrcEval σ C (mkAppN mk (fs ++ ihvs).toArray) v)
+      SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (hv : SrcEval σ (SrcConv E B lps) (mkAppN mk (fs ++ ihvs).toArray) v)
     (ihm : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → ErasesSim E B lps σ lenv m mv)
     (ihmaj : ErasesSim E B lps σ lenv maj mj)
     (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
@@ -981,7 +985,8 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     (ihv : ErasesSim E B lps σ lenv (mkAppN mk (fs ++ ihvs).toArray) v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v := by
   intro t tb he ⟨T₀, ht⟩ her hdeps
-  have hsrc : SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v :=
+  have hsrc : SrcEval σ (SrcConv E B lps)
+      (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v :=
     .recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih hv
   have hargs := rec_args henv hE hsub hcr hall hcT hblk hshape hihs he ht
   have hminT : ∀ (i : Nat) m, mins[i]? = some m → ∃ (a₀ A : Metalean.Expr ζ lps.length 0),
