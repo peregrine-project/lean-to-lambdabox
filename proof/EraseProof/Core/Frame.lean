@@ -894,7 +894,7 @@ macro (name := _raMut) "ra_mut" T:term : tactic => `(tactic| repeat' (first
   | split))
 
 /-- `visitMutual` after its recursion test: the non-recursive branch erases the declaration's
-value (`value_good`), the fix branch the values of the block's members (`member_good`). -/
+value (`value_good`), the fix branch the values of the block's members (`RA.own`, `RA.member`). -/
 macro (name := _raJp) "ra_jp" T:term "," hD:term "," hci:term "," hn:term : tactic => `(tactic| (
   refine RA.ite (fun _ => ?_) (fun _ => ?_)
   · refine RA.bind (RA.getOrFail _ _) fun _ he => ?_
