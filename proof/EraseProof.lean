@@ -129,3 +129,7 @@ import EraseProof.Test.NVRCollect
 import EraseProof.Test.NVSCollect
 import EraseProof.Test.NVQPCollect
 import EraseProof.Test.NVACollect
+import EraseProof.Test.NVUData
+import EraseProof.Test.NVUCollect
+import EraseProof.Test.NVURun
+import EraseProof.Test.NVUModel
