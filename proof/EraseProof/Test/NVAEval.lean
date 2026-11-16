@@ -216,26 +216,28 @@ theorem ns_over {f a : Expr} {c : Name} {us : List Level} {ar : Nat}
   rw [SrcDefeq.getAppNumArgs_app] at h3
   omega
 
-theorem ev_atom {e : Expr} (h : SrcAtom e) : SrcEval σ e e := .atom h
+variable {C : Expr → Expr → Prop}
+
+theorem ev_atom {e : Expr} (h : SrcAtom e) : SrcEval σ C e e := .atom h
 
 theorem ev_delta {c : Name} {us : List Level} {v : DefinitionVal} {r : Expr}
     (h : σ.unfold? c = some (.defnInfo v, v.value))
-    (hr : SrcEval σ (Pure.instLevels v.levelParams us v.value) r) : SrcEval σ (.const c us) r :=
+    (hr : SrcEval σ C (Pure.instLevels v.levelParams us v.value) r) : SrcEval σ C (.const c us) r :=
   .delta h hr
 
-theorem ev_tN : SrcEval σ tN tN := .constAtom (by krfl)
-theorem ev_lit (k : Nat) : SrcEval σ (lit k) (lit k) := .lit
-theorem ev_tPU : SrcEval σ (tPU ml) (tPU ml) := .constAtom (by krfl)
+theorem ev_tN : SrcEval σ C tN tN := .constAtom (by krfl)
+theorem ev_lit (k : Nat) : SrcEval σ C (lit k) (lit k) := .lit
+theorem ev_tPU : SrcEval σ C (tPU ml) (tPU ml) := .constAtom (by krfl)
 
-theorem ev_cZ : SrcEval σ cZ cZ :=
+theorem ev_cZ : SrcEval σ C cZ cZ :=
   SrcEval.ctor (c := `Nat.zero) (us := []) (as := []) (vs := []) rfl rfl rfl (fun _ _ _ h => nomatch h)
 
-theorem ev_cPU : SrcEval σ (cPU ml) (cPU ml) :=
+theorem ev_cPU : SrcEval σ C (cPU ml) (cPU ml) :=
   SrcEval.ctor (c := `PUnit.unit) (us := [ml]) (as := []) (vs := []) rfl rfl rfl
     (fun _ _ _ h => nomatch h)
 
 /-- `Nat.succ a ⇓ Nat.succ v` when `a ⇓ v`. -/
-theorem ev_succ {a v : Expr} (h : SrcEval σ a v) : SrcEval σ (.app cS a) (.app cS v) := by
+theorem ev_succ {a v : Expr} (h : SrcEval σ C a v) : SrcEval σ C (.app cS a) (.app cS v) := by
   refine SrcEval.ctor (c := `Nat.succ) (us := []) (as := [a]) (vs := [v]) rfl rfl rfl ?_
   intro i x y h1 h2
   rcases i with _ | i <;> simp at h1 h2
@@ -243,8 +245,8 @@ theorem ev_succ {a v : Expr} (h : SrcEval σ a v) : SrcEval σ (.app cS a) (.app
   exact h
 
 /-- `PProd.mk.{1, max 1 1} A B a b ⇓ PProd.mk.{1, max 1 1} A' B' a' b'`. -/
-theorem ev_mk {A B a b A' B' a' b' : Expr} (hA : SrcEval σ A A') (hB : SrcEval σ B B')
-    (ha : SrcEval σ a a') (hb : SrcEval σ b b') : SrcEval σ (PPmkl A B a b) (PPmkl A' B' a' b') := by
+theorem ev_mk {A B a b A' B' a' b' : Expr} (hA : SrcEval σ C A A') (hB : SrcEval σ C B B')
+    (ha : SrcEval σ C a a') (hb : SrcEval σ C b b') : SrcEval σ C (PPmkl A B a b) (PPmkl A' B' a' b') := by
   refine SrcEval.ctor (c := `PProd.mk) (us := [l1, ml]) (as := [A, B, a, b]) (vs := [A', B', a', b'])
     rfl rfl rfl ?_
   intro i x y h1 h2
@@ -267,14 +269,14 @@ theorem nb_PP1 {A : Expr} : ¬ BlocksCong σ (.app (tPP l1 ml) A) := by
     simp [findDecl_PProd, casesOn_PProd] at h2
 
 /-- `PProd.{1, max 1 1} A B ⇓ PProd A' B'` (`appCong` on a type former). -/
-theorem ev_PP {A B A' B' : Expr} (hA : SrcEval σ A A') (hB : SrcEval σ B B') :
-    SrcEval σ (PPl A B) (PPl A' B') :=
+theorem ev_PP {A B A' B' : Expr} (hA : SrcEval σ C A A') (hB : SrcEval σ C B B') :
+    SrcEval σ C (PPl A B) (PPl A' B') :=
   .appCong (ns_const (c := `PProd) (us := [l1, ml]) rfl arity_PProd)
     (.appCong (ns_const (c := `PProd) (us := [l1, ml]) rfl arity_PProd) (.constAtom (by krfl)) nb_PP
       hA) nb_PP1 hB
 
 /-- `(fun y => Nat → Nat) a ⇓ Nat → Nat`. -/
-theorem ev_motA {a a' : Expr} (ha : SrcEval σ a a') : SrcEval σ (.app motA a) nn :=
+theorem ev_motA {a a' : Expr} (ha : SrcEval σ C a a') : SrcEval σ C (.app motA a) nn :=
   .beta (ns_lam rfl) (ev_atom trivial) ha (ev_atom trivial)
 
 /-! ## The numerals -/
@@ -282,7 +284,7 @@ theorem ev_motA {a a' : Expr} (ha : SrcEval σ a a') : SrcEval σ (.app motA a) 
 /-- `OfNat.mk.{0} Nat k k`, the value of `instOfNatNat k`. -/
 def mkOf (k : Nat) : Expr := .app (.app (.app (cOf .zero) tN) (lit k)) (lit k)
 
-theorem ev_mkOf (k : Nat) : SrcEval σ (mkOf k) (mkOf k) := by
+theorem ev_mkOf (k : Nat) : SrcEval σ C (mkOf k) (mkOf k) := by
   refine SrcEval.ctor (c := `OfNat.mk) (us := [.zero]) (as := [tN, lit k, lit k])
     (vs := [tN, lit k, lit k]) rfl rfl rfl ?_
   intro i x y h1 h2
@@ -291,15 +293,15 @@ theorem ev_mkOf (k : Nat) : SrcEval σ (mkOf k) (mkOf k) := by
   · exact ev_lit k
   · exact ev_lit k
 
-theorem ev_instK (k : Nat) : SrcEval σ (instK k) (mkOf k) :=
+theorem ev_instK (k : Nat) : SrcEval σ C (instK k) (mkOf k) :=
   .beta (ns_const rfl (by krfl)) (ev_delta (v := inst_def) (by krfl) (ev_atom trivial)) (ev_lit k)
     (ev_mkOf k)
 
 /-- The numeral `k` evaluates to the literal `k`: `OfNat.ofNat` projects the field of the instance. -/
-theorem ev_numK (k : Nat) : SrcEval σ (numK k) (lit k) := by
-  have h0 := ev_delta (c := `OfNat.ofNat) (us := [.zero]) (v := ofNat_def) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl (by krfl)) h0 (SrcEval.mdata (d := borrowed) ev_tN) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl (by krfl)) h1 (ev_lit k) (ev_atom trivial)
+theorem ev_numK (k : Nat) : SrcEval σ C (numK k) (lit k) := by
+  have h0 := ev_delta (C := C) (c := `OfNat.ofNat) (us := [.zero]) (v := ofNat_def) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl (by krfl)) h0 (SrcEval.mdata (d := borrowed) ev_tN) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl (by krfl)) h1 (ev_lit k) (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl (by krfl)) h2 (ev_instK k)
     (SrcEval.proj (ev_mkOf k) ⟨`OfNat.mk, [.zero], OfNat_mk, [tN, lit k], rfl, rfl, rfl, rfl, rfl, rfl⟩
       (fs := [lit k]) rfl)
@@ -335,20 +337,20 @@ def blMin : Expr :=
 def blRec (a : Expr) : Expr :=
   mkAppN (.const `Nat.rec [.succ ml]) #[.lam `t tN (.sort ml) .default, tPU ml, blMin, a]
 
-theorem ev_BL : ∀ k, SrcEval σ (BL k) (BL k)
+theorem ev_BL : ∀ k, SrcEval σ C (BL k) (BL k)
   | 0 => ev_tPU
   | k + 1 => ev_PP (ev_atom trivial) (ev_BL k)
 
 theorem ev_recBlock : σ.recBlock? Nat_rec = some ([Nat_ind], [Zero_ctor, Succ_ctor]) := by krfl
 
 theorem ev_blMins : ∀ (i : Nat) m mv, [tPU ml, blMin][i]? = some m →
-    [tPU ml, blMin][i]? = some mv → SrcEval σ m mv := by
+    [tPU ml, blMin][i]? = some mv → SrcEval σ C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact ev_tPU
   · exact ev_atom trivial
 
-theorem ev_blRec : ∀ k, SrcEval σ (blRec (lit k)) (BL k)
+theorem ev_blRec : ∀ k, SrcEval σ C (blRec (lit k)) (BL k)
   | 0 =>
     SrcEval.recIota (c := `Nat.rec) (us := [.succ ml]) (ps := []) (ms := [.lam `t tN (.sort ml) .default])
       (mins := [tPU ml, blMin]) (mvs := [tPU ml, blMin]) (fs := []) (rfs := []) (ihvs := [])
@@ -367,7 +369,7 @@ theorem ev_blRec : ∀ k, SrcEval σ (blRec (lit k)) (BL k)
         rcases i with _ | i <;> simp at h1 h2
         subst h1 h2
         exact ev_blRec k) ?_
-    have h1 : SrcEval σ (.app blMin (lit k))
+    have h1 : SrcEval σ C (.app blMin (lit k))
         (.lam `n_ih (.sort ml) (PPl (.app motA (lit k)) (.bvar 0)) .default) :=
       .beta (ns_lam rfl) (ev_atom trivial) (ev_lit k) (ev_atom trivial)
     refine SrcEval.beta (ns_lam rfl) h1 (ev_BL k) ?_
@@ -377,23 +379,23 @@ theorem ev_blRec : ∀ k, SrcEval σ (blRec (lit k)) (BL k)
     exact ev_PP (ev_motA (ev_lit k)) (ev_BL k)
 
 /-- `Nat.below.{1} (fun y => Nat → Nat) k ⇓ BL k`. -/
-theorem ev_below (k : Nat) : SrcEval σ (belowA (lit k)) (BL k) := by
-  have h0 := ev_delta (c := `Nat.below) (us := [l1]) (v := Nat_below) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl (by krfl)) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
+theorem ev_below (k : Nat) : SrcEval σ C (belowA (lit k)) (BL k) := by
+  have h0 := ev_delta (C := C) (c := `Nat.below) (us := [l1]) (v := Nat_below) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl (by krfl)) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl (by krfl)) h1 (ev_lit k) (ev_blRec k)
 
 
 /-! ## The tables -/
 
-theorem ev_Gb {y tbl : Expr} : SrcEval σ (Gb y tbl) (Gb y tbl) := ev_atom trivial
+theorem ev_Gb {y tbl : Expr} : SrcEval σ C (Gb y tbl) (Gb y tbl) := ev_atom trivial
 
-theorem ev_T : ∀ k, SrcEval σ (T k) (T k)
+theorem ev_T : ∀ k, SrcEval σ C (T k) (T k)
   | 0 => ev_mk (ev_atom trivial) ev_tPU ev_Gb ev_cPU
   | k + 1 => ev_mk (ev_atom trivial) (ev_PP (ev_atom trivial) (ev_BL k)) ev_Gb (ev_T k)
 
 /-- `Nat.add._f`'s value applied to `y` and the table `tbl` evaluates to `Gb y tbl`. -/
-theorem ev_fApp {y tbl : Expr} (hy : SrcEval σ y y) (ht : SrcEval σ tbl tbl) (hyb : Below 0 y)
-    (htb : Below 0 tbl) : SrcEval σ (.app (.app fVal y) tbl) (Gb y tbl) := by
+theorem ev_fApp {y tbl : Expr} (hy : SrcEval σ C y y) (ht : SrcEval σ C tbl tbl) (hyb : Below 0 y)
+    (htb : Below 0 tbl) : SrcEval σ C (.app (.app fVal y) tbl) (Gb y tbl) := by
   have e1 : (Expr.lam `f (belowA (.bvar 0)) (.lam x13 tN
       (m6 motF (.bvar 0) (.bvar 2) h1F h2F (.bvar 1)) .default)
       .default).instantiate1' y = .lam `f (belowA y) (.lam x13 tN
@@ -401,17 +403,17 @@ theorem ev_fApp {y tbl : Expr} (hy : SrcEval σ y y) (ht : SrcEval σ tbl tbl) (
       .default := by
     instsimp
     rw [lift_below 2 hyb (Nat.le_refl 0)]
-  have h1 : SrcEval σ (.app fVal y) (.lam `f (belowA y) (.lam x13 tN
+  have h1 : SrcEval σ C (.app fVal y) (.lam `f (belowA y) (.lam x13 tN
       (m6 motF (.bvar 0) y h1F h2F (.bvar 1)) .default)
       .default) :=
-    .beta (ns_lam rfl) (ev_atom trivial) hy ((congrArg (fun x => SrcEval σ x _) e1).mpr
+    .beta (ns_lam rfl) (ev_atom trivial) hy ((congrArg (fun x => SrcEval σ C x _) e1).mpr
       (ev_atom trivial))
   have e2 : (Expr.lam x13 tN (m6 motF (.bvar 0) y h1F h2F (.bvar 1)) .default).instantiate1' tbl = Gb y tbl := by
     simp only [Gb]
     instsimp
     rw [inst_below tbl (below_mono hyb (Nat.zero_le 1)) (Nat.le_refl 1),
       lift_below 1 htb (Nat.le_refl 0)]
-  exact .beta (ns_lam rfl) h1 ht ((congrArg (fun x => SrcEval σ x _) e2).mpr ev_Gb)
+  exact .beta (ns_lam rfl) h1 ht ((congrArg (fun x => SrcEval σ C x _) e2).mpr ev_Gb)
 
 
 /-! ## `Nat.brecOn.go` on a literal -/
@@ -429,38 +431,38 @@ def sMin : Expr :=
 /-- `Nat.rec.{max 1 1} Mg z sMin maj` -/
 def recG (z maj : Expr) : Expr := .app (.app (.app (.app (.const `Nat.rec [ml]) Mg) z) sMin) maj
 
-theorem ev_zMin : SrcEval σ zMin (T 0) :=
+theorem ev_zMin : SrcEval σ C zMin (T 0) :=
   ev_mk (ev_motA ev_cZ) ev_tPU (ev_fApp ev_cZ ev_cPU trivial trivial) ev_cPU
 
 /-- The minor premise of `Nat.succ` on the field `k` and the table on `k`. -/
-theorem ev_sMin (k : Nat) : SrcEval σ (.app (.app sMin (lit k)) (T k)) (T (k + 1)) := by
-  have h1 : SrcEval σ (.app sMin (lit k))
+theorem ev_sMin (k : Nat) : SrcEval σ C (.app (.app sMin (lit k)) (T k)) (T (k + 1)) := by
+  have h1 : SrcEval σ C (.app sMin (lit k))
       (.lam `n_ih (PPl (.app motA (lit k)) (belowA (lit k))) (sMinB (lit k) (.bvar 0)) .default) :=
     .beta (ns_lam rfl) (ev_atom trivial) (ev_lit k) (ev_atom trivial)
   have e2 : (sMinB (lit k) (.bvar 0)).instantiate1' (T k) = sMinB (lit k) (T k) := by
     simp only [sMinB]
     instsimp
-  refine .beta (ns_lam rfl) h1 (ev_T k) ((congrArg (fun x => SrcEval σ x _) e2).mpr ?_)
+  refine .beta (ns_lam rfl) h1 (ev_T k) ((congrArg (fun x => SrcEval σ C x _) e2).mpr ?_)
   exact ev_mk (ev_motA (ev_succ (ev_lit k))) (ev_PP (ev_motA (ev_lit k)) (ev_below k))
     (ev_fApp (ev_succ (ev_lit k)) (ev_T k) ⟨trivial, trivial⟩ (below_T k)) (ev_T k)
 
-theorem ev_minsG {z : Expr} (hz : SrcEval σ z (T 0)) : ∀ (i : Nat) m mv, [z, sMin][i]? = some m →
-    [T 0, sMin][i]? = some mv → SrcEval σ m mv := by
+theorem ev_minsG {z : Expr} (hz : SrcEval σ C z (T 0)) : ∀ (i : Nat) m mv, [z, sMin][i]? = some m →
+    [T 0, sMin][i]? = some mv → SrcEval σ C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact hz
   · exact ev_atom trivial
 
 /-- The recursor's ι on `0` and on `k + 1`, the zero minor premise evaluating to `T 0`. -/
-theorem ev_recG0 {z : Expr} (hz : SrcEval σ z (T 0)) : SrcEval σ (recG z (lit 0)) (T 0) :=
+theorem ev_recG0 {z : Expr} (hz : SrcEval σ C z (T 0)) : SrcEval σ C (recG z (lit 0)) (T 0) :=
   SrcEval.recIota (c := `Nat.rec) (us := [ml]) (ps := []) (ms := [Mg]) (mins := [z, sMin])
     (mvs := [T 0, sMin]) (fs := []) (rfs := []) (ihvs := []) (T := `Nat) (iv := Nat_ind)
     (cvs := [Zero_ctor, Succ_ctor]) rfl rfl rfl ev_recBlock rfl recShape_N minors_shape rfl rfl rfl rfl
     (ev_minsG hz) (ev_lit 0) ⟨`Nat.zero, [], Zero_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl rfl rfl
     rfl (fun _ _ _ h => nomatch h) (ev_T 0)
 
-theorem ev_recGS {z : Expr} (hz : SrcEval σ z (T 0)) {k : Nat}
-    (ih : SrcEval σ (recG (T 0) (lit k)) (T k)) : SrcEval σ (recG z (lit (k + 1))) (T (k + 1)) :=
+theorem ev_recGS {z : Expr} (hz : SrcEval σ C z (T 0)) {k : Nat}
+    (ih : SrcEval σ C (recG (T 0) (lit k)) (T k)) : SrcEval σ C (recG z (lit (k + 1))) (T (k + 1)) :=
   SrcEval.recIota (c := `Nat.rec) (us := [ml]) (ps := []) (ms := [Mg]) (mins := [z, sMin])
     (mvs := [T 0, sMin]) (fs := [lit k]) (rfs := [lit k]) (ihvs := [T k]) (T := `Nat)
     (iv := Nat_ind) (cvs := [Zero_ctor, Succ_ctor]) rfl rfl rfl ev_recBlock rfl recShape_N
@@ -472,28 +474,28 @@ theorem ev_recGS {z : Expr} (hz : SrcEval σ z (T 0)) {k : Nat}
       exact ih)
     (ev_sMin k)
 
-theorem ev_recG : ∀ k, SrcEval σ (recG (T 0) (lit k)) (T k)
+theorem ev_recG : ∀ k, SrcEval σ C (recG (T 0) (lit k)) (T k)
   | 0 => ev_recG0 (ev_T 0)
   | k + 1 => ev_recGS (ev_T 0) (ev_recG k)
 
 /-- `Nat.brecOn.go (fun y => Nat → Nat) 3 (Nat.add._f's value) ⇓ T 3`. -/
-theorem ev_go : SrcEval σ (.app (.app (.app (.const `Nat.brecOn.go [l1]) motA) (lit 3)) fVal)
+theorem ev_go : SrcEval σ C (.app (.app (.app (.const `Nat.brecOn.go [l1]) motA) (lit 3)) fVal)
     (T 3) := by
   have hns : specialArity σ `Nat.brecOn.go = none := by krfl
-  have h0 := ev_delta (c := `Nat.brecOn.go) (us := [l1]) (v := Nat_brecOn_go) (by krfl)
+  have h0 := ev_delta (C := C) (c := `Nat.brecOn.go) (us := [l1]) (v := Nat_brecOn_go) (by krfl)
     (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 (ev_lit 3) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 (ev_lit 3) (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h2 (ev_atom (e := fVal) trivial)
     (ev_recGS (k := 2) ev_zMin (ev_recG 2))
 
 /-- `Nat.brecOn (fun y => Nat → Nat) 3 Nat.add._f ⇓ G 3`, the first field of the table. -/
-theorem ev_brecOn : SrcEval σ (.app (.app (.app (.const `Nat.brecOn [l1]) motA) (lit 3))
+theorem ev_brecOn : SrcEval σ C (.app (.app (.app (.const `Nat.brecOn [l1]) motA) (lit 3))
     (.const `Nat.add._f [])) (G 3) := by
   have hns : specialArity σ `Nat.brecOn = none := by krfl
-  have h0 := ev_delta (c := `Nat.brecOn) (us := [l1]) (v := Nat_brecOn) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 (ev_lit 3) (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `Nat.brecOn) (us := [l1]) (v := Nat_brecOn) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motA) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 (ev_lit 3) (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h2
     (ev_delta (c := `Nat.add._f) (us := []) (v := add_f) (by krfl) (ev_atom trivial))
     (SrcEval.proj ev_go ⟨`PProd.mk, [l1, ml], PProd_mk, [nn, PPl nn (BL 2)], rfl, rfl, rfl, rfl, rfl,
@@ -530,34 +532,35 @@ def casesArgs (y : Expr) : List Expr :=
 
 /-- δ and the five β of `Nat.add.match_1` on the arguments `motF 2 y h1F h2F`. -/
 syntax (name := _matchBetaA) "add_match_beta" term : tactic
+set_option hygiene false in
 macro_rules
   | `(tactic| add_match_beta $hy:term) => `(tactic| (
   have hns : specialArity σ `Nat.add.match_1 = none := by krfl
-  have h0 := ev_delta (c := `Nat.add.match_1) (us := [l1]) (v := match_def) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motF) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 (ev_lit 2) (ev_atom trivial)
-  have h3 := SrcEval.beta (ns_const rfl hns) h2 $hy (ev_atom trivial)
-  have h4 := SrcEval.beta (ns_const rfl hns) h3 (ev_atom (e := h1F) trivial) (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `Nat.add.match_1) (us := [l1]) (v := match_def) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motF) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 (ev_lit 2) (ev_atom trivial)
+  have h3 := SrcEval.beta (C := C) (ns_const rfl hns) h2 $hy (ev_atom trivial)
+  have h4 := SrcEval.beta (C := C) (ns_const rfl hns) h3 (ev_atom (e := h1F) trivial) (ev_atom trivial)
   refine SrcEval.beta (ns_const rfl hns) h4 (ev_atom (e := h2F) trivial) ?_))
 
 theorem casesOn_N : σ.casesOn? `Nat.casesOn = some Nat_ind := by krfl
 
 /-- The match on `Nat.zero`: the first alternative, `fun x => 2`. -/
-theorem ev_m5Z : SrcEval σ (m5 cZ) (.lam x61 (belowA cZ) (lit 2) .default) := by
+theorem ev_m5Z : SrcEval σ C (m5 cZ) (.lam x61 (belowA cZ) (lit 2) .default) := by
   add_match_beta ev_cZ
   exact SrcEval.casesIota (c := `Nat.casesOn) (us := [l1]) (as := casesArgs cZ) (i := 0) (fs := [])
     casesOn_N rfl rfl ev_cZ ⟨`Nat.zero, [], Zero_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl
     (.beta (ns_lam rfl) (ev_atom trivial) (ev_lit 2) (ev_atom trivial))
 
 /-- The match on `Nat.succ k`: the second alternative, `fun x => Nat.succ (x.1 2)`. -/
-theorem ev_m5S (k : Nat) : SrcEval σ (m5 (.app cS (lit k)))
+theorem ev_m5S (k : Nat) : SrcEval σ C (m5 (.app cS (lit k)))
     (.lam x61 (belowA (.app cS (lit k))) (.app cS (.app (.proj `PProd 0 (.bvar 0)) (lit 2)))
       .default) := by
   add_match_beta (ev_succ (ev_lit k))
   refine SrcEval.casesIota (c := `Nat.casesOn) (us := [l1]) (as := casesArgs (.app cS (lit k)))
     (i := 1) (fs := [lit k]) casesOn_N rfl rfl (ev_succ (ev_lit k))
     ⟨`Nat.succ, [], Succ_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl ?_
-  have h1 := SrcEval.beta (ns_lam rfl) (ev_atom (e := h2F) trivial) (ev_lit 2) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_lam rfl) (ev_atom (e := h2F) trivial) (ev_lit 2) (ev_atom trivial)
   exact .beta (ns_lam rfl) (ev_atom trivial) (ev_lit k)
     (.beta (ns_lam rfl) h1 (ev_lit k) (ev_atom trivial))
 
@@ -567,7 +570,7 @@ theorem ctorT (k : Nat) : CtorValue σ `PProd (T k) 0 [G k, tv k] := by
   · exact ⟨`PProd.mk, [l1, ml], PProd_mk, [nn, PPl nn (BL _)], rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The body of `G k` applied to `2` evaluates to `V k`. -/
-theorem ev_callB : ∀ k, SrcEval σ ((m6 motF (.bvar 0) (yv k) h1F h2F (tv k)).instantiate1' (lit 2))
+theorem ev_callB : ∀ k, SrcEval σ C ((m6 motF (.bvar 0) (yv k) h1F h2F (tv k)).instantiate1' (lit 2))
     (V k)
   | 0 => .beta (ns_const rfl (by krfl)) ev_m5Z ev_cPU (ev_lit 2)
   | k + 1 => by
@@ -580,8 +583,8 @@ theorem ev_callB : ∀ k, SrcEval σ ((m6 motF (.bvar 0) (yv k) h1F h2F (tv k)).
       instsimp
     rw [e1]
     refine .beta (ns_const rfl (by krfl)) (ev_m5S k) (ev_T k)
-      ((congrArg (fun x => SrcEval σ x _) e2).mpr (ev_succ ?_))
-    have hp : SrcEval σ (.proj `PProd 0 (T k)) (Gb (yv k) (tv k)) := by
+      ((congrArg (fun x => SrcEval σ C x _) e2).mpr (ev_succ ?_))
+    have hp : SrcEval σ C (.proj `PProd 0 (T k)) (Gb (yv k) (tv k)) := by
       rw [← G_eq]
       exact SrcEval.proj (ev_T k) (ctorT k) (fs := [G k, tv k]) rfl
     exact .beta (ns_proj rfl) hp (ev_lit 2) (ev_callB k)
@@ -592,10 +595,10 @@ theorem ev_callB : ∀ k, SrcEval σ ((m6 motF (.bvar 0) (yv k) h1F h2F (tv k)).
 abbrev v5 : Expr := V 3
 
 /-- `hev`: `e = Nat.add 2 3` evaluates to `Nat.succ (Nat.succ (Nat.succ 2))`. -/
-theorem hev : SrcEval σ e v5 := by
+theorem hev : SrcEval σ C e v5 := by
   have hns : specialArity σ `Nat.add = none := by krfl
-  have h0 := ev_delta (c := `Nat.add) (us := []) (v := add_def) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_numK 2) (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `Nat.add) (us := []) (v := add_def) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_numK 2) (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h1 (ev_numK 3)
     (SrcEval.beta (ns_const rfl (by krfl)) ev_brecOn (ev_lit 2) (ev_callB 3))
 

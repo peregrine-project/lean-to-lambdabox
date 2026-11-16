@@ -391,6 +391,16 @@ theorem LvlOK_mkAppN {σ : EvalEnv} {f : Expr} {as : List Expr} :
     LvlOK σ (mkAppN f as.toArray) ↔ LvlOK σ f ∧ ∀ a ∈ as, LvlOK σ a := by
   rw [mkAppN_toArray, LvlOK_foldl]
 
+/-- Universe instantiation keeps the number of level arguments. -/
+theorem LvlOK_instLevels {σ : EvalEnv} (ps : List Name) (vs : List Level) :
+    ∀ {e : Expr}, LvlOK σ e → LvlOK σ (Pure.instLevels ps vs e)
+  | .const _ _, h => fun ci hci hk => by simpa using h ci hci hk
+  | .app f a, h => ⟨LvlOK_instLevels ps vs (e := f) h.1, LvlOK_instLevels ps vs (e := a) h.2⟩
+  | .lam _ _ b _, h => LvlOK_instLevels ps vs (e := b) h
+  | .letE _ _ v b _, h => ⟨LvlOK_instLevels ps vs (e := v) h.1, LvlOK_instLevels ps vs (e := b) h.2⟩
+  | .mdata _ e, h | .proj _ _ e, h => LvlOK_instLevels ps vs (e := e) h
+  | .bvar _, _ | .fvar _, _ | .sort _, _ | .mvar _, _ | .lit _, _ | .forallE .., _ => trivial
+
 theorem LvlOK_lift {σ : EvalEnv} : ∀ {e : Expr} {s d : Nat}, LvlOK σ e →
     LvlOK σ (e.liftLooseBVars' s d)
   | .bvar _, _, _, _ => trivial
@@ -604,7 +614,7 @@ theorem TrM.lvlOK (henv : ProgEnv P ζ E B) (hE : Metalean.EnvWF E) (hsub : SubE
   | _ => trivial
 
 /-- Universe instantiation of an erasure under binders and locals, for terms that are `LvlOK`. -/
-theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
+theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hE : Metalean.EnvWF E) (hsub : SubEnv σ.decls P)
     {lps lps' : List Name} {us : List Level} {ls : Fin lps'.length → Metalean.Level lps.length}
     (hus : TrLevels lps us lps'.length = some ls) {n : Nat} {Γ : Metalean.Ctx ζ lps'.length 0 n}
     {Δ : MLCtx ζ lps'.length n} {e : Expr} {tb : LBTerm} (h : Erases E B lps' σ Γ Δ e tb)
@@ -623,8 +633,8 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
       Erases E B lps σ (Γ{ls}) (Δ.instL ls) (Pure.instLevels lps' us e) tb)
     (motive_2 := fun Γ Δ k e br _ => LvlOK σ e →
       ErasesAlt E B lps σ (Γ{ls}) (Δ.instL ls) k (Pure.instLevels lps' us e) br)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hok
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hok
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam =>
@@ -642,6 +652,20 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     obtain ⟨vs', hvs'⟩ := instLevels_eq_const hc
     exact ⟨c, vs', hvs', hs⟩
   case const => intro _ _ _ _ _ hat hsa hnr _; exact .const hat hsa hnr
+  case fixVar =>
+    intro _ _ _ _ _ _ _ hat hT hF _
+    exact .fixVar hat (hT.instL hus) (by rw [MLCtx.findFix_instL, hF]; rfl)
+  case constFix =>
+    intro c ci pre us₀ _ _ _ _ _ t hci hdef hcas hat hax hpre hca hp ht _ hcl hfv ih hok
+    obtain ⟨p, hpT⟩ := hp
+    have hlen : us₀.length = ci.levelParams.length := by
+      cases ci <;> simp only [ConstantInfo.isDefinition, reduceCtorEq] at hdef
+      exact hok _ hci (.inr (.inl ⟨_, rfl⟩))
+    have hb := ih (LvlOK_instLevels _ _ (TrM.lvlOK henv hE hsub hpT))
+    rw [instLevels_comp hlen (TrM.levelsTr hpT)] at hb
+    exact .constFix hci hdef hcas hat hax hpre hca ⟨p, hpT⟩
+      (by simpa [MLCtx.instL, Pure.instLevels] using ht.instL hus)
+      (by simpa [MLCtx.instL, MLDecl.instL] using hb) hcl hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hok
     have has := (LvlOK_mkAppN.1 hok).2
@@ -771,6 +795,6 @@ theorem Erases.instLevels {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds 
     (he : TrM E B lps' .nil [] e t) (h : Erases E B lps' σ .nil [] e tb) :
     Erases E B lps σ .nil [] (Pure.instLevels lps' us e) tb := by
   simpa [MLCtx.instL] using
-    RelLevels.Erases.instL_gen henv hsub hus h (RelLevels.TrM.lvlOK henv hE hsub he)
+    RelLevels.Erases.instL_gen henv hE hsub hus h (RelLevels.TrM.lvlOK henv hE hsub he)
 
 end EraseProof

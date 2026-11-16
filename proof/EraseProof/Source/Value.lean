@@ -133,12 +133,15 @@ private theorem BlocksCong_quot {σ : EvalEnv} {e : Expr} {c : Name} {us : List 
   | const => exact .inr (.inr ⟨c, us, qv, he, hc, hk⟩)
   | _ => cases he
 
+variable {C : Expr → Expr → Prop}
+
 /-- Every evaluation result is a value whose constructor arguments are values. -/
-private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep σ v := by
+private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ C e v) : Deep σ v := by
   induction hev with
   | beta _ _ _ _ _ _ ih => exact ih
   | zeta _ _ _ ih => exact ih
   | delta _ _ ih => exact ih
+  | deltaRec => rename_i ih; exact ih
   | constAtom h => exact .spine (.const h)
   | eta h =>
     obtain ⟨_, _, _, _, rfl⟩ := etaSpine?_lam h
@@ -178,7 +181,7 @@ private theorem deep {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : Deep �
 end Value
 
 /-- Evaluation results are values. Reference: `eval_to_value` (`MR P/PCUICWcbvEval.v:570`). -/
-theorem SrcEval.value {σ : EvalEnv} {e v : Expr} (hev : SrcEval σ e v) : SrcValue σ v :=
+theorem SrcEval.value {σ : EvalEnv} {C : Expr → Expr → Prop} {e v : Expr} (hev : SrcEval σ C e v) : SrcValue σ v :=
   (Value.deep hev).srcValue
 
 end EraseProof

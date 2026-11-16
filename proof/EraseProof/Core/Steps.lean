@@ -22,8 +22,9 @@ This module proves the steps of the cases of `visitExpr` that are not constructo
 projection or literal cases: the oracle's `□` (`visitExpr_box`), a free variable, a sort, a Π and
 the terms without translation, metadata, a λ, a `let`, an application whose head is neither a
 constructor nor a recognized `casesOn` (`visitExpr_app_step`, `visitApp_plain`), a constant
-(`visitConst_spec`), and `visitMutual` (`visitMutual_step`, every declaration of a program being
-non-recursive, `isRecursiveDecl_false`).
+(`visitConst_spec`, and the fix variable of `visitConst_fix_run`), and `visitMutual`
+(`visitMutual_step`: a kernel value is non-recursive, `isRecursiveDecl_false`; a definition with a
+compiled pre-definition is erased as a λ□ fixpoint, `visitMutual_fix_step`).
 
 Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`), case by case over `erase`
 (`MR E/ErasureFunction.v:989`), with `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and
@@ -207,46 +208,64 @@ theorem mem_rel {α β : Type} {as : List α} {bs : List β} {R : α → β → 
 section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {σ : EvalEnv} {lps : List Name}
 
-/-- The free variables of an erasure are free variables of the parts of the source it keeps.
-Reference: none (`LBTerm.fvar` has no MetaRocq counterpart, DV-13). -/
+/-- The free variables of an erasure are free variables of the parts of the source it keeps, or
+fix variables of the locals (`Erases.fixVar`). Reference: none (`LBTerm.fvar` has no MetaRocq
+counterpart, DV-13). -/
 theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {e : Expr} {tb : LBTerm} (h : Erases E B lps σ Γ Δ e tb) :
-    ∀ (p : FVarId → Prop), KFV p e → ∀ x, hasFVar x tb = true → p x := by
+    ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) → KFV p e →
+      ∀ x, hasFVar x tb = true → p x := by
+  have push : ∀ {n : Nat} {Δ : MLCtx ζ lps.length n} {p : FVarId → Prop},
+      (∀ y t, Δ.findFix y = some t → p y) → ∀ y t, (Δ.pushLam none).findFix y = some t → p y := by
+    intro _ _ _ hΔ y t ht
+    simp only [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, Option.map_eq_some_iff] at ht
+    obtain ⟨u, hu, -⟩ := ht
+    exact hΔ y u hu
   refine Erases.rec
-    (motive_1 := fun _ _ e tb _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x, hasFVar x tb = true → p x)
-    (motive_2 := fun _ _ _ e br _ => ∀ (p : FVarId → Prop), KFV p e → ∀ x,
-      hasFVar x br.2 = true → p x)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
+    (motive_1 := fun _ Δ e tb _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) →
+      KFV p e → ∀ x, hasFVar x tb = true → p x)
+    (motive_2 := fun _ Δ _ e br _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) →
+      KFV p e → ∀ x, hasFVar x br.2 = true → p x)
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar | const | box | litZero => intros; simp_all [hasFVar, hasFVarL]
   case fvar =>
-    intro _ _ _ y p hk x hx
+    intro _ _ _ y p _ hk x hx
     simp only [hasFVar] at hx
     rw [(fvarId_beq_iff x y).mp hx]; exact hk
-  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
+  case fixVar =>
+    intro _ _ _ _ _ y _ _ _ hF p hΔ _ x hx
+    simp only [hasFVar] at hx
+    rw [(fvarId_beq_iff x y).mp hx]; exact hΔ y _ hF
+  case constFix =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
+    simp only [hasFVar, hasFVarD, Bool.or_false, hfv x] at hx
+    cases hx
+  case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb p hk x hx
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
-    exact hx.elim (ihv p hk.1 x) (ihb p hk.2 x)
+    exact hx.elim (ihv p hΔ hk.1 x)
+      (ihb p (fun y t ht => hΔ y t (by simpa [MLCtx.findFix] using ht)) hk.2 x)
   case app =>
-    intro _ _ _ _ _ _ _ _ _ _ ihf iha p hk x hx
+    intro _ _ _ _ _ _ _ _ _ _ ihf iha p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
-    exact hx.elim (ihf p hk.1 x) (iha p hk.2 x)
+    exact hx.elim (ihf p hΔ hk.1 x) (iha p hΔ hk.2 x)
   case ctor =>
-    intro _ _ _ _ _ _ _ as as' _ _ _ _ hlen _ ih p hk x hx
+    intro _ _ _ _ _ _ _ as as' _ _ _ _ hlen _ ih p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
     · simp [hasFVar, hasFVarL] at h
     · obtain ⟨a, ha, hr⟩ := mem_rel hlen ih a' ha'
-      exact hr p (hk.2 a ha) x h
+      exact hr p hΔ (hk.2 a ha) x h
   case cases =>
     intro _ iv _ _ _ _ _ maj _ pre alts extra brs _ _ _ _ _ _ hlalts _ hlbrs hcf _ hlex _ ihm iha
-      ihe p hk x hx
+      ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
     · simp only [hasFVar, Bool.or_eq_true] at h
       rcases h with h | h
-      · exact ihm p (hk.2 maj (by simp)) x h
+      · exact ihm p hΔ (hk.2 maj (by simp)) x h
       · have key : ∀ brs' : List (List BinderName × LBTerm), hasFVarB x brs' = true →
             ∃ br ∈ brs', hasFVar x br.2 = true := by
           intro brs' h'
@@ -265,51 +284,51 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
         have hic : i < iv.ctors.length := hlalts ▸ hia
         obtain ⟨kf, hkf⟩ := Option.isSome_iff_exists.1 (hcf i _ (List.getElem?_eq_getElem hic))
         exact iha i _ _ _ kf (List.getElem?_eq_getElem hic) (List.getElem?_eq_getElem hia)
-          (List.getElem?_eq_getElem hi) hkf p (hk.2 _ (by simp [List.getElem_mem hia])) x hb
+          (List.getElem?_eq_getElem hi) hkf p hΔ (hk.2 _ (by simp [List.getElem_mem hia])) x hb
     · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case casesReduced =>
-    intro _ _ _ _ _ _ _ alt _ _ _ _ extra extra' _ _ _ _ _ _ _ hlex _ iha ihe p hk x hx
+    intro _ _ _ _ _ _ _ alt _ _ _ _ extra extra' _ _ _ _ _ _ _ hlex _ iha ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact iha p (hk.2 alt (by simp)) x h
+    · exact iha p hΔ (hk.2 alt (by simp)) x h
     · rcases List.mem_append.1 ha' with ha' | ha'
       · rw [List.eq_of_mem_replicate ha'] at h; cases h
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
-  case eta => intro _ _ _ _ _ _ _ _ heta _ ih p hk x hx; exact ih p (KFV_etaSpine heta hk) x hx
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
+  case eta => intro _ _ _ _ _ _ _ _ heta _ ih p hΔ hk x hx; exact ih p hΔ (KFV_etaSpine heta hk) x hx
   case quotMk =>
-    intros; rename_i hlex _ iha ihe p hk x hx
+    intros; rename_i hlex _ iha ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact iha p (hk.2 _ (by simp)) x h
+    · exact iha p hΔ (hk.2 _ (by simp)) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case quotLift =>
-    intros; rename_i hlex _ ihf ihq ihe p hk x hx
+    intros; rename_i hlex _ ihf ihq ihe p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     rcases hasFVar_mkApps hx with h | ⟨a', ha', h⟩
-    · exact ihf p (hk.2 _ (by simp)) x h
+    · exact ihf p hΔ (hk.2 _ (by simp)) x h
     · rcases List.mem_cons.1 ha' with rfl | ha'
-      · exact ihq p (hk.2 _ (by simp)) x h
+      · exact ihq p hΔ (hk.2 _ (by simp)) x h
       · obtain ⟨a, ha, hr⟩ := mem_rel hlex ihe a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case recLet =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' _ hF _ _ _ _ hlm _
-      hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+      hli _ _ hle _ ihmin ihis ihmaj ihext p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     obtain ⟨-, -, hFx⟩ := RecLam.RecFixOf.closed hF
     rcases RecLam.hasFVar_recLetTerm hFx hx with ⟨a', ha', h⟩ | ⟨a', ha', h⟩ | h | ⟨a', ha', h⟩
     · obtain ⟨a, ha, hr⟩ := mem_rel hlm ihmin a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
-    · exact ihmaj p (hk.2 maj (by simp)) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
+    · exact ihmaj p hΔ (hk.2 maj (by simp)) x h
     · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
-      exact hr p (hk.2 a (by simp [ha])) x h
+      exact hr p hΔ (hk.2 a (by simp [ha])) x h
   case recFix =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' _ hF _ _ hmins _ hlw _
-      hws hli _ _ hle _ ihmin ihis ihmaj ihext p hk x hx
+      hws hli _ _ hle _ ihmin ihis ihmaj ihext p hΔ hk x hx
     rw [mkAppN_toArray, KFV_foldl] at hk
     obtain ⟨-, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
     have hG := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
@@ -319,20 +338,20 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     · rcases List.mem_append.1 ha' with ha' | ha'
       · rcases List.mem_append.1 ha' with ha' | ha'
         · obtain ⟨a, ha, hr⟩ := mem_rel hli ihis a' ha'
-          exact hr p (hk.2 a (by simp [ha])) x h
+          exact hr p hΔ (hk.2 a (by simp [ha])) x h
         · rw [List.mem_singleton.1 ha'] at h
-          exact ihmaj p (hk.2 maj (by simp)) x h
+          exact ihmaj p hΔ (hk.2 maj (by simp)) x h
       · obtain ⟨a, ha, hr⟩ := mem_rel hle ihext a' ha'
-        exact hr p (hk.2 a (by simp [ha])) x h
-  case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hk x hx; exact ih p hk x hx
+        exact hr p hΔ (hk.2 a (by simp [ha])) x h
+  case proj => intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p hΔ hk x hx
   case litSucc =>
-    intro _ _ _ _ _ _ _ _ ih p _ x hx
+    intro _ _ _ _ _ _ _ _ ih p hΔ _ x hx
     simp only [hasFVar, hasFVarL, Bool.false_or] at hx
-    exact ih p trivial x hx
-  case mdata => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case done => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case alam => intros; rename_i ih p hk x hx; exact ih p hk x hx
-  case intro => intros; rename_i ih p hk x hx; exact ih p ⟨KFV_lift hk, trivial⟩ x hx
+    exact ih p hΔ trivial x hx
+  case mdata => intros; rename_i ih p hΔ hk x hx; exact ih p hΔ hk x hx
+  case done => intros; rename_i ih p hΔ hk x hx; exact ih p hΔ hk x hx
+  case alam => intros; rename_i ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
+  case intro => intros; rename_i ih p hΔ hk x hx; exact ih p (push hΔ) ⟨KFV_lift hk, trivial⟩ x hx
 
 end
 
@@ -399,13 +418,14 @@ theorem InstFV.zeroLet {ℓ n : Nat} {x : FVarId} {Δ : MLCtx ζ ℓ n} (hx : Δ
     rw [MLCtx.findF_ne hx ht]
     exact ht
 
-/-- Closing a `let` that the traversal opened with a fresh free variable (`mkLetIn`): the
-`let`-body counterpart of `Erases.abstract`. Reference: `Erases.uninstantiateN`
-(`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
+/-- Closing a `let` that the traversal opened with a fresh free variable (`mkLetIn`), whose local
+is no fix variable: the `let`-body counterpart of `Erases.abstract`. Reference:
+`Erases.uninstantiateN` (`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
 theorem Erases.abstract_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {x : FVarId} {b : Expr}
     {tb : LBTerm} {d : MLDecl ζ lps.length n} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
-    (_hx : Δ.findF x = none) (hfv : FVarsIn (· ≠ x) b) (hcl : closedn 0 tb = true)
+    (_hx : Δ.findF x = none) (hd : d.fixVal? = none) (hfv : FVarsIn (· ≠ x) b)
+    (hcl : closedn 0 tb = true)
     (h : Erases E B lps σ Γ ((some x, d) :: Δ) (b.instantiate1' (.fvar x)) tb) :
     Erases E B lps σ Γ ((none, d) :: Δ) b (_root_.abstract x tb) := by
   have hrel : AbsFV.Rel x 0 ((some x, d) :: Δ) ((none, d) :: Δ) := by
@@ -428,7 +448,8 @@ theorem Erases.abstract_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
         simp only [hxy, Bool.false_eq_true, ↓reduceIte] at ht
         simp only [hy, Bool.false_eq_true, ↓reduceIte, MLCtx.findF]
         exact ht
-  have := AbsFV.Erases.absN x (AbsFV.closed_types henv hsub) h 0 _ hrel hcl
+  have := AbsFV.Erases.absN x (AbsFV.closed_types henv hsub) h 0 _ hrel
+    (AbsFV.FixRel.close x hd Δ) hcl
   rwa [AbsFV.absFV_inst hfv] at this
 
 variable {σ : EvalEnv} {lenv : GlobalDeclarations}
@@ -504,6 +525,214 @@ theorem ErasesDeps.toBvar {t : LBTerm} {x : FVarId} (h : ErasesDeps E B σ lenv 
 
 end
 
+/-! ## Closed λ□ terms under the traversal's abstraction -/
+
+theorem length_toBvarDefs (x : FVarId) (k : Nat) :
+    ∀ ds : List (@FixDef LBTerm), (toBvarDefs x k ds).length = ds.length
+  | [] => rfl
+  | _ :: ds => by simp only [toBvarDefs, List.length_cons, length_toBvarDefs x k ds]
+
+mutual
+/-- Turning a free variable into the bound variable `k` keeps a term closed one level up. -/
+theorem closedn_toBvar (x : FVarId) : ∀ (t : LBTerm) (k : Nat), closedn k t = true →
+    closedn (k + 1) (toBvar x k t) = true
+  | .box, _, _ => rfl
+  | .bvar i, k, h => by simp only [toBvar, closedn, decide_eq_true_eq] at h ⊢; omega
+  | .fvar y, k, _ => by
+    simp only [toBvar]
+    split
+    · simp [closedn]
+    · rfl
+  | .lambda _ b, k, h => closedn_toBvar x b (k + 1) h
+  | .letIn _ v b, k, h => by
+    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
+    exact ⟨closedn_toBvar x v k h.1, closedn_toBvar x b (k + 1) h.2⟩
+  | .app a b, k, h => by
+    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
+    exact ⟨closedn_toBvar x a k h.1, closedn_toBvar x b k h.2⟩
+  | .const _, _, _ => rfl
+  | .construct _ _ args, k, h => closednL_toBvarList x args k h
+  | .case (_, _) d alts, k, h => by
+    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
+    exact ⟨closedn_toBvar x d k h.1, closednB_toBvarAlts x alts k h.2⟩
+  | .proj _ e, k, h => closedn_toBvar x e k h
+  | .fix defs _, k, h => by
+    simp only [toBvar, closedn] at h ⊢
+    rw [length_toBvarDefs, show k + 1 + defs.length = k + defs.length + 1 by omega]
+    exact closednD_toBvarDefs x defs (k + defs.length) h
+  | .prim _, _, _ => rfl
+
+theorem closednL_toBvarList (x : FVarId) : ∀ (as : List LBTerm) (k : Nat),
+    closednL k as = true → closednL (k + 1) (toBvarList x k as) = true
+  | [], _, _ => rfl
+  | a :: as, k, h => by
+    simp only [toBvarList, closednL, Bool.and_eq_true] at h ⊢
+    exact ⟨closedn_toBvar x a k h.1, closednL_toBvarList x as k h.2⟩
+
+theorem closednB_toBvarAlts (x : FVarId) : ∀ (bs : List (List BinderName × LBTerm)) (k : Nat),
+    closednB k bs = true → closednB (k + 1) (toBvarAlts x k bs) = true
+  | [], _, _ => rfl
+  | (ns, b) :: bs, k, h => by
+    simp only [toBvarAlts, closednB, Bool.and_eq_true] at h ⊢
+    refine ⟨?_, closednB_toBvarAlts x bs k h.2⟩
+    rw [show k + 1 + ns.length = k + ns.length + 1 by omega]
+    exact closedn_toBvar x b (k + ns.length) h.1
+
+theorem closednD_toBvarDefs (x : FVarId) : ∀ (ds : List (@FixDef LBTerm)) (k : Nat),
+    closednD k ds = true → closednD (k + 1) (toBvarDefs x k ds) = true
+  | [], _, _ => rfl
+  | ⟨_, b, _⟩ :: ds, k, h => by
+    simp only [toBvarDefs, closednD, Bool.and_eq_true] at h ⊢
+    exact ⟨closedn_toBvar x b k h.1, closednD_toBvarDefs x ds k h.2⟩
+end
+
+mutual
+/-- A free variable of a term in which `x` is turned into a bound variable is a free variable of
+the term other than `x`. -/
+theorem hasFVar_toBvar (x y : FVarId) : ∀ (t : LBTerm) (k : Nat),
+    hasFVar y (toBvar x k t) = true → hasFVar y t = true ∧ y ≠ x
+  | .box, _, h | .bvar _, _, h | .const _, _, h | .prim _, _, h => by
+    simp [toBvar, hasFVar] at h
+  | .fvar z, k, h => by
+    simp only [toBvar] at h
+    split at h
+    · simp [hasFVar] at h
+    · rename_i hz
+      refine ⟨h, fun hyx => hz ?_⟩
+      have hyz := (fvarId_beq_iff y z).mp (by simpa [hasFVar] using h)
+      subst hyz hyx
+      exact (fvarId_beq_iff _ _).mpr rfl
+  | .lambda _ b, k, h => hasFVar_toBvar x y b (k + 1) h
+  | .letIn _ v b, k, h => by
+    simp only [toBvar, hasFVar, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y v k h).1, (hasFVar_toBvar x y v k h).2⟩
+    · exact ⟨.inr (hasFVar_toBvar x y b (k + 1) h).1, (hasFVar_toBvar x y b (k + 1) h).2⟩
+  | .app a b, k, h => by
+    simp only [toBvar, hasFVar, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y a k h).1, (hasFVar_toBvar x y a k h).2⟩
+    · exact ⟨.inr (hasFVar_toBvar x y b k h).1, (hasFVar_toBvar x y b k h).2⟩
+  | .construct _ _ args, k, h => hasFVarL_toBvarList x y args k h
+  | .case (_, _) d alts, k, h => by
+    simp only [toBvar, hasFVar, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y d k h).1, (hasFVar_toBvar x y d k h).2⟩
+    · exact ⟨.inr (hasFVarB_toBvarAlts x y alts k h).1, (hasFVarB_toBvarAlts x y alts k h).2⟩
+  | .proj _ e, k, h => hasFVar_toBvar x y e k h
+  | .fix defs _, k, h => by
+    simp only [toBvar, hasFVar] at h ⊢
+    exact hasFVarD_toBvarDefs x y defs _ h
+
+theorem hasFVarL_toBvarList (x y : FVarId) : ∀ (as : List LBTerm) (k : Nat),
+    hasFVarL y (toBvarList x k as) = true → hasFVarL y as = true ∧ y ≠ x
+  | [], _, h => by simp [toBvarList, hasFVarL] at h
+  | a :: as, k, h => by
+    simp only [toBvarList, hasFVarL, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y a k h).1, (hasFVar_toBvar x y a k h).2⟩
+    · exact ⟨.inr (hasFVarL_toBvarList x y as k h).1, (hasFVarL_toBvarList x y as k h).2⟩
+
+theorem hasFVarB_toBvarAlts (x y : FVarId) : ∀ (bs : List (List BinderName × LBTerm)) (k : Nat),
+    hasFVarB y (toBvarAlts x k bs) = true → hasFVarB y bs = true ∧ y ≠ x
+  | [], _, h => by simp [toBvarAlts, hasFVarB] at h
+  | (ns, b) :: bs, k, h => by
+    simp only [toBvarAlts, hasFVarB, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y b _ h).1, (hasFVar_toBvar x y b _ h).2⟩
+    · exact ⟨.inr (hasFVarB_toBvarAlts x y bs k h).1, (hasFVarB_toBvarAlts x y bs k h).2⟩
+
+theorem hasFVarD_toBvarDefs (x y : FVarId) : ∀ (ds : List (@FixDef LBTerm)) (k : Nat),
+    hasFVarD y (toBvarDefs x k ds) = true → hasFVarD y ds = true ∧ y ≠ x
+  | [], _, h => by simp [toBvarDefs, hasFVarD] at h
+  | ⟨_, b, _⟩ :: ds, k, h => by
+    simp only [toBvarDefs, hasFVarD, Bool.or_eq_true] at h ⊢
+    rcases h with h | h
+    · exact ⟨.inl (hasFVar_toBvar x y b k h).1, (hasFVar_toBvar x y b k h).2⟩
+    · exact ⟨.inr (hasFVarD_toBvarDefs x y ds k h).1, (hasFVarD_toBvarDefs x y ds k h).2⟩
+end
+
+section
+variable {ζ : Metalean.Sigs}
+
+/-- A fix-variable local is a local with that denotation. -/
+theorem MLCtx.findF_of_findFix {ℓ n : Nat} :
+    ∀ {Δ : MLCtx ζ ℓ n} {y : FVarId} {t : Metalean.Expr ζ ℓ n}, Δ.findFix y = some t →
+      Δ.findF y = some t
+  | [], _, _, h => nomatch h
+  | (none, _) :: Δ, _, _, h => MLCtx.findF_of_findFix (Δ := Δ) h
+  | (some z, d) :: Δ, y, t, h => by
+    simp only [MLCtx.findFix] at h
+    simp only [MLCtx.findF]
+    split at h
+    · rename_i hz
+      rw [ite_eq_left hz]
+      cases d <;> simp [MLDecl.fixVal?, MLDecl.denote] at h ⊢
+      exact h
+    · rename_i hz
+      rw [ite_eq_right hz]
+      exact MLCtx.findF_of_findFix h
+
+end
+
+/-! ## Occurrences of constants at levels -/
+
+/-- The constant `c` occurs at the universe levels `us`, at a position the traversal erases (those
+that `Erasure.nameOccurs` reads: not inside a binder's type or a `Π`). -/
+def OccursAt (c : Name) (us : List Level) : Expr → Prop
+  | .const c' us' => c = c' ∧ us = us'
+  | .lam _ _ b _ | .mdata _ b | .proj _ _ b => OccursAt c us b
+  | .app f a | .letE _ _ f a _ => OccursAt c us f ∨ OccursAt c us a
+  | _ => False
+
+/-- An occurrence at some levels is an occurrence for the traversal. -/
+theorem OccursAt.nameOccurs {c : Name} {us : List Level} :
+    ∀ {e : Expr}, OccursAt c us e → Erasure.nameOccurs c e = true
+  | .const _ _, h => by obtain ⟨rfl, -⟩ := h; simp [Erasure.nameOccurs]
+  | .lam _ _ b _, h | .mdata _ b, h | .proj _ _ b, h => OccursAt.nameOccurs (e := b) h
+  | .app f a, h | .letE _ _ f a _, h => by
+    simp only [Erasure.nameOccurs, Bool.or_eq_true]
+    exact h.elim (fun h => .inl (OccursAt.nameOccurs h)) (fun h => .inr (OccursAt.nameOccurs h))
+  | .bvar _, h | .fvar _, h | .mvar _, h | .sort _, h | .forallE .., h | .lit _, h => h.elim
+
+/-- Opening a binder with a free variable keeps the occurrences. -/
+theorem occursAt_inst_fvar {c : Name} {us : List Level} {x : FVarId} :
+    ∀ (b : Expr) (k : Nat), OccursAt c us (b.instantiate1' (.fvar x) k) ↔ OccursAt c us b
+  | .bvar i, k => by
+    simp only [Expr.instantiate1']
+    split
+    · exact Iff.rfl
+    · split <;> simp [OccursAt, Expr.liftLooseBVars']
+  | .app f a, k => by
+    simp only [Expr.instantiate1', OccursAt, occursAt_inst_fvar f, occursAt_inst_fvar a]
+  | .lam _ _ b _, k => by simp only [Expr.instantiate1', OccursAt, occursAt_inst_fvar b]
+  | .letE _ _ v b _, k => by
+    simp only [Expr.instantiate1', OccursAt, occursAt_inst_fvar v, occursAt_inst_fvar b]
+  | .mdata _ e, k => by simp only [Expr.instantiate1', OccursAt, occursAt_inst_fvar e]
+  | .proj _ _ e, k => by simp only [Expr.instantiate1', OccursAt, occursAt_inst_fvar e]
+  | .forallE .., _ | .const .., _ | .sort _, _ | .fvar _, _ | .mvar _, _ | .lit _, _ => Iff.rfl
+
+/-- In a term that mentions `c` only at the levels `us`, an occurrence of `c` is at `us`. -/
+theorem ConstAt.occursAt {c : Name} {us us' : List Level} :
+    ∀ {e : Expr}, ConstAt c us e → OccursAt c us' e → us' = us
+  | .const _ _, h, ho => by obtain ⟨rfl, rfl⟩ := ho; exact h rfl
+  | .app f a, h, ho => ho.elim (ConstAt.occursAt (e := f) h.1) (ConstAt.occursAt (e := a) h.2)
+  | .lam _ _ b _, h, ho => ConstAt.occursAt (e := b) h.2 ho
+  | .letE _ _ v b _, h, ho =>
+    ho.elim (ConstAt.occursAt (e := v) h.2.1) (ConstAt.occursAt (e := b) h.2.2)
+  | .mdata _ e, h, ho | .proj _ _ e, h, ho => ConstAt.occursAt (e := e) h ho
+  | .bvar _, _, ho | .fvar _, _, ho | .mvar _, _, ho | .sort _, _, ho | .forallE .., _, ho
+  | .lit _, _, ho => ho.elim
+
+/-- What the statement of the traversal at one fuel (`ExprSpec`) asks of a constant `d` that
+occurs in the visited term at the levels `us`: `d` is in the scope `S`, unless it is the constant
+of a fix variable of the traversal (`TravCtx.fixvars`), which occurs at the level parameters `lps`
+of the definition whose fixpoint the traversal erases. Reference: none (DV-7). -/
+def InScope (tc : TravCtx) (lps : List Name) (S : Name → Prop) (d : Name) (us : List Level) :
+    Prop :=
+  ((tc.fixvars.bind fun m => m[d]?) = none → S d) ∧
+    ((tc.fixvars.bind fun m => m[d]?).isSome → us = lps.map .param)
+
 /-! ## The invariants and the statement at one fuel -/
 
 /-- The free variable that the pure backend's `freshFVarId` allocates at the counter value `k`.
@@ -557,7 +786,9 @@ Lean form of a well-formed Metalean environment, `decls` is a sub-environment cl
 the traversal reads, with distinct kernames and block names, closed read expressions, in the
 fragment (`PhaseIDecl`, `MachineFree`, `NatPlain`, no recursor read, syntactic arities) and with
 the shapes that the frame lemma needs (`OwnBlockValues`, `NoIndexFields`); constructor fields are
-kept whenever the closure has an inductive type.
+kept whenever the closure has an inductive type; the compiled pre-definitions are well formed
+(`PreDefsOK`), and those of declarations that are not recognized `casesOn` constants are read as
+values.
 Reference: the hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`): `wf_ext Σ` and the
 abstract environment's relation to `Σ`. -/
 structure CoreEnv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (P decls : List ConstantInfo)
@@ -577,13 +808,20 @@ structure CoreEnv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (P d
   recShaped : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x
   arity : ArityTypes decls
   irr : ∀ iv, (∃ ci ∈ decls, ci = .inductInfo iv) → cfg.remove_irrel_constr_args = false
+  pre : PreDefsOK E B view cfg P
+  preRead : ∀ ci ∈ decls, ∀ p, preDef? view cfg ci = some p →
+    (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
+    ConstsIn (fun c => (findDecl decls c).isSome) p ∧ FVarsIn (fun _ => False) p ∧
+      MachineFree cfg p ∧ NatPlain cfg p ∧ RecShaped cfg decls p
 
 /-- The traversal's context invariant at the pure backend, over the Metalean context `Γ` and the
 locals `Δ`: `Γ` is well formed, the traversal's locals are the Lean form of `Γ` through `Δ`
 (`LocalsOK`), `Δ` has only free-variable entries, every variable the counter will allocate is
-fresh for `Δ`, no fix variable is bound (the pure path never enters a recursive block,
-`isRecursiveDecl_false`), and the configuration is `cfg`. Reference: the context `Γ` of
-`erases_erase` (`MR E/ErasureFunction.v:1228`), here locals opened with fresh variables (DV-13). -/
+fresh for `Δ`, the fix variable of a constant (`TravCtx.fixvars`, `visitMutual`'s fixpoint branch)
+is a fix-variable local of `Δ` (`MLDecl.vfix`) standing for the constant's translation at the
+level parameters `lps`, a constant bound to a Metalean constant, and the configuration is `cfg`.
+Reference: the context `Γ` of `erases_erase` (`MR E/ErasureFunction.v:1228`), here locals opened
+with fresh variables (DV-13); the fixpoint's variable of `tFix` (DV-7). -/
 structure CtxOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) {n : Nat}
     (Γ : Metalean.Ctx ζ lps.length 0 n) (Δ : MLCtx ζ lps.length n) (cfg : ErasureConfig)
     (tc : TravCtx) (ps : PureState) : Prop where
@@ -591,8 +829,20 @@ structure CtxOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps :
   locals : LocalsOK E B lps Γ Δ tc.locals
   nobv : ∀ i, Δ.findB i = none
   fresh : ∀ k, ps.next ≤ k → Δ.findF (pureFVar k) = none
-  fixvars : tc.fixvars = none
+  fixvars : ∀ c y, (tc.fixvars.bind fun m => m[c]?) = some y →
+    (∀ b, B c = some b → b.isSpecial = false) ∧
+      ∃ t, TrM E B lps Γ Δ (.const c (lps.map .param)) t ∧ Δ.findFix y = some t
   config : tc.config = cfg
+
+/-- The compiled pre-definitions that `visitMutual` erases are closed and `MachineFree` (the premise
+of `visit_agree`). -/
+theorem CoreEnv.declsPre {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ}
+    {P decls : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig}
+    (hG : CoreEnv E B P decls view cfg) :
+    ∀ ci ∈ decls, ∀ p, preDef? view cfg ci = some p → casesInfo? decls ci.name = none →
+      FVarsIn (fun _ => False) p ∧ MachineFree cfg p := fun ci hci p hp hcs =>
+  have h := hG.preRead ci hci p hp (by simp [EvalEnv.casesOn?, hcs])
+  ⟨h.2.1, h.2.2.1⟩
 
 /-- What a run of the traversal from the states `st`, `ps` to `st'`, `ps'` guarantees: the state
 invariant holds after it (`StateOK`), the λ□ environment grows by fresh kernames (`LenvExt`), the
@@ -609,17 +859,21 @@ structure Grows {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : 
 
 /-- A scope of the traversal: a set of constants declared in `decls`, closed under the constants
 that occur (`nameOccurs`, the positions the traversal erases) in the values that `visitMutual`
-erases (those of declarations that are neither theorems, which the oracle boxes, nor recognized
-`casesOn` constants, which `visitCases` erases). Reference: the dependencies `term_global_deps`
-(`MR E/EAstUtils.v:406`) that `erase_global_deps` (`MR E/ErasureFunction.v:1602`) follows,
-transitively. -/
-def ScopeOK (decls : List ConstantInfo) (S : Name → Prop) : Prop :=
-  ∀ c, S c → ∃ ci, findDecl decls c = some ci ∧ ∀ v, ci.value? (allowOpaque := true) = some v →
-    IsThm ci = false → casesInfo? decls c = none → ∀ d, nameOccurs d v = true → S d
+erases (those of the declarations `PureM.declInfo?` returns, `TravFrame.declView`: the compiled
+pre-definition of a definition that has one, else the value; of declarations that are neither
+theorems, which the oracle boxes, nor recognized `casesOn` constants, which `visitCases` erases).
+Reference: the dependencies `term_global_deps` (`MR E/EAstUtils.v:406`) that `erase_global_deps`
+(`MR E/ErasureFunction.v:1602`) follows, transitively. -/
+def ScopeOK (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (S : Name → Prop) :
+    Prop :=
+  ∀ c, S c → ∃ ci, findDecl decls c = some ci ∧
+    ∀ v, (TravFrame.declView view cfg ci).value? (allowOpaque := true) = some v →
+      IsThm ci = false → casesInfo? decls c = none → ∀ d, nameOccurs d v = true → S d
 
 /-- The correctness of `visitExpr fuel e` at the pure backend over the closure `decls`: from a
 state with `StateOK`, under locals that are the Lean form of the context (`CtxOK`), on a term
-translated and typed in that context whose constants occur in a scope `S` and which is
+translated and typed in that context whose constants occur in a scope `S`, except the constant of
+a fix variable, which occurs at the level parameters `lps` (`InScope`), and which is
 `MachineFree` and `NatPlain` and reads recursors only in the fragment's shape (`RecShaped`), a
 successful run returns an
 erasure of `e` (`Erases`) whose λ□ dependencies are erased in the final environment, and it `Grows` within `S`. Reference: `erases_erase`
@@ -630,7 +884,8 @@ def ExprSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : E
   ∀ ⦃lps : List Name⦄ ⦃n : Nat⦄ ⦃Γ : Metalean.Ctx ζ lps.length 0 n⦄ ⦃Δ : MLCtx ζ lps.length n⦄
     ⦃S : Name → Prop⦄ ⦃t : Metalean.Expr ζ lps.length n⦄ ⦃st : ErasureState⦄ ⦃tc : TravCtx⦄
     ⦃ps : PureState⦄ ⦃r : LBTerm⦄ ⦃st' : ErasureState⦄ ⦃ps' : PureState⦄,
-    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S → (∀ d, nameOccurs d e = true → S d) →
+    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+    (∀ d us, OccursAt d us e → InScope tc lps S d us) →
     MachineFree cfg e → NatPlain cfg e → RecShaped cfg decls e →
     StateOK E B (evalEnvOf view cfg decls) st → TrM E B lps Γ Δ e t → (∃ T, E[Γ] ⊢ t : T) →
     (visitExpr (m := PureM) fuel e).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
@@ -648,7 +903,7 @@ def MutualSpec {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view :
     (cfg : ErasureConfig) (decls : List ConstantInfo) (fuel : Nat) (c : Name) : Prop :=
   ∀ ⦃S : Name → Prop⦄ ⦃st : ErasureState⦄ ⦃tc : TravCtx⦄ ⦃ps : PureState⦄
     ⦃st' : ErasureState⦄ ⦃ps' : PureState⦄,
-    ScopeOK decls S → S c → tc.config = cfg → tc.fixvars = none →
+    ScopeOK view cfg decls S → S c → tc.config = cfg →
     (∀ v, findDecl decls c ≠ some (.thmInfo v)) → casesInfo? decls c = none →
     (∃ ci, findDecl decls c = some ci ∧
       (EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind)) →
@@ -700,6 +955,22 @@ theorem Grows.trans {st st₁ st₂ : ErasureState} {ps ps₁ ps₂ : PureState}
 variable {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
   {Δ : MLCtx ζ lps.length n} {cfg : ErasureConfig}
 
+/-- The fix variables of a context invariant survive pushing a local of a variable `x` fresh for
+the locals, weakened along the Metalean context. -/
+theorem fixvars_push {tc : TravCtx} {n' : Nat} {Γ' : Metalean.Ctx ζ lps.length 0 n'}
+    {Δ' : MLCtx ζ lps.length n'} {wk : Metalean.Expr ζ lps.length n → Metalean.Expr ζ lps.length n'}
+    (h : ∀ c y, (tc.fixvars.bind fun m => m[c]?) = some y →
+      (∀ b, B c = some b → b.isSpecial = false) ∧
+        ∃ t, TrM E B lps Γ Δ (.const c (lps.map .param)) t ∧ Δ.findFix y = some t)
+    (hTr : ∀ {c us t}, TrM E B lps Γ Δ (.const c us) t → TrM E B lps Γ' Δ' (.const c us) (wk t))
+    (hF : ∀ {y t}, Δ.findFix y = some t → Δ'.findFix y = some (wk t)) :
+    ∀ c y, (tc.fixvars.bind fun m => m[c]?) = some y →
+      (∀ b, B c = some b → b.isSpecial = false) ∧
+        ∃ t, TrM E B lps Γ' Δ' (.const c (lps.map .param)) t ∧ Δ'.findFix y = some t := by
+  intro c y hy
+  obtain ⟨hns, t, ht, hf⟩ := h c y hy
+  exact ⟨hns, wk t, hTr ht, hF hf⟩
+
 /-- The context invariant survives the counter's growth. -/
 theorem CtxOK.mono {tc : TravCtx} {ps ps' : PureState} (h : CtxOK E B lps Γ Δ cfg tc ps)
     (hle : ps.next ≤ ps'.next) : CtxOK E B lps Γ Δ cfg tc ps' :=
@@ -728,7 +999,9 @@ theorem CtxOK.pushFVar {tc : TravCtx} {ps : PureState} {nm : Name} {A : Expr}
       { tc with lctx := L, locals := ⟨pureFVar ps.next, nm, A, none⟩ :: tc.locals }
       ⟨ps.next + 1⟩ := by
   refine ⟨.snoc h.wf hA', h.locals.pushFVar h.freshNext hA hA' h.wf, fun i => ?_,
-    fun k hk => ?_, h.fixvars, h.config⟩
+    fun k hk => ?_, fixvars_push h.fixvars (fun ht => TrM.weakFV h.freshNext ht) (fun hf => by
+      have hne := MLCtx.findF_ne h.freshNext (MLCtx.findF_of_findFix hf)
+      simp [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, hne, hf]), h.config⟩
   · simp [MLCtx.pushLam, MLCtx.findB, MLCtx.findB_map_wk, h.nobv i]
   · have hne : (pureFVar ps.next == pureFVar k) = false := by
       rcases Bool.eq_false_or_eq_true (pureFVar ps.next == pureFVar k) with h' | h'
@@ -747,7 +1020,9 @@ theorem CtxOK.pushLet {tc : TravCtx} {ps : PureState} {nm : Name} {T v : Expr}
       { tc with lctx := L, locals := ⟨pureFVar ps.next, nm, T, some v⟩ :: tc.locals }
       ⟨ps.next + 1⟩ := by
   refine ⟨h.wf, h.locals.pushLet h.freshNext hT hv hvT, fun i => ?_, fun k hk => ?_,
-    h.fixvars, h.config⟩
+    fixvars_push (wk := id) h.fixvars (fun ht => TrM.weakFV_let h.freshNext ht) (fun hf => by
+      have hne := MLCtx.findF_ne h.freshNext (MLCtx.findF_of_findFix hf)
+      simp [MLCtx.findFix, hne, hf]), h.config⟩
   · simpa [MLCtx.findB] using h.nobv i
   · have hne : (pureFVar ps.next == pureFVar k) = false := by
       rcases Bool.eq_false_or_eq_true (pureFVar ps.next == pureFVar k) with h' | h'
@@ -848,23 +1123,6 @@ theorem ConstsIn_inst_fvar {p : Name → Prop} {x : FVarId} :
   | .const .., _, h => h
   | .sort _, _, _ | .fvar _, _, _ | .mvar _, _, _ | .lit _, _, _ => trivial
 
-/-- Opening a binder with a free variable keeps the constants that occur. -/
-theorem nameOccurs_inst_fvar {c : Name} {x : FVarId} :
-    ∀ (b : Expr) (k : Nat), nameOccurs c (b.instantiate1' (.fvar x) k) = nameOccurs c b
-  | .bvar i, k => by
-    simp only [Expr.instantiate1']
-    split
-    · rfl
-    · split <;> rfl
-  | .app f a, k => by
-    simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar f, nameOccurs_inst_fvar a]
-  | .lam _ _ b _, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar b]
-  | .letE _ _ v b _, k => by
-    simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar v, nameOccurs_inst_fvar b]
-  | .mdata _ e, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar e]
-  | .proj _ _ e, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar e]
-  | .forallE .., _ | .const .., _ | .sort _, _ | .fvar _, _ | .mvar _, _ | .lit _, _ => rfl
-
 /-! ## The steps of `visitExpr` without constants -/
 
 section
@@ -925,7 +1183,7 @@ theorem visitExpr_mdata_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   rcases oracle_run hrun with ⟨hor, rfl, rfl, rfl⟩ | ⟨-, hrun⟩
   · exact visitExpr_box hG hctx hok he ht hor
   have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) e hctx hsc
-    (fun c hc => hocc c (by simpa [nameOccurs] using hc)) hmf hnp hrf hok (trM_mdata_inv he) ht hrun
+    (fun c us hc => hocc c us hc) hmf hnp hrf hok (trM_mdata_inv he) ht hrun
   exact ⟨.mdata her, hdeps, hgr⟩
 
 /-- The `lam` step, from `visitExpr` at the fuels up to `fuel`: the body is opened with a fresh
@@ -961,7 +1219,7 @@ theorem visitExpr_lam_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hctx' := hctx.pushFVar (nm := x) hA hA' (tc.lctx.mkLocalDecl (pureFVar ps.next) x A bi)
   have hbody' := TrM.inst_fvar hxΔ hb
   have ⟨her, hdeps, hgr⟩ := ih.expr k (Nat.le_succ _) _ hctx' hsc
-    (fun d hd => hocc d (by rw [nameOccurs_inst_fvar] at hd; simpa [nameOccurs] using hd))
+    (fun d us hd => hocc d us ((occursAt_inst_fvar b 0).1 hd))
     (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2)
     (np_inst (a := .fvar (pureFVar ps.next)) trivial hnp.2) (ConstsIn_inst_fvar hrf.2) hok hbody'
     ⟨_, hb'⟩ hbody
@@ -1027,22 +1285,24 @@ theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
           TravCtx).config = cfg from hctx.config]; exact hmf.2.1)
       (by rw [show ({ tc with lctx := tc.lctx.mkLetDecl (pureFVar ps.next) x T v nd } :
           TravCtx).config = cfg from hctx.config]; exact hG.mfd)
-      hG.blk hG.idx ?_ ?_ (hfx hfv.2.1)).symm
+      hG.blk hG.idx (by rw [show ({ tc with lctx := tc.lctx.mkLetDecl (pureFVar ps.next) x T v nd } :
+          TravCtx).config = cfg from hctx.config]; exact hG.declsPre) ?_ ?_ (hfx hfv.2.1)).symm
     · intro y hy l hl
       simp only [Pure.findLocal, List.find?_cons, hne y hy] at hl
       obtain ⟨A, a, hA, -, -, hav⟩ := hctx.locals l (List.mem_of_find?_eq_some hl)
       exact ⟨hfx (TrM.fvarsIn hA), fun w hw => hfx (TrM.fvarsIn (hav w hw))⟩
     · intro y hy
       simp [Pure.findLocal, hne y hy]
-  have ⟨herv, hdepsv, hgrv⟩ := ih.expr k (Nat.le_succ _) v ((hctx.setLctx _).mono (Nat.le_succ _))
-    hsc (fun d hd => hocc d (by simp [nameOccurs, hd])) hmf.2.1 hnp.2.1 hrf.2.1 hok hv ⟨_, hvT⟩ hval'
+  have ⟨herv, hdepsv, hgrv⟩ := ih.expr k (Nat.le_succ _) v
+    ((hctx.setLctx (tc.lctx.mkLetDecl (pureFVar ps.next) x T v nd)).mono (Nat.le_succ _))
+    hsc (fun d us hd => hocc d us (.inl hd)) hmf.2.1 hnp.2.1 hrf.2.1 hok hv ⟨_, hvT⟩ hval'
   have hctx' := (hctx.pushLet (nm := x) hT hv hvT
     (tc.lctx.mkLetDecl (pureFVar ps.next) x T v nd)).mono hgrv.next
   have hbody' : TrM E B lps Γ ((some (pureFVar ps.next), .vlet v') :: Δ)
       (b.instantiate1' (.fvar (pureFVar ps.next))) b' :=
     TrM.instN_fvar hb (InstFV.zeroLet hxΔ _)
   have ⟨herb, hdepsb, hgrb⟩ := ih.expr k (Nat.le_succ _) _ hctx' hsc
-    (fun d hd => hocc d (by rw [nameOccurs_inst_fvar] at hd; simp [nameOccurs, hd]))
+    (fun d us hd => hocc d us (.inr ((occursAt_inst_fvar b 0).1 hd)))
     (mf_inst (a := .fvar (pureFVar ps.next)) trivial hmf.2.2)
     (np_inst (a := .fvar (pureFVar ps.next)) trivial hnp.2.2) (ConstsIn_inst_fvar hrf.2.2)
     hgrv.inv hbody' ⟨_, hbR⟩ hbody
@@ -1050,7 +1310,7 @@ theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have := Erases.closed hbody' herb
     rwa [countP_none hctx'.nobv] at this
   have hfb : FVarsIn (· ≠ pureFVar ps.next) b := hfx (by simpa [MLCtx.findF] using hfv.2.2)
-  exact ⟨.letE hv ⟨_, hvT⟩ herv (Erases.abstract_let hG.prog hG.sub hxΔ hfb hcl herb),
+  exact ⟨.letE hv ⟨_, hvT⟩ herv (Erases.abstract_let hG.prog hG.sub hxΔ rfl hfb hcl herb),
     .letIn (ErasesDeps.ext hgrb.ext hdepsv) (ErasesDeps.toBvar hdepsb 0),
     Grows.trans ⟨hgrv.inv, hgrv.ext, Nat.le_trans (Nat.le_succ _) hgrv.next, hgrv.scope⟩ hgrb⟩
 
@@ -1122,8 +1382,8 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
     {r tf : LBTerm} {f₀ : Expr} {args : List Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ args, (∀ d us, OccursAt d us a → InScope tc lps S d us) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hns : ∀ c us, f₀.getAppFn = .const c us → (∀ cv, findDecl decls c ≠ some (.ctorInfo cv)) ∧
       (evalEnvOf view cfg decls).casesOn? c = none ∧
@@ -1167,14 +1427,16 @@ theorem visitAppArgs_spec {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
 
 /-- `visitConst` at the pure backend, given `MutualSpec` at the fuels up to `j`, on a constant of
 the scope that is neither a theorem nor a recognized `casesOn` constant: a successful run returns
-the `tConst` of its kername, whose λ□ dependencies are erased, and it `Grows` within the scope.
-Reference: the `tConst` case of `erases_erase` (`MR E/ErasureFunction.v:1228`), and
-`erase_global_erases_deps` (`MR E/ErasureFunctionProperties.v:172`). -/
+the `tConst` of its kername, whose λ□ dependencies are erased, and it `Grows` within the scope,
+when the constant is no fix variable. Reference: the `tConst` case of `erases_erase`
+(`MR E/ErasureFunction.v:1228`), and `erase_global_erases_deps`
+(`MR E/ErasureFunctionProperties.v:172`). -/
 theorem visitConst_spec {j : Nat} (ihM : ∀ m ≤ j, ∀ c, MutualSpec E B view cfg decls m c)
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm}
     {c : Name} {us : List Level}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S) (hS : S c)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S) (hS : S c)
+    (hfx : (tc.fixvars.bind fun m => m[c]?) = none)
     (hnt : ∀ v, findDecl decls c ≠ some (.thmInfo v)) (hcs : casesInfo? decls c = none)
     (hem : ∃ ci, findDecl decls c = some ci ∧
       (EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind))
@@ -1187,8 +1449,9 @@ theorem visitConst_spec {j : Nat} (ihM : ∀ m ≤ j, ∀ c, MutualSpec E B view
   | zero => rw [visitConst] at hrun; cases hrun
   | succ i =>
   rw [visitConst] at hrun
-  rw [runPure_read_bind, hctx.fixvars] at hrun
-  dsimp only [Option.bind] at hrun
+  rw [runPure_read_bind] at hrun
+  rw [hfx] at hrun
+  dsimp only at hrun
   rw [runPure_bind] at hrun
   obtain ⟨⟨⟨kn, st₁⟩, ps₁⟩, hk, hrun⟩ := OracleWhnf.ok_of_bind hrun
   cases hrun
@@ -1200,10 +1463,19 @@ theorem visitConst_spec {j : Nat} (ihM : ∀ m ≤ j, ∀ c, MutualSpec E B view
   · obtain ⟨rfl, hdeps⟩ := hok.kername hreg
     exact ⟨rfl, hdeps, .refl hok⟩
   · obtain ⟨hgr, kn', hkn'⟩ :=
-      ihM h (by omega) c hsc hS hctx.config hctx.fixvars hnt hcs hem hok hnew hmut
+      ihM h (by omega) c hsc hS hctx.config hnt hcs hem hok hnew hmut
     cases huniq kn' hkn'
     obtain ⟨rfl, hdeps⟩ := hgr.inv.kername hkn'
     exact ⟨rfl, hdeps, hgr⟩
+
+/-- `visitConst` on the constant of a fix variable returns the variable. Reference: the `tRel` case
+of `erase` for the fixpoint's variable (`MR E/ErasureFunction.v:997`); DV-7. -/
+theorem visitConst_fix_run {j : Nat} {st : ErasureState} {tc : TravCtx} {pc : PureCtx}
+    {ps : PureState} {c : Name} {us : List Level} {y : FVarId}
+    (hfx : (tc.fixvars.bind fun m => m[c]?) = some y) :
+    (visitConst (m := PureM) (j + 1) (.const c us)).runPure st tc pc ps = .ok ((.fvar y, st), ps) := by
+  rw [visitConst, runPure_read_bind, hfx]
+  rfl
 
 /-- `visitApp (k + 1)` at the pure backend, on a spine the oracle does not erase whose head is
 neither a constructor nor a recognized `casesOn` constant (`hplain`), from `visitExpr` and
@@ -1217,8 +1489,9 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm} {e : Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d us, OccursAt d us e → InScope tc lps S d us) (hmf : MachineFree cfg e)
+    (hnp : NatPlain cfg e)
     (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hor : Pure.isErasable ⟨decls⟩ oracleFuel tc.locals e = .ok false)
@@ -1237,9 +1510,8 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) → Q e →
       Q e.getAppFn ∧ ∀ a ∈ spineArgs e, Q a := fun hQ' h =>
     foldl_pred hQ' (by rw [← mkAppN_toArray, hsp]; exact h)
-  obtain ⟨hoccF, hoccA⟩ := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  obtain ⟨hoccF, hoccA⟩ := hQ (Q := fun x => ∀ d us, OccursAt d us x → InScope tc lps S d us)
+    (fun f a h => ⟨fun d us hd => h d us (.inl hd), fun d us hd => h d us (.inr hd)⟩) hocc
   obtain ⟨hmfF, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   obtain ⟨hnpF, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   obtain ⟨hrfF, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
@@ -1247,8 +1519,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
   split at hrun
   · rename_i c us hc
     obtain ⟨hcs, hca, hcq, hcr⟩ := hplain c us hc
-    have hS : S c := hoccF c (by rw [hc]; simp [nameOccurs])
-    obtain ⟨ci, hci, -⟩ := hsc c hS
+    have hin : InScope tc lps S c us := hoccF c us (by rw [hc]; exact ⟨rfl, rfl⟩)
     have hnt : ∀ v, findDecl decls c ≠ some (.thmInfo v) := fun v hv => by
       rw [isErasable_thm hc hv] at hor; cases hor
     have hncs : (evalEnvOf view cfg decls).casesOn? c = none := by
@@ -1264,47 +1535,7 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
       | true =>
         cases Pure.isErasable_atom (σ := evalEnvOf view cfg decls) rfl
           (AtomSpine.of_getAppFn ha hc) hor
-    have hspec : specialArity (evalEnvOf view cfg decls) c = none := by
-      cases ci with
-      | ctorInfo cv => exact absurd hci (hnctor cv)
-      | quotInfo qv => simp [specialArity, evalEnvOf, hci, hcq qv hci]
-      | recInfo rv => exact absurd hci (hcr rv)
-      | _ => simp [specialArity, evalEnvOf, hci, EvalEnv.casesOn?, hcs]
-    have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
-    have hem : EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind := by
-      cases ci with
-      | inductInfo iv =>
-        have har := hG.arity iv ⟨_, (findDecl_eq_some hci).1, rfl⟩
-        have hiv : (arityShape (ConstantInfo.inductInfo iv).type).isSome = true := har
-        have : (evalEnvOf view cfg decls).isAtom c = true := by
-          simp [EvalEnv.isAtom, evalEnvOf, hci, EvalEnv.unfold?, OwnRules, EvalEnv.casesOn?, hcs,
-            hiv]
-        rw [hat] at this; cases this
-      | ctorInfo cv => exact absurd hci (hnctor cv)
-      | recInfo rv => exact absurd hci (hcr rv)
-      | quotInfo qv =>
-        -- `Quot` spines are types, which the oracle erases; `Quot.mk` and `Quot.lift` are special
-        refine .inr ⟨qv, rfl, ?_⟩
-        rcases ProgEnv.quot_shape hG.prog hciP with
-          ⟨-, hk, u, hu⟩ | ⟨-, hk, -⟩ | ⟨-, hk, -⟩ | ⟨-, hk⟩
-        · cases OracleAtom.isErasable_arity (ci := .quotInfo qv) (OracleAtom.ConstSpine.of_getAppFn hc)
-            (show findConst decls c = _ from hci) rfl hu hor
-        · have := hcq qv hci; rw [hk] at this; cases this
-        · have := hcq qv hci; rw [hk] at this; cases this
-        · exact hk
-      | _ => exact .inl rfl
-    have htrA : ∀ a ∈ spineArgs e, ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
-      rcases hem with hem | ⟨qv, rfl, -⟩
-      · have hnsh : ¬ SpecialHead B e.getAppFn := by
-          rintro ⟨c', us', b, hc', hb, hs⟩
-          rw [hc] at hc'
-          cases hc'
-          rcases SrcDefeq.special_kind hG.prog hb hs hciP with
-            ⟨iv, rfl⟩ | ⟨cv, rfl⟩ | ⟨rv, rfl⟩ | ⟨qv, rfl⟩ <;> cases hem
-        exact (spine_typed hnsh (by rw [hsp]; exact he) ht).2
-      · obtain ⟨η, hB⟩ := hG.prog.lookup_quot hciP
-        rw [hc] at hsp
-        exact TrM.quot_args_typed hB (by rw [hsp]; exact he) ht
+    -- the run of `visitConstApp` up to `visitConst` on the head and `visitAppArgs`
     cases k with
     | zero => rw [visitConstApp] at hrun; cases hrun
     | succ j =>
@@ -1322,38 +1553,102 @@ theorem visitApp_spec (hG : CoreEnv E B P decls view cfg) {k : Nat}
         show Except.ok ((ctorArity? decls c, st), ps) = _; rw [hca], ok_bind'] at hrun
       dsimp only at hrun
       rw [runPure_bind, show (liftM (Backend.findConst? (m := PureM) c) :
-          EraseT PureM (Option ConstantInfo)).runPure st tc ⟨decls, view⟩ ps = .ok ((some ci, st), ps) by
-        show Except.ok ((findConst decls c, st), ps) = _
-        rw [show findConst decls c = findDecl decls c from rfl, hci], ok_bind'] at hrun
+          EraseT PureM (Option ConstantInfo)).runPure st tc ⟨decls, view⟩ ps =
+            .ok ((findConst decls c, st), ps) from rfl, ok_bind'] at hrun
       dsimp only at hrun
       split at hrun
       · rename_i q _ _ _ heq
-        cases Option.some.inj heq
-        cases hcq _ hci
+        cases hcq _ heq
       · rename_i q _ _ _ heq
-        cases Option.some.inj heq
-        cases hcq _ hci
+        cases hcq _ heq
       · rename_i rv heq
-        cases Option.some.inj heq
-        exact absurd hci (hcr rv)
+        exact absurd heq (hcr rv)
       rw [runPure_bind] at hrun
       obtain ⟨⟨⟨tf, st₁⟩, ps₁⟩, hf, hrun⟩ := OracleWhnf.ok_of_bind hrun
       rw [hc] at hf
-      obtain ⟨rfl, hdf, hgf⟩ := visitConst_spec (fun m hm c => ih.mutDecl m (by omega) c)
-        hctx hsc hS hnt hcs ⟨ci, hci, hem⟩ hok hf
       cases j with
-      | zero => rw [visitAppArgs] at hrun; cases hrun
+      | zero => rw [visitConst] at hf; cases hf
       | succ i =>
       rw [hA] at hrun
-      have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
-        (hctx.mono hgf.next) hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
-        (fun c'' us'' h => by
-          cases h
-          exact ⟨hnctor, hncs, hcq, fun rv hrv => hcr rv hrv⟩) hgf.inv
-        (.const (us := us) hat hspec fun rv hrv => hcr rv hrv) hdf hrun
-      rw [hc] at hsp
-      rw [hsp] at her
-      exact ⟨her, hdeps, hgf.trans hgr⟩
+      rcases hfx : tc.fixvars.bind (fun m => m[c]?) with _ | y
+      · -- a constant of the scope
+        have hS : S c := hin.1 hfx
+        obtain ⟨ci, hci, -⟩ := hsc c hS
+        have hspec : specialArity (evalEnvOf view cfg decls) c = none := by
+          cases ci with
+          | ctorInfo cv => exact absurd hci (hnctor cv)
+          | quotInfo qv => simp [specialArity, evalEnvOf, hci, hcq qv hci]
+          | recInfo rv => exact absurd hci (hcr rv)
+          | _ => simp [specialArity, evalEnvOf, hci, EvalEnv.casesOn?, hcs]
+        have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
+        have hem : EmitsConst ci = true ∨ ∃ q, ci = .quotInfo q ∧ q.kind = .ind := by
+          cases ci with
+          | inductInfo iv =>
+            have har := hG.arity iv ⟨_, (findDecl_eq_some hci).1, rfl⟩
+            have hiv : (arityShape (ConstantInfo.inductInfo iv).type).isSome = true := har
+            have : (evalEnvOf view cfg decls).isAtom c = true := by
+              simp [EvalEnv.isAtom, evalEnvOf, hci, EvalEnv.unfold?, OwnRules, EvalEnv.casesOn?,
+                hcs, hiv]
+            rw [hat] at this; cases this
+          | ctorInfo cv => exact absurd hci (hnctor cv)
+          | recInfo rv => exact absurd hci (hcr rv)
+          | quotInfo qv =>
+            -- `Quot` spines are types, which the oracle erases; `Quot.mk` and `Quot.lift` are special
+            refine .inr ⟨qv, rfl, ?_⟩
+            rcases ProgEnv.quot_shape hG.prog hciP with
+              ⟨-, hk, u, hu⟩ | ⟨-, hk, -⟩ | ⟨-, hk, -⟩ | ⟨-, hk⟩
+            · cases OracleAtom.isErasable_arity (ci := .quotInfo qv)
+                (OracleAtom.ConstSpine.of_getAppFn hc) (show findConst decls c = _ from hci) rfl hu hor
+            · have := hcq qv hci; rw [hk] at this; cases this
+            · have := hcq qv hci; rw [hk] at this; cases this
+            · exact hk
+          | _ => exact .inl rfl
+        have htrA : ∀ a ∈ spineArgs e, ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
+          rcases hem with hem | ⟨qv, rfl, -⟩
+          · have hnsh : ¬ SpecialHead B e.getAppFn := by
+              rintro ⟨c', us', b, hc', hb, hs⟩
+              rw [hc] at hc'
+              cases hc'
+              rcases SrcDefeq.special_kind hG.prog hb hs hciP with
+                ⟨iv, rfl⟩ | ⟨cv, rfl⟩ | ⟨rv, rfl⟩ | ⟨qv, rfl⟩ <;> cases hem
+            exact (spine_typed hnsh (by rw [hsp]; exact he) ht).2
+          · obtain ⟨η, hB⟩ := hG.prog.lookup_quot hciP
+            have hsp' := hsp
+            rw [hc] at hsp'
+            exact TrM.quot_args_typed hB (by rw [hsp']; exact he) ht
+        obtain ⟨rfl, hdf, hgf⟩ := visitConst_spec (fun m hm c => ih.mutDecl m (by omega) c)
+          hctx hsc hS hfx hnt hcs ⟨ci, hci, hem⟩ hok hf
+        have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
+          (hctx.mono hgf.next) hsc
+          (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
+          (fun c'' us'' h => by
+            cases h
+            exact ⟨hnctor, hncs, hcq, fun rv hrv => hcr rv hrv⟩) hgf.inv
+          (.const (us := us) hat hspec fun rv hrv => hcr rv hrv) hdf hrun
+        rw [hc] at hsp
+        rw [hsp] at her
+        exact ⟨her, hdeps, hgf.trans hgr⟩
+      · -- the constant of a fix variable: the variable, at the definition's own levels
+        rw [visitConst_fix_run hfx] at hf
+        cases hf
+        obtain ⟨hns, t₀, ht₀, hF⟩ := hctx.fixvars c y hfx
+        have hus : us = lps.map .param := hin.2 (by rw [hfx]; rfl)
+        subst hus
+        have hnsh : ¬ SpecialHead B e.getAppFn := by
+          rintro ⟨c', us', b, hc', hb, hs⟩
+          rw [hc] at hc'
+          cases hc'
+          rw [hns b hb] at hs; cases hs
+        have htrA := (spine_typed hnsh (by rw [hsp]; exact he) ht).2
+        have ⟨her, hdeps, hgr⟩ := visitAppArgs_spec (fun e => ih.expr i (by omega) e)
+          hctx hsc (fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htrA a ha⟩)
+          (fun c'' us'' h => by
+            cases h
+            exact ⟨hnctor, hncs, hcq, fun rv hrv => hcr rv hrv⟩) hok
+          (.fixVar hat ht₀ hF) .fvar hrun
+        rw [hc] at hsp
+        rw [hsp] at her
+        exact ⟨her, hdeps, hgr⟩
     · rename_i hne
       exact absurd hc (hne c us)
   · rename_i hnc
@@ -1522,6 +1817,57 @@ theorem CoreEnv.value_consts (hG : CoreEnv E B P decls view cfg) {d : Name} {cd 
     | _ => cases hw
   exact ⟨(hG.deps _ hm).1 w hr, hr⟩
 
+/-- The declarations of `decls` after a declaration of the program form a scope: what
+`visitMutual` erases for one of them mentions only declarations after it (`ProgEnv.value_suffix`),
+or, for a compiled pre-definition, itself and declarations after it (`PreDefsOK`). Reference:
+`erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`), where the declarations are
+erased in the order of the environment. -/
+theorem CoreEnv.suffixScope (hG : CoreEnv E B P decls view cfg) {pre post : List ConstantInfo}
+    {ci : ConstantInfo} (hsplit : P = pre ++ ci :: post) :
+    ScopeOK view cfg decls (fun d => (findDecl decls d).isSome ∧ d ∈ post.map (·.name)) := by
+  have hnd := ProgEnv.fresh hG.prog
+  rintro d ⟨hds, hdp⟩
+  obtain ⟨cd, hcd⟩ := Option.isSome_iff_exists.1 hds
+  refine ⟨cd, hcd, fun w hw hthm' hcs' d' hd' => ?_⟩
+  obtain ⟨cd', hcd', hn'⟩ := List.mem_map.1 hdp
+  obtain ⟨hmP, hnP⟩ := findDecl_eq_some (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hcd)
+  have heq : cd' = cd := List.inj_on_of_nodup_map hnd
+    (by rw [hsplit]; exact List.mem_append_right _ (List.mem_cons_of_mem _ hcd')) hmP
+    (hn'.trans hnP.symm)
+  subst heq
+  obtain ⟨post₁, post₂, hpost⟩ := List.append_of_mem hcd'
+  have hsplit' : P = (pre ++ ci :: post₁) ++ cd' :: post₂ := by rw [hsplit, hpost]; simp
+  have hin : d' ∈ post₂.map (·.name) → d' ∈ post.map (·.name) := fun h => by
+    rw [hpost]
+    simp only [List.map_append, List.map_cons, List.mem_append, List.mem_cons]
+    exact .inr (.inr h)
+  rw [TravFrame.declView_value] at hw
+  rcases hp : preDef? view cfg cd' with _ | p
+  · rw [hp] at hw
+    exact ⟨ConstsIn.nameOccurs (hG.value_consts hcd hw hthm' hcs').1 hd',
+      hin (ConstsIn.nameOccurs (ProgEnv.value_suffix hG.prog hw hthm' _ post₂ hsplit') hd')⟩
+  · rw [hp] at hw
+    cases hw
+    have hcsn : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ cd'.name).isNone := by
+      simp [EvalEnv.casesOn?, hnP, hcs']
+    have hpd := (hG.preRead cd' (findDecl_eq_some hcd).1 _ hp hcsn).1
+    obtain ⟨hcons, -⟩ := hG.pre _ _ _ _ hsplit' hp
+    refine ⟨ConstsIn.nameOccurs hpd hd', ?_⟩
+    rcases ConstsIn.nameOccurs hcons hd' with h | h
+    · rw [h, hnP]; exact hdp
+    · obtain ⟨z, hz⟩ := Option.isSome_iff_exists.1 h
+      obtain ⟨hz1, hz2⟩ := findDecl_eq_some hz
+      exact hin (hz2 ▸ List.mem_map_of_mem hz1)
+
+/-- A declaration of the program is not after itself. -/
+theorem not_mem_post (hG : CoreEnv E B P decls view cfg) {pre post : List ConstantInfo}
+    {ci : ConstantInfo} (hsplit : P = pre ++ ci :: post) : ci.name ∉ post.map (·.name) := by
+  have hnd := ProgEnv.fresh hG.prog
+  rw [hsplit, List.map_append, List.map_cons] at hnd
+  have := (List.nodup_append.1 hnd).2.1
+  rw [List.nodup_cons] at this
+  exact this.1
+
 /-- The value of a declaration of `decls` that `visitMutual` erases has a scope that does not hold
 the declaration: its constants are declarations of `decls` after it in the program. This is what
 keeps the traversal from registering a constant while it erases the constant's own value.
@@ -1530,35 +1876,34 @@ declarations are erased in the order of the environment. -/
 theorem CoreEnv.valueScope (hG : CoreEnv E B P decls view cfg) {c : Name} {ci : ConstantInfo}
     (hci : findDecl decls c = some ci) {v : Expr} (hv : ci.value? (allowOpaque := true) = some v)
     (hthm : IsThm ci = false) (hcs : casesInfo? decls c = none) :
-    ∃ S', ScopeOK decls S' ∧ (∀ d, nameOccurs d v = true → S' d) ∧ ¬ S' c := by
+    ∃ S', ScopeOK view cfg decls S' ∧ (∀ d, nameOccurs d v = true → S' d) ∧ ¬ S' c := by
   obtain ⟨hm, hn⟩ := findDecl_eq_some (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci)
   obtain ⟨pre, post, hsplit⟩ := List.append_of_mem hm
-  have hnd := ProgEnv.fresh hG.prog
-  refine ⟨fun d => (findDecl decls d).isSome ∧ d ∈ post.map (·.name), ?_, fun d hd => ?_, ?_⟩
-  · rintro d ⟨hds, hdp⟩
-    obtain ⟨cd, hcd⟩ := Option.isSome_iff_exists.1 hds
-    refine ⟨cd, hcd, fun w hw hthm' hcs' d' hd' =>
-      ⟨ConstsIn.nameOccurs (hG.value_consts hcd hw hthm' hcs').1 hd', ?_⟩⟩
-    obtain ⟨cd', hcd', hn'⟩ := List.mem_map.1 hdp
-    obtain ⟨hmP, hnP⟩ := findDecl_eq_some (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hcd)
-    have heq : cd' = cd := List.inj_on_of_nodup_map hnd
-      (by rw [hsplit]; exact List.mem_append_right _ (List.mem_cons_of_mem _ hcd')) hmP
-      (hn'.trans hnP.symm)
-    subst heq
-    obtain ⟨post₁, post₂, hpost⟩ := List.append_of_mem hcd'
-    have := ProgEnv.value_suffix hG.prog hw hthm' (pre ++ ci :: post₁) post₂
-      (by rw [hsplit, hpost]; simp)
-    have h2 := ConstsIn.nameOccurs this hd'
-    rw [hpost]
-    simp only [List.map_append, List.map_cons, List.mem_append, List.mem_cons]
-    exact .inr (.inr h2)
-  · exact ⟨ConstsIn.nameOccurs (hG.value_consts hci hv hthm hcs).1 hd,
-      ConstsIn.nameOccurs (ProgEnv.value_suffix hG.prog hv hthm pre post hsplit) hd⟩
-  · rintro ⟨-, hcp⟩
-    rw [hsplit, List.map_append, List.map_cons] at hnd
-    have := (List.nodup_append.1 hnd).2.1
-    rw [List.nodup_cons] at this
-    exact this.1 (hn ▸ hcp)
+  refine ⟨_, hG.suffixScope hsplit, fun d hd => ?_, fun h => not_mem_post hG hsplit (hn ▸ h.2)⟩
+  exact ⟨ConstsIn.nameOccurs (hG.value_consts hci hv hthm hcs).1 hd,
+    ConstsIn.nameOccurs (ProgEnv.value_suffix hG.prog hv hthm pre post hsplit) hd⟩
+
+/-- The compiled pre-definition of a declaration of `decls` has a scope that does not hold the
+declaration, apart from the declaration itself, which the fixpoint's variable erases: its other
+constants are declarations of `decls` after it in the program (`PreDefsOK`). This is what keeps
+the traversal from registering the declaration while it erases its fixpoint's body. Reference:
+`erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`); DV-31. -/
+theorem CoreEnv.preScope (hG : CoreEnv E B P decls view cfg) {c : Name} {ci : ConstantInfo}
+    (hci : findDecl decls c = some ci) {p : Expr} (hp : preDef? view cfg ci = some p)
+    (hcs : casesInfo? decls c = none) :
+    ∃ S', ScopeOK view cfg decls S' ∧ (∀ d, nameOccurs d p = true → d = c ∨ S' d) ∧ ¬ S' c := by
+  obtain ⟨hm, hn⟩ := findDecl_eq_some (SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci)
+  obtain ⟨pre, post, hsplit⟩ := List.append_of_mem hm
+  have hcsn : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone := by
+    simp [EvalEnv.casesOn?, hn, hcs]
+  have hpd := (hG.preRead ci (findDecl_eq_some hci).1 p hp hcsn).1
+  obtain ⟨hcons, -⟩ := hG.pre _ _ _ _ hsplit hp
+  refine ⟨_, hG.suffixScope hsplit, fun d hd => ?_, fun h => not_mem_post hG hsplit (hn ▸ h.2)⟩
+  rcases ConstsIn.nameOccurs hcons hd with h | h
+  · exact .inl (h.trans hn)
+  · obtain ⟨z, hz⟩ := Option.isSome_iff_exists.1 h
+    obtain ⟨hz1, hz2⟩ := findDecl_eq_some hz
+    exact .inr ⟨ConstsIn.nameOccurs hpd hd, hz2 ▸ List.mem_map_of_mem hz1⟩
 
 end
 
@@ -1718,20 +2063,370 @@ theorem quot_knNotBlock {σ : EvalEnv} {c : Name} {q : QuotVal}
   have := congrArg Kername.mp h
   simp [toKername, toModPath, blockKername, mutualBlockKername, rootKername] at this
 
+/-- `mkDef` on one definition whose name is bound to the fix variable `x`: the body with `x`
+turned into the bound variable 0. Reference: the bodies of `tFix` in `erase`
+(`MR E/ErasureFunction.v:1022`); DV-7. -/
+theorem mkDef_one {pc : PureCtx} {st : ErasureState} {tc : TravCtx} {ps : PureState} {n : Name}
+    {x : FVarId} {t : LBTerm} (h : tc.fixvars = some (Std.HashMap.ofList [(n, x)])) :
+    (mkDef (m := PureM) n [n] t).runPure st tc pc ps =
+      .ok ((⟨fixDefName n, toBvar x 0 t, 0⟩, st), ps) := by
+  rw [mkDef]
+  simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.zipIdx_cons,
+    List.zipIdx_nil, List.forIn_cons, List.forIn_nil]
+  have hx : (tc.fixvars.get!)[n]! = x := by
+    rw [h, Option.get!_some, Std.HashMap.ofList_singleton, Std.HashMap.getElem!_insert_self]
+  show Except.ok (((⟨fixDefName n, toBvar ((tc.fixvars.get!)[n]!) 0 t, 0⟩ : @FixDef LBTerm), st), ps) = _
+  rw [hx]
+
+/-- The fix variables of `visitMutual`'s fixpoint branch on one definition `n`: `n` alone. -/
+theorem ofList_one {n c : Name} {x y : FVarId}
+    (h : (Std.HashMap.ofList [(n, x)])[c]? = some y) : c = n ∧ y = x := by
+  rw [Std.HashMap.ofList_singleton, Std.HashMap.getElem?_insert] at h
+  split at h
+  · rename_i hc
+    exact ⟨(beq_iff_eq.1 hc).symm, (Option.some.inj h).symm⟩
+  · simp at h
+
+/-- The fixpoint branch of the `visitMutual` step, on a definition `c` with a compiled
+pre-definition `p` (`Erasure.preDef?`), which `PureM.declInfo?` returns as its value
+(`TravFrame.declView`): one fresh fix variable `x` bound to `c` (`TravCtx.fixvars`), the
+pre-definition erased in the empty context with `x` a fix-variable local standing for `c`'s
+translation at its own level parameters (`CtxOK.fixvars`; every occurrence of `c` in `p` is at
+them, `PreDefsOK`), the body closed by `mkDef` (`toBvar x 0`), and `c` registered as the λ□
+fixpoint (`StateOK.register` with `ErasesDecl`'s fixpoint disjunct); the traversal cannot
+register `c` while it erases the body, whose scope does not hold `c` (`CoreEnv.preScope`). The
+inlining bookkeeping keeps the state invariant (`KeepsCG`). Reference: the `tFix` case of `erase`
+(`MR E/ErasureFunction.v:1022`) in `erase_constant_body` (`MR E/ErasureFunction.v:1309`);
+`erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`); DV-7. -/
+theorem visitMutual_fix_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
+    (ih : StepIH E B view cfg decls fuel) {c : Name} {ci : ConstantInfo} {p : Expr}
+    {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
+    (hsc : ScopeOK view cfg decls S) (hS : S c) (hcfg : tc.config = cfg)
+    (hcs : casesInfo? decls c = none) (hci : findDecl decls c = some ci)
+    (hp : preDef? view cfg ci = some p) (hok : StateOK E B (evalEnvOf view cfg decls) st)
+    (hnew : st.constants[c]? = none)
+    (hrun : (visitMutual (m := PureM) (fuel + 1) c).runPure st tc ⟨decls, view⟩ ps =
+      .ok (((), st'), ps')) :
+    Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧ ∃ kn, st'.constants[c]? = some kn := by
+  obtain ⟨d, rfl⟩ : ∃ d, ci = .defnInfo d := by
+    cases ci with
+    | defnInfo d => exact ⟨d, rfl⟩
+    | _ => simp [preDef?] at hp
+  have hocc : nameOccurs d.name p = true := by
+    simp only [preDef?] at hp
+    split at hp
+    · split at hp
+      · rename_i hcond
+        cases hp
+        simp only [Bool.and_eq_true] at hcond
+        exact hcond.2
+      · cases hp
+    · cases hp
+  have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
+  obtain ⟨hmP, hname⟩ := findDecl_eq_some hciP
+  have hci' : ConstantInfo.defnInfo d ∈ decls := (findDecl_eq_some hci).1
+  have hnb : KnNotBlock (evalEnvOf view cfg decls) c := knNotBlock_of_emits hG.bn hci rfl
+  have hall : d.all = [c] := by
+    rw [← hname]; exact (NonRec.ProgEnv.scoped hG.prog hmP (v := d.value) rfl).1
+  have hlen : (ConstantInfo.defnInfo d).all.length = 1 := by
+    rw [show (ConstantInfo.defnInfo d).all = d.all from rfl, hall]; rfl
+  have hcsN : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩
+      (ConstantInfo.defnInfo d).name).isNone := by simp [EvalEnv.casesOn?, hname, hcs]
+  obtain ⟨-, hpcl, hpmf, hpnp, hprf⟩ := hG.preRead _ hci' p hp hcsN
+  obtain ⟨P₁, P₀, hsplit⟩ := List.append_of_mem hmP
+  obtain ⟨-, hcat, pM, TM, hptr, -, hpty⟩ := hG.pre P₁ _ P₀ p hsplit hp
+  obtain ⟨η, hBc, -⟩ := ProgEnv.lookup_def hG.prog hciP
+  obtain ⟨-, -, -, tf, -, htf, -⟩ := ProgEnv.lookup hG.prog hG.wf hciP
+  have hdv : TravFrame.declView view cfg (.defnInfo d) = .defnInfo { d with value := p } := by
+    unfold TravFrame.declView
+    rw [hp]
+  -- an axiom: `addAxiom` registers it
+  have haxiom : ∀ {sd : ErasureState}, sd.constants = st.constants →
+      sd.inductives = st.inductives → sd.gdecls = st.gdecls →
+      axiomatized view cfg (.defnInfo d) = true →
+      (addAxiom (m := PureM) c).runPure sd tc ⟨decls, view⟩ ps = .ok (((), st'), ps') →
+      Grows E B (evalEnvOf view cfg decls) S st st' ps ps' ∧
+        ∃ kn, st'.constants[c]? = some kn := by
+    intro sd hcd hid hgd hax hrun
+    obtain ⟨st'', hrun'', hc'', hok'', hext''⟩ :=
+      addAxiom_ok (StateOK.congr hok hcd hid hgd) hG.inj hci hnb (by rw [hcd]; exact hnew) (.inr hax)
+    rw [hrun''] at hrun
+    cases hrun
+    refine ⟨⟨hok'', by rw [← hgd]; exact hext'', Nat.le_refl _, fun c' kn h0 h1 => ?_⟩,
+      toKername c, by rw [hc'']; exact Std.HashMap.getElem?_insert_self⟩
+    rw [hc'', Std.HashMap.getElem?_insert] at h1
+    split at h1
+    · rename_i hcc
+      rw [← beq_iff_eq.1 hcc]
+      exact hS
+    · rw [hcd, h0] at h1
+      cases h1
+  rw [visitMutual, runPure_read_bind, runPure_bind, show (liftM (Backend.declInfo? (m := PureM)
+      tc.config c) : EraseT PureM _).runPure st tc ⟨decls, view⟩ ps =
+        .ok ((some (.defnInfo { d with value := p }), st), ps) by
+    show Except.ok (((findConst decls c).map (TravFrame.declView view tc.config), st), ps) = _
+    rw [show findConst decls c = findDecl decls c from rfl, hci, hcfg]
+    show Except.ok ((some (TravFrame.declView view cfg (.defnInfo d)), st), ps) = _
+    rw [hdv], ok_bind'] at hrun
+  generalize hci₁ : ConstantInfo.defnInfo { d with value := p } = ci₁ at hrun
+  have hall₁ : ci₁.all = [c] := by rw [← hci₁]; exact hall
+  have hname₁ : ci₁.name = c := by rw [← hci₁]; exact hname
+  have hv₁ : ci₁.value? (allowOpaque := true) = some p := by rw [← hci₁]; rfl
+  have hv₁' : ci₁.value! (allowOpaque := true) = p := by rw [← hci₁]; rfl
+  have hlen₁ : ci₁.all.length = 1 := by rw [hall₁]; rfl
+  dsimp only at hrun
+  rw [runPure_bind, show (getOrFail (m := PureM) (some ci₁)
+    (toString "visitMutual: unknown constant " ++ toString c)).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((ci₁, st), ps) from rfl, ok_bind'] at hrun
+  dsimp only at hrun
+  rw [runPure_bind, show (liftM (Backend.inlineAttr? (m := PureM) c) : EraseT PureM _).runPure
+    st tc ⟨decls, view⟩ ps = .ok ((view.inlineAttr? c, st), ps) from rfl, ok_bind'] at hrun
+  dsimp only at hrun
+  rw [runPure_bind, show (liftM (Backend.inlineAttr? (m := PureM) c) : EraseT PureM _).runPure
+    st tc ⟨decls, view⟩ ps = .ok ((view.inlineAttr? c, st), ps) from rfl, ok_bind'] at hrun
+  dsimp only at hrun
+  simp only [hlen₁, beq_self_eq_true, Bool.true_and, ↓reduceIte] at hrun
+  generalize view.inlineAttr? c = ia at hrun
+  rcases ia with _ | ⟨_ | _ | _ | _ | _⟩ <;> simp only [↓reduceIte, Bool.false_eq_true] at hrun
+  -- the `@[inline]` bookkeeping before the value touches only `inlinings`
+  all_goals first
+    | (rw [runPure_bind] at hrun
+       replace hrun := OracleWhnf.ok_of_bind hrun
+       obtain ⟨⟨⟨_, sa⟩, pa⟩, h1, hrun⟩ := hrun
+       obtain ⟨ca, ia, ga, hpa⟩ := KeepsCG.log (pc := ⟨decls, view⟩) _ _ _ _ _ _ _ h1
+       subst pa
+       try dsimp only at hrun
+       rw [runPure_bind] at hrun
+       replace hrun := OracleWhnf.ok_of_bind hrun
+       obtain ⟨⟨⟨_, sb⟩, pb⟩, h2, hrun⟩ := hrun
+       obtain ⟨cb, ib, gb, hpb⟩ :=
+         KeepsCG.modify (pc := ⟨decls, view⟩) (fun _ => ⟨rfl, rfl, rfl⟩) _ _ _ _ _ _ h2
+       subst pb
+       try dsimp only at hrun
+       have hcb : sb.constants = st.constants := cb.trans ca
+       have hib : sb.inductives = st.inductives := ib.trans ia
+       have hgb : sb.gdecls = st.gdecls := gb.trans ga
+       clear ca ia ga cb ib gb h1 h2)
+    | (obtain ⟨sb, hsb⟩ : ∃ sb, sb = st := ⟨st, rfl⟩
+       rw [← hsb] at hrun
+       have hcb : sb.constants = st.constants := by rw [hsb]
+       have hib : sb.inductives = st.inductives := by rw [hsb]
+       have hgb : sb.gdecls = st.gdecls := by rw [hsb]
+       clear hsb)
+  all_goals
+    rw [runPure_bind, show (liftM (Backend.isExtern (m := PureM) c) : EraseT PureM Bool).runPure
+      sb tc ⟨decls, view⟩ ps = .ok ((view.isExtern c, sb), ps) from rfl, ok_bind'] at hrun
+    dsimp only at hrun
+    rw [runPure_read_bind, hcfg] at hrun
+  all_goals
+    cases hie : view.isExtern c <;> cases hext : cfg.1 <;> simp only [hv₁, hie, hext] at hrun
+  all_goals first
+    | (rw [runPure_bind] at hrun
+       replace hrun := OracleWhnf.ok_of_bind hrun
+       obtain ⟨⟨⟨_, sd⟩, pd⟩, h1, hrun⟩ := hrun
+       obtain ⟨cd, id, gd, hpd⟩ := KeepsCG.log (pc := ⟨decls, view⟩) _ _ _ _ _ _ _ h1
+       subst pd
+       try dsimp only at hrun
+       exact haxiom (cd.trans hcb) (id.trans hib) (gd.trans hgb)
+         (by rw [axiomatized, hlen, hname, hie, hext]; decide) hrun)
+    | (rw [runPure_bind] at hrun
+       replace hrun := OracleWhnf.ok_of_bind hrun
+       obtain ⟨⟨⟨_, sb⟩, pd⟩, h1, hrun⟩ := hrun
+       obtain ⟨cd, id, gd, hpd⟩ := KeepsCG.log (pc := ⟨decls, view⟩) _ _ _ _ _ _ _ h1
+       subst pd
+       try dsimp only at hrun
+       replace hcb := cd.trans hcb
+       replace hib := id.trans hib
+       replace hgb := gd.trans hgb
+       clear cd id gd h1)
+    | skip
+  -- the fixpoint: one fix variable, the pre-definition erased under it, then registered
+  all_goals
+    have hax : axiomatized view cfg (.defnInfo d) = false := by
+      rw [axiomatized, hlen, hname, hie, hext]; decide
+    have hno : name_occurs (m := PureM) c p = true := by rw [name_occurs_eq, ← hname]; exact hocc
+    simp only [Option.getD_some, hno, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hrun
+    rw [hall₁] at hrun
+    rw [runPure_bind] at hrun
+    obtain ⟨⟨⟨ids, s0⟩, p0⟩, hids, hrun⟩ := OracleWhnf.ok_of_bind hrun
+    change Except.ok (([pureFVar ps.next], sb), (⟨ps.next + 1⟩ : PureState)) = _ at hids
+    cases hids
+    dsimp only at hrun
+    rw [runPure_withReader, runPure_bind] at hrun
+    obtain ⟨⟨⟨defs, st₃⟩, ps₃⟩, hdefs, hrun⟩ := OracleWhnf.ok_of_bind hrun
+    rw [List.mapM_cons, List.mapM_nil, runPure_bind] at hdefs
+    obtain ⟨⟨⟨df, s1⟩, p1⟩, hdf, hdefs⟩ := OracleWhnf.ok_of_bind hdefs
+    change Except.ok (([df], s1), p1) = _ at hdefs
+    cases hdefs
+    rw [ite_eq_left (by rw [hname₁]; exact beq_self_eq_true c), runPure_bind] at hdf
+    obtain ⟨⟨⟨ci₂, s2⟩, p2⟩, hci₂, hdf⟩ := OracleWhnf.ok_of_bind hdf
+    cases hci₂
+    try dsimp only at hdf
+    rw [runPure_bind] at hdf
+    obtain ⟨⟨⟨t, st₂⟩, ps₂⟩, hW, hdf⟩ := OracleWhnf.ok_of_bind hdf
+    rw [runPure_withReader, runPure_read_bind, runPure_bind] at hW
+    obtain ⟨⟨⟨v₁, s₁⟩, p₁⟩, hpr, hW⟩ := OracleWhnf.ok_of_bind hW
+    cases hpr
+    rw [hv₁'] at hW
+    change (mkDef (m := PureM) c [c] t).runPure st₂ _ ⟨decls, view⟩ ps₂ = _ at hdf
+    rw [mkDef_one rfl] at hdf
+    simp only [Except.ok.injEq, Prod.mk.injEq] at hdf
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hdf
+    dsimp only at hrun
+    rw [runPure_bind] at hrun
+    obtain ⟨⟨⟨u0, s6⟩, p6⟩, hloop, hrun⟩ := OracleWhnf.ok_of_bind hrun
+    have hend : st' = s6 ∧ ps' = p6 := by cases hrun; exact ⟨rfl, rfl⟩
+    obtain ⟨rfl, rfl⟩ := hend
+    rw [show (List.map (remove_unsafe_rec (m := PureM)) [c]).zipIdx = [(c, 0)] from rfl,
+      List.forIn_cons, runPure_bind] at hloop
+    obtain ⟨⟨⟨r0, s4⟩, p4⟩, hbody, hloop⟩ := OracleWhnf.ok_of_bind hloop
+    dsimp only at hbody
+    rw [runPure_bind] at hbody
+    obtain ⟨⟨⟨_, s5⟩, p5⟩, hm, hbody⟩ := OracleWhnf.ok_of_bind hbody
+    cases hm
+    obtain ⟨hc', hi', hg', hps⟩ := (by
+      repeat' first
+        | with_reducible_and_instances first
+          | exact KeepsCG.pure _
+          | exact KeepsCG.get
+          | refine KeepsCG.modify fun _ => ⟨rfl, rfl, rfl⟩
+          | refine KeepsCG.bind ?_ fun _ => ?_ : KeepsCG ⟨decls, view⟩ _) _ _ _ _ _ _ hbody
+    have hend : st' = s4 ∧ ps' = p4 := by
+      cases r0 <;> dsimp only at hloop <;> (try rw [List.forIn_nil] at hloop) <;> cases hloop <;>
+        exact ⟨rfl, rfl⟩
+    obtain ⟨rfl, rfl⟩ := hend
+    -- the pre-definition erased in the empty context, the fix variable a fix-variable local
+    have hctx0 : CtxOK E B (ConstantInfo.defnInfo d).levelParams
+        (.nil : Metalean.Ctx ζ (ConstantInfo.defnInfo d).levelParams.length 0 0)
+        [(some (pureFVar ps.next), .vfix tf)] cfg
+        { lctx := tc.lctx, locals := [], fixvars := some (Std.HashMap.ofList [(c, pureFVar ps.next)]),
+          config := tc.config, decl := c } ⟨ps.next + 1⟩ := by
+      refine ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun k hk => ?_, fun c' y hy => ?_, hcfg⟩
+      · have hne : (pureFVar ps.next == pureFVar k) = false := by
+          rcases Bool.eq_false_or_eq_true (pureFVar ps.next == pureFVar k) with h' | h'
+          · have := pureFVar_inj ((fvarId_beq_iff _ _).mp h')
+            dsimp only at hk; omega
+          · exact h'
+        simp [MLCtx.findF, hne]
+      · obtain ⟨hc'', hy'⟩ := ofList_one hy
+        rw [hc'', hy']
+        refine ⟨fun b hb => ?_, tf, ?_, ?_⟩
+        · rw [hBc] at hb; cases hb; rfl
+        · rw [← hname]; exact htf.mono ⟨fun _ _ h => (nomatch h), fun _ _ h => (nomatch h)⟩
+        · simp [MLCtx.findFix, MLDecl.fixVal?,
+            (fvarId_beq_iff (pureFVar ps.next) (pureFVar ps.next)).mpr rfl]
+    have hW' : (visitExpr (m := PureM) fuel p).runPure sb
+        { lctx := tc.lctx, locals := [], fixvars := some (Std.HashMap.ofList [(c, pureFVar ps.next)]),
+          config := tc.config, decl := c } ⟨decls, view⟩ ⟨ps.next + 1⟩ = .ok ((t, st₂), ps₂) := by
+      rw [← hW]
+      have hmf' : MachineFree tc.config p := hcfg ▸ hpmf
+      have hmfd' : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → MachineFree tc.config x :=
+        hcfg ▸ hG.mfd
+      have hpre' : ∀ ci ∈ decls, ∀ q, preDef? view tc.config ci = some q →
+          casesInfo? decls ci.name = none → FVarsIn (fun _ => False) q ∧ MachineFree tc.config q :=
+        hcfg ▸ hG.declsPre
+      exact (visit_agree (S := fun _ => False) (pc := ⟨decls, view⟩)
+        (tc := ⟨tc.lctx, [], some (Std.HashMap.ofList [(c, pureFVar ps.next)]), tc.config, c⟩)
+        (ls₁ := tc.locals) (ls₂ := []) hG.closed hmf' hmfd' hG.blk hG.idx hpre'
+        (fun _ h => h.elim) (fun _ h => h.elim) hpcl).symm
+    have hokb := StateOK.congr hok hcb hib hgb
+    have htrp : TrM E B (ConstantInfo.defnInfo d).levelParams .nil
+        [(some (pureFVar ps.next), .vfix tf)] p pM :=
+      hptr.mono ⟨fun _ _ h => (nomatch h), fun _ _ h => (nomatch h)⟩
+    have hpS : ∀ d', nameOccurs d' p = true → S d' := by
+      obtain ⟨ci₀, hci₀, hval₀⟩ := hsc c hS
+      rw [hci] at hci₀
+      cases hci₀
+      exact hval₀ p (by rw [hdv]; rfl) rfl hcs
+    have hinS : ∀ {S₀ : Name → Prop}, (∀ d', nameOccurs d' p = true → d' = c ∨ S₀ d') →
+        ∀ d' us, OccursAt d' us p →
+          InScope ⟨tc.lctx, [], some (Std.HashMap.ofList [(c, pureFVar ps.next)]), tc.config, c⟩
+            (ConstantInfo.defnInfo d).levelParams S₀ d' us := by
+      intro S₀ h d' us ho
+      refine ⟨fun hn => ?_, fun hs => ?_⟩
+      · rcases h d' ho.nameOccurs with rfl | h'
+        · simp [Std.HashMap.ofList_singleton] at hn
+        · exact h'
+      · obtain ⟨y, hy⟩ := Option.isSome_iff_exists.1 hs
+        obtain ⟨hd', -⟩ := ofList_one hy
+        rw [hd', ← hname] at ho
+        exact ConstAt.occursAt hcat ho
+    have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) p hctx0 hsc
+      (hinS fun d' h => .inr (hpS d' h)) hpmf hpnp hprf hokb htrp ⟨TM, hpty⟩ hW'
+    obtain ⟨S', hsc', hpS', hcS'⟩ := hG.preScope hci hp hcs
+    obtain ⟨-, -, hgr'⟩ := ih.expr fuel (Nat.le_refl _) p hctx0 hsc' (hinS hpS') hpmf hpnp hprf
+      hokb htrp ⟨TM, hpty⟩ hW'
+    have hnew₂ : st₂.constants[c]? = none := by
+      cases h : st₂.constants[c]? with
+      | none => rfl
+      | some kn => exact (hcS' (hgr'.scope c kn (by rw [hcb]; exact hnew) h)).elim
+    have hcl0 : closedn 0 t = true := by
+      have := Erases.closed htrp her
+      rwa [countP_none hctx0.nobv] at this
+    have hcl1 := closedn_toBvar (pureFVar ps.next) t 0 hcl0
+    have hfv1 : ∀ y, hasFVar y (toBvar (pureFVar ps.next) 0 t) = false := by
+      intro y
+      cases hy : hasFVar y (toBvar (pureFVar ps.next) 0 t)
+      · rfl
+      · obtain ⟨h1, h2⟩ := hasFVar_toBvar _ y t 0 hy
+        refine (h2 (Erases.hasFVar_of her (· = pureFVar ps.next) (fun y' t' h => ?_)
+          (KFV.of_fvarsIn (fvarsIn_mono (fun _ h => h.elim) hpcl)) y h1)).elim
+        simp only [MLCtx.findFix] at h
+        split at h
+        · exact ((fvarId_beq_iff _ _).mp ‹_›).symm
+        · cases h
+    have hd : ErasesDecl E B (evalEnvOf view cfg decls) (.defnInfo d)
+        ⟨some (.fix [⟨fixDefName c, toBvar (pureFVar ps.next) 0 t, 0⟩] 0)⟩ := by
+      unfold ErasesDecl
+      rw [show (ConstantInfo.defnInfo d).value? (allowOpaque := true) = some d.value from rfl]
+      exact .inr (.inr ⟨hax, p, pureFVar ps.next, t, tf, hp, by rw [hname], hcat, ⟨pM, hptr⟩, htf,
+        her, hcl1, hfv1⟩)
+    obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hci hnb hnew₂ hd fun b hb => by
+      cases hb
+      refine ⟨.fix fun d' hd' => ?_, ?_, fun y => ?_⟩
+      · simp only [List.mem_singleton] at hd'
+        subst hd'
+        exact ErasesDeps.toBvar hdeps 0
+      · simpa [closedn, closednD] using hcl1
+      · simpa [hasFVar, hasFVarD] using hfv1 y
+    refine ⟨⟨StateOK.congr hok₃ hc' hi' hg', ?_, hps ▸ Nat.le_trans (Nat.le_succ _) hgr.next, ?_⟩,
+      toKername c, ?_⟩
+    · rw [hg', ← hgb]
+      exact LenvExt.trans hgr.ext hext₃
+    · intro c' kn h0 h1
+      rw [hc'] at h1
+      change (st₂.constants.insert c (toKername c))[c']? = some kn at h1
+      rw [Std.HashMap.getElem?_insert] at h1
+      split at h1
+      · rename_i hcc
+        rw [← beq_iff_eq.1 hcc]
+        exact hS
+      · exact hgr.scope c' kn (by rw [hcb]; exact h0) h1
+    · rw [hc']
+      exact Std.HashMap.getElem?_insert_self
+
 /-- The `visitMutual` step, from `visitExpr` at `fuel`: an axiom, or a remapped declaration, is
 registered by `addAxiom` (`addAxiom_ok`); a definition's or an opaque's value, which is not
 recursive (`isRecursiveDecl_false`), is erased in the empty context (it is closed, so as under the
 caller's locals, `visit_agree`), and registered with its erasure (`StateOK.register`); the
 traversal cannot register the constant while it erases the value, whose scope does not hold it
-(`CoreEnv.valueScope`). The inlining bookkeeping keeps the state invariant (`KeepsCG`).
+(`CoreEnv.valueScope`). The inlining bookkeeping keeps the state invariant (`KeepsCG`). A
+definition with a compiled pre-definition is erased as a fixpoint (`visitMutual_fix_step`).
 Reference: `erase_constant_body` (`MR E/ErasureFunction.v:1309`) in the `ConstantDecl` step of
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`); `erase_global_deps_fresh`
 (`MR E/ErasureFunctionProperties.v:1206`). -/
 theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     (ih : StepIH E B view cfg decls fuel) {c : Name} :
     MutualSpec E B view cfg decls (fuel + 1) c := by
-  intro S st tc ps st' ps' hsc hS hcfg hfix hnt hcs hemc hok hnew hrun
+  intro S st tc ps st' ps' hsc hS hcfg hnt hcs hemc hok hnew hrun
   obtain ⟨ci, hci, hem⟩ := hemc
+  rcases hpd : preDef? view cfg ci with _ | p
+  swap
+  · exact visitMutual_fix_step hG ih hsc hS hcfg hcs hci hpd hok hnew hrun
+  have hdv : TravFrame.declView view cfg ci = ci := by
+    unfold TravFrame.declView
+    rw [hpd]
+    cases ci <;> rfl
   have hciP := SrcDefeq.findDecl_sub (σ := evalEnvOf view cfg decls) hG.sub hci
   obtain ⟨hmP, hname⟩ := findDecl_eq_some hciP
   have hnb : KnNotBlock (evalEnvOf view cfg decls) c := by
@@ -1773,8 +2468,10 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
       cases h1
   rw [visitMutual, runPure_read_bind, runPure_bind, show (liftM (Backend.declInfo? (m := PureM) tc.config c) :
       EraseT PureM _).runPure st tc ⟨decls, view⟩ ps = .ok ((some ci, st), ps) by
-    show Except.ok ((findConst decls c, st), ps) = _
-    rw [show findConst decls c = findDecl decls c from rfl, hci], ok_bind'] at hrun
+    show Except.ok (((findConst decls c).map (TravFrame.declView view tc.config), st), ps) = _
+    rw [show findConst decls c = findDecl decls c from rfl, hci, hcfg]
+    show Except.ok ((some (TravFrame.declView view cfg ci), st), ps) = _
+    rw [hdv], ok_bind'] at hrun
   dsimp only at hrun
   rw [runPure_bind, show (getOrFail (m := PureM) (some ci)
     (toString "visitMutual: unknown constant " ++ toString c)).runPure st tc ⟨decls, view⟩ ps =
@@ -1894,21 +2591,28 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
           TravCtx).config = cfg from hcfg]; exact hmfv)
         (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
           TravCtx).config = cfg from hcfg]; exact hG.mfd)
-        hG.blk hG.idx (fun _ h => h.elim) (fun _ h => h.elim) hvcl).symm
+        hG.blk hG.idx
+        (by rw [show ({ lctx := tc.lctx, locals := [], config := tc.config, decl := c } :
+          TravCtx).config = cfg from hcfg]; exact hG.declsPre)
+        (fun _ h => h.elim) (fun _ h => h.elim) hvcl).symm
     have hctx0 : CtxOK E B ci.levelParams (.nil : Metalean.Ctx ζ ci.levelParams.length 0 0) []
         cfg { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ps :=
-      ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, rfl, hcfg⟩
+      ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, (fun _ _ h => by cases h), hcfg⟩
     obtain ⟨e₀, T₀, htr, hty⟩ := ProgEnv.value_typed hG.prog hG.wf hmP hv hthm
     have hoccS : ∀ d, nameOccurs d v = true → S d := by
       obtain ⟨ci₀, hci₀, hval₀⟩ := hsc c hS
       rw [hci] at hci₀
       cases hci₀
-      exact hval₀ v hv hthm hcs
+      exact hval₀ v (by rw [hdv]; exact hv) hthm hcs
     have hokb := StateOK.congr hok hcb hib hgb
-    have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc hoccS hmfv hnpv
+    have hin : ∀ {S₀ : Name → Prop}, (∀ d, nameOccurs d v = true → S₀ d) → ∀ d us, OccursAt d us v →
+        InScope { lctx := tc.lctx, locals := [], config := tc.config, decl := c } ci.levelParams
+          S₀ d us :=
+      fun h d _ ho => ⟨fun _ => h d ho.nameOccurs, fun h' => absurd h' (by simp)⟩
+    have ⟨her, hdeps, hgr⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc (hin hoccS) hmfv hnpv
       (hG.recShaped ci hci' v hread) hokb htr ⟨T₀, hty⟩ hW'
     obtain ⟨S', hsc', hvS', hcS'⟩ := hG.valueScope hci hv hthm hcs
-    obtain ⟨-, -, hgr'⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc' hvS' hmfv hnpv
+    obtain ⟨-, -, hgr'⟩ := ih.expr fuel (Nat.le_refl _) v hctx0 hsc' (hin hvS') hmfv hnpv
       (hG.recShaped ci hci' v hread) hokb htr ⟨T₀, hty⟩ hW'
     have hnew₂ : st₂.constants[c]? = none := by
       cases h : st₂.constants[c]? with
@@ -1917,13 +2621,14 @@ theorem visitMutual_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have hd : ErasesDecl E B (evalEnvOf view cfg decls) ci ⟨some t⟩ := by
       unfold ErasesDecl
       rw [hv]
-      exact .inr ⟨hax, t, rfl, her⟩
+      exact .inr (.inl ⟨hax, hpd, t, rfl, her⟩)
     obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hci hnb hnew₂ hd fun b hb => by
       cases hb
       refine ⟨hdeps, by simpa using Erases.closed htr her, fun x => ?_⟩
       cases hx : hasFVar x t
       · rfl
-      · exact (Erases.hasFVar_of her (fun _ => False) (KFV.of_fvarsIn hvcl) x hx).elim
+      · exact (Erases.hasFVar_of her (fun _ => False) (fun _ _ h => nomatch h)
+          (KFV.of_fvarsIn hvcl) x hx).elim
     refine ⟨⟨StateOK.congr hok₃ hc' hi' hg', ?_, hps ▸ hgr.next, ?_⟩, toKername c, ?_⟩
     · rw [hg', ← hgb]
       exact LenvExt.trans hgr.ext hext₃

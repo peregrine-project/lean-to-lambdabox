@@ -10,11 +10,12 @@ import Metalean.Frontend.Translate
 
 The definitions the statements of `EraseProof/Statements.lean` are about: the bridge between Lean
 terms and declarations and Metalean terms and environments (`MBinding`, `Binds`, `TrLevel`,
-`MLCtx`, `SatTr`, `TrM`, `ProgEnv`), the source semantics (`EvalEnv`, atoms, `SrcEval`),
-erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
-`KernameInj`, `SubEnv`, `evalEnvOf`, `ViewAgrees`), the sufficient condition for the fragment
-(`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecShaped`, `BlockNamesInj`, `ArityTypes`), and the erasure relation
-(`Erases`, `ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps`). λ□ evaluation is
+`MLCtx`, `SatTr`, `TrM`, `SrcConv`, `ProgEnv`), the source semantics (`EvalEnv`, atoms,
+`SrcEval`), erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
+`ConstAt`, `KernameInj`, `SubEnv`, `evalEnvOf`, `PreDefsOK`, `ViewAgrees`), the sufficient
+condition for the fragment (`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecShaped`, `PreRead`,
+`BlockNamesInj`, `ArityTypes`), and the erasure relation (`Erases`, `ErasesAlt`, `ErasesInd`,
+`ErasesDecl`, `ErasesDeps`). λ□ evaluation is
 `EraseProof/Target.lean`.
 
 The η-terms of the saturating rules are the translator's own total term builders
@@ -94,20 +95,30 @@ def TrLevels (lps : List Name) (us : List Lean.Level) (k : Nat) :
 
 /-- What a Lean local denotes: a Metalean variable (λ/Π binder) or, for a `let`, its translated
 value (the translator inlines lets, `ML Frontend/Translate.lean:339-342`; `Ctx` has no let
-entries, `ML Syntax/Ctx.lean:20`). Reference: lean4lean `VLocalDecl` (`L4 Typing/Basic.lean:19`). -/
+entries, `ML Syntax/Ctx.lean:20`), or, for the fix variable of a fixpoint body
+(`Erases.fixVar`), the translation of the constant it stands for. Reference: lean4lean
+`VLocalDecl` (`L4 Typing/Basic.lean:19`); DV-7 for the fix variable. -/
 inductive MLDecl (ζ : Metalean.Sigs) (ℓ n : Nat) where
   | vlam (v : Fin n)
   | vlet (val : Metalean.Expr ζ ℓ n)
+  | vfix (val : Metalean.Expr ζ ℓ n)
 
 /-- The Metalean term a local denotes. -/
 def MLDecl.denote {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → Metalean.Expr ζ ℓ n
   | .vlam v => .var v
   | .vlet e => e
+  | .vfix e => e
 
 /-- Weakening by one new (last) Metalean variable. -/
 def MLDecl.wk {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → MLDecl ζ ℓ (n + 1)
   | .vlam v => .vlam v.castSucc
   | .vlet e => .vlet e.wk
+  | .vfix e => .vfix e.wk
+
+/-- The constant translation a fix-variable local stands for. -/
+def MLDecl.fixVal? {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → Option (Metalean.Expr ζ ℓ n)
+  | .vfix e => some e
+  | _ => none
 
 /-- The locals of a Lean term, innermost first: bound variables (`none`) and the traversal's free
 variables (`some x`). Reference: lean4lean `VLCtx` (`L4 Typing/Basic.lean`), DV-13. -/
@@ -130,6 +141,14 @@ def MLCtx.findF {ζ : Metalean.Sigs} {ℓ n : Nat} : MLCtx ζ ℓ n → FVarId �
   | [], _ => none
   | (some y, d) :: Δ, x => if y == x then some d.denote else findF Δ x
   | (none, _) :: Δ, x => findF Δ x
+
+/-- The constant translation that the free variable `x` stands for, if its local is a fix
+variable (`MLDecl.vfix`). -/
+def MLCtx.findFix {ζ : Metalean.Sigs} {ℓ n : Nat} :
+    MLCtx ζ ℓ n → FVarId → Option (Metalean.Expr ζ ℓ n)
+  | [], _ => none
+  | (some y, d) :: Δ, x => if y == x then d.fixVal? else findFix Δ x
+  | (none, _) :: Δ, x => findFix Δ x
 
 /-! ## 4. Nat literals (own copy of Metalean's) -/
 
@@ -390,6 +409,15 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       TrM E B lps Γ Δ e e' → TypedExt E Γ e' (.ind η s ls ps is) →
       TrM E B lps Γ Δ (.proj S i e) (projProofTerm E η s c ls hi ps i e')
 
+/-- `a` and `b` are the Lean forms of definitionally equal closed Metalean terms: every typed
+translation of `a` is definitionally equal, at its type, to a translation of `b`. The conversion
+premise of the source semantics in the statements. Reference: the conclusion of
+`subject_reduction_eval` (`MR P/PCUICWcbvEval.v`). -/
+def SrcConv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
+    (a b : Expr) : Prop :=
+  ∀ {t T : Metalean.Expr ζ lps.length 0}, TrM E B lps .nil [] a t → E[.nil] ⊢ t : T →
+    ∃ t', TrM E B lps .nil [] b t' ∧ E[.nil] ⊢ t ≡ t' : T
+
 /-! ## 6. Declarations: `ProgEnv` -/
 
 /-- First declaration named `c`. Reference: `lookup_env` (`MR common/theories/Environment.v:483`). -/
@@ -544,6 +572,15 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
   | .proj S _ e => p S ∧ ConstsIn p e
   | _ => True
 
+/-- Every occurrence of the constant `c` in the term is at the universe levels `us`. -/
+def ConstAt (c : Name) (us : List Level) : Expr → Prop
+  | .const c' us' => c' = c → us' = us
+  | .app f a => ConstAt c us f ∧ ConstAt c us a
+  | .lam _ t b _ | .forallE _ t b _ => ConstAt c us t ∧ ConstAt c us b
+  | .letE _ t v b _ => ConstAt c us t ∧ ConstAt c us v ∧ ConstAt c us b
+  | .mdata _ e | .proj _ _ e => ConstAt c us e
+  | _ => True
+
 /-- `ProgEnv P ζ E B`: the newest-first list of Lean declarations `P` is the Lean form of the
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-130`): safe axioms, definitions (`all = [name]`: no
@@ -606,10 +643,13 @@ inductive ProgEnv : List ConstantInfo → (ζ : Metalean.Sigs) → Metalean.Env 
 /-! ## 7. Source semantics -/
 
 /-- The program's environment as evaluation sees it, with the configuration's `@[extern]`
-remapping. Reference: the environment of `MR P/PCUICWcbvEval.v:231 eval`, DV-12. -/
+remapping and its compiled pre-definitions. Reference: the environment of
+`MR P/PCUICWcbvEval.v:231 eval`, DV-12. -/
 structure EvalEnv where
   decls : List ConstantInfo
   axiomatized : ConstantInfo → Bool
+  /-- The compiled pre-definition through which a declaration is erased (`Erasure.preDef?`). -/
+  recPre? : ConstantInfo → Option Expr
 
 /-- The inductive of a recognized `casesOn` constant (the shipping recognizer `Erasure.casesInfo?`).
 Reference: none (`tCase` is syntax in PCUIC; DV-25). -/
@@ -683,14 +723,21 @@ evaluated as a whole (`SrcEval.eta`, `ctor`, `casesIota`, `casesLit*`, `quotMk`,
 def ShortSpine (σ : EvalEnv) (e : Expr) : Prop :=
   ∃ c us ar, e.getAppFn = .const c us ∧ specialArity σ c = some ar ∧ e.getAppNumArgs ≤ ar
 
-/-- δ: definitions that the configuration does not remap and that are not recognized `casesOn`
-constants; theorems, axioms and opaques have no δ (Metalean loads theorems as opaque, DV-24;
-DV-10). Reference: `eval_delta` (`MR P/PCUICWcbvEval.v:247`). -/
+/-- δ: definitions that the configuration does not remap, that are not recognized `casesOn`
+constants and that are not erased through a compiled pre-definition (`EvalEnv.recPre?`, evaluated
+by `SrcEval.deltaRec`); theorems, axioms and opaques have no δ (Metalean loads theorems as opaque,
+DV-24; DV-10). Reference: `eval_delta` (`MR P/PCUICWcbvEval.v:247`). -/
 def EvalEnv.unfold? (σ : EvalEnv) (c : Name) : Option (ConstantInfo × Expr) :=
   match findDecl σ.decls c with
   | some ci@(.defnInfo v) =>
-    if σ.axiomatized ci || (σ.casesOn? c).isSome then none else some (ci, v.value)
+    if σ.axiomatized ci || (σ.casesOn? c).isSome || (σ.recPre? ci).isSome then none
+    else some (ci, v.value)
   | _ => none
+
+/-- The number of leading λ-binders of a term. -/
+def lamArity : Expr → Nat
+  | .lam _ _ b _ => lamArity b + 1
+  | _ => 0
 
 /-- A level that is zero under every assignment, structurally (port of `L4 Atoms.lean`). -/
 def EvidentZero : Level → Bool
@@ -853,44 +900,64 @@ DV-25). Theorems have no δ, so a proof may evaluate to an atom spine instead of
 indices whose recursive fields take no arguments and come last evaluates its minor premises and its
 major premise, then continues with the minor of the major's constructor (a Nat literal's being
 ``Nat.zero`` or ``Nat.succ``, `natLitCtor`) applied to the fields and to the induction hypotheses
-(`recIota`, the recursor ι; DV-30). Reference:
+(`recIota`, the recursor ι; DV-30). A definition by structural recursion with a compiled
+pre-definition has no δ: applied to exactly as many arguments as the pre-definition has leading λs,
+it evaluates the arguments and continues with the pre-definition applied to their values, under the
+conversion premise `C` (`deltaRec`; DV-7); a shorter application has no rule. Reference:
 `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
-inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
+inductive SrcEval (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr → Prop
   /-- `eval_beta` (`MR P/PCUICWcbvEval.v:234`). -/
-  | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ f (.lam n A b bi) → SrcEval σ a a' →
-      SrcEval σ (b.instantiate1' a') v → SrcEval σ (.app f a) v
+  | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ C f (.lam n A b bi) → SrcEval σ C a a' →
+      SrcEval σ C (b.instantiate1' a') v → SrcEval σ C (.app f a) v
   /-- `eval_zeta` (`:241`). -/
-  | zeta : SrcEval σ val val' → SrcEval σ (b.instantiate1' val') v →
-      SrcEval σ (.letE n T val b nd) v
+  | zeta : SrcEval σ C val val' → SrcEval σ C (b.instantiate1' val') v →
+      SrcEval σ C (.letE n T val b nd) v
   /-- `eval_delta` (`:247`). -/
   | delta : σ.unfold? c = some (ci, body) →
-      SrcEval σ (Pure.instLevels ci.levelParams us body) v → SrcEval σ (.const c us) v
+      SrcEval σ C (Pure.instLevels ci.levelParams us body) v → SrcEval σ C (.const c us) v
+  /-- A definition by structural recursion, not a recognized `casesOn`, that the configuration
+  erases through its compiled pre-definition `pre` (`EvalEnv.recPre?`), applied to as many
+  arguments as `pre` has leading λs
+  (at least one): the arguments evaluate to `vs`, the application of the constant to `vs` is
+  convertible to that of `pre` (`C`; `SrcConv` in the statements), and the latter evaluates to
+  `v`. Lean's code generator runs the definition so (`addAndCompilePartialRec`,
+  `Lean/Elab/PreDefinition/Basic.lean:280`), and λ□ unfolds the emitted fixpoint at the first
+  argument (`eval_fix`, `MR P/PCUICWcbvEval.v:273`; DV-7). -/
+  | deltaRec {as vs : List Expr} : findDecl σ.decls c = some ci → ci.isDefinition = true →
+      σ.casesOn? c = none → σ.isAtom c = false → σ.axiomatized ci = false →
+      σ.recPre? ci = some pre → 0 < lamArity pre → as.length = lamArity pre →
+      as.length = vs.length →
+      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
+      C (mkAppN (.const c us) vs.toArray)
+        (mkAppN (Pure.instLevels ci.levelParams us pre) vs.toArray) →
+      SrcEval σ C (mkAppN (Pure.instLevels ci.levelParams us pre) vs.toArray) v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `eval_atom` on `tInd`/propositional constants (`:331`, DV-11). -/
-  | constAtom : σ.isAtom c = true → SrcEval σ (.const c us) (.const c us)
+  | constAtom : σ.isAtom c = true → SrcEval σ C (.const c us) (.const c us)
   /-- A spine with an arity (`specialArity`) and missing arguments is its η-expansion, a λ
   (DV-23). -/
   | eta {as : List Expr} : σ.etaSpine? c us as = some e' →
-      SrcEval σ (mkAppN (.const c us) as.toArray) e'
+      SrcEval σ C (mkAppN (.const c us) as.toArray) e'
   /-- `eval_construct` (`:303`): a saturated constructor spine evaluates its arguments. -/
   | ctor {as vs : List Expr} : findDecl σ.decls c = some (.ctorInfo cv) →
       as.length = cv.numParams + cv.numFields → as.length = vs.length →
-      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v) →
-      SrcEval σ (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray)
+      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray)
   /-- `eval_iota` (`:253`): a saturated recognized `casesOn`; the major evaluates to a constructor
   value; the alternative of its constructor is applied to its fields. -/
   | casesIota {as : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
-      as[casesMajor iv]? = some m → SrcEval σ m mv → CtorValue σ iv.name mv i fs →
-      as[casesMajor iv + 1 + i]? = some alt → SrcEval σ (mkAppN alt fs.toArray) v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      as[casesMajor iv]? = some m → SrcEval σ C m mv → CtorValue σ iv.name mv i fs →
+      as[casesMajor iv + 1 + i]? = some alt → SrcEval σ C (mkAppN alt fs.toArray) v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a Nat literal major (`casesOnLit`): `0` and `k+1`. -/
   | casesLitZero {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval σ m (.lit (.natVal 0)) → as[casesMajor iv + 1]? = some alt → SrcEval σ alt v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      SrcEval σ C m (.lit (.natVal 0)) → as[casesMajor iv + 1]? = some alt → SrcEval σ C alt v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   | casesLitSucc {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval σ m (.lit (.natVal (k + 1))) → as[casesMajor iv + 2]? = some alt →
-      SrcEval σ (.app alt (.lit (.natVal k))) v → SrcEval σ (mkAppN (.const c us) as.toArray) v
+      SrcEval σ C m (.lit (.natVal (k + 1))) → as[casesMajor iv + 2]? = some alt →
+      SrcEval σ C (.app alt (.lit (.natVal k))) v → SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a proof that is not a constructor (as λ□ `eval_iota_sing`,
   `MR E/EWcbvEval.v:162`, which the eraser applies at erasure time, `Erases.casesReduced`): a
   saturated recognized `casesOn` whose discriminant's sort is zero at its levels and whose inductive's
@@ -899,25 +966,25 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   with the alternative. Metalean: proof irrelevance at the statement makes the major `cn ps`, then
   ι. -/
   | casesProof {as ps : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
-      as[casesMajor iv]? = some m → SrcEval σ m mv → AtomSpine σ mv →
+      as[casesMajor iv]? = some m → SrcEval σ C m mv → AtomSpine σ mv →
       casesSortLevel iv us = some l → EvidentZero l = true → iv.ctors = [cn] → findDecl σ.decls cn = some (.ctorInfo cv) → cv.numFields = 0 →
       σ.spineType? mv = some st → ps.length = cv.numParams →
       piInst ps (Pure.instLevels cv.levelParams vs cv.type) = some st →
-      as[casesMajor iv + 1]? = some alt → SrcEval σ alt v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      as[casesMajor iv + 1]? = some alt → SrcEval σ C alt v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `Quot.mk α r a` evaluates its element, the type and the relation unevaluated (as
   `eval_construct` on the quotient's constructor; DV-29). -/
-  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcEval σ a a' →
-      SrcEval σ (mkAppN (.const c us) [α, r, a].toArray) (mkAppN (.const c us) [α, r, a'].toArray)
+  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcEval σ C a a' →
+      SrcEval σ C (mkAppN (.const c us) [α, r, a].toArray) (mkAppN (.const c us) [α, r, a'].toArray)
   /-- The quotient ι (`quotIota`, `ML Syntax/Reduction.lean:74`: `Quot.lift f h (Quot.mk r a) ⤳ f
   a`) as `eval_beta`: `f` evaluates to a λ and `q` to `Quot.mk α' r' a`; the λ's body continues at
   the element `a`. The type, the relation, the result type and the compatibility proof are not
   evaluated (DV-29). -/
   | quotLift : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .lift →
-      SrcEval σ f (.lam x A b bi) → SrcEval σ q (mkAppN (.const c' us') [α', r', a].toArray) →
+      SrcEval σ C f (.lam x A b bi) → SrcEval σ C q (mkAppN (.const c' us') [α', r', a].toArray) →
       findDecl σ.decls c' = some (.quotInfo qv') → qv'.kind = .ctor →
-      SrcEval σ (b.instantiate1' a) v →
-      SrcEval σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
+      SrcEval σ C (b.instantiate1' a) v →
+      SrcEval σ C (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
   /-- The recursor ι (`WHRed.iota`, `ML Syntax/Reduction.lean:60`) under call by value, as the
   eraser's fixpoint computes it: a saturated recursor `T.rec` of a single inductive `T` without
   indices, whose recursive fields take no arguments and come after the other fields of their
@@ -936,29 +1003,29 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
         (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, [])) →
       ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
       mins.length = mvs.length →
-      (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv) →
-      SrcEval σ maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
+      (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv) →
+      SrcEval σ C maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
       mvs[k]? = some mk →
       (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
       (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-        SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
-      SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v →
-      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
+        SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
+      SrcEval σ C (mkAppN mk (fs ++ ihvs).toArray) v →
+      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
   /-- `eval_proj` (`:264`). -/
-  | proj : SrcEval σ e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ (.proj S i e) a
+  | proj : SrcEval σ C e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ C (.proj S i e) a
   /-- `eval_proj` on a proof that is not a constructor (λ□ `eval_proj_prop`, `MR E/EWcbvEval.v:238`):
   the projection of a `Prop` inductive out of a neutral proof is a neutral proof (`PropProj`). -/
-  | projProp : σ.propInd S = true → SrcEval σ e m → (AtomSpine σ m ∨ PropProj σ m) →
-      SrcEval σ (.proj S i e) (.proj S i m)
+  | projProp : σ.propInd S = true → SrcEval σ C e m → (AtomSpine σ m ∨ PropProj σ m) →
+      SrcEval σ C (.proj S i e) (.proj S i m)
   /-- Nat literals are values (`eval_atom` on primitive values). -/
-  | lit : SrcEval σ (.lit (.natVal k)) (.lit (.natVal k))
+  | lit : SrcEval σ C (.lit (.natVal k)) (.lit (.natVal k))
   /-- `eval_app_cong` (`:311`). -/
-  | appCong : ¬ ShortSpine σ (.app f a) → SrcEval σ f f' → ¬ BlocksCong σ f' → SrcEval σ a a' →
-      SrcEval σ (.app f a) (.app f' a')
+  | appCong : ¬ ShortSpine σ (.app f a) → SrcEval σ C f f' → ¬ BlocksCong σ f' → SrcEval σ C a a' →
+      SrcEval σ C (.app f a) (.app f' a')
   /-- Metadata is transparent. -/
-  | mdata : SrcEval σ e v → SrcEval σ (.mdata d e) v
+  | mdata : SrcEval σ C e v → SrcEval σ C (.mdata d e) v
   /-- `eval_atom` (`:331`) on λ, sort, Π. -/
-  | atom : SrcAtom e → SrcEval σ e e
+  | atom : SrcAtom e → SrcEval σ C e e
 
 /-! ## 8. Erasability -/
 
@@ -987,7 +1054,7 @@ which are erased as proofs; not of recognized `casesOn` constants, which the tra
 `case`). -/
 def ReadExpr (decls : List ConstantInfo) (ci : ConstantInfo) (x : Expr) : Prop :=
   x = ci.type ∨
-    (∃ d, ci = .defnInfo d ∧ x = d.value ∧ (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isNone) ∨
+    (∃ d, ci = .defnInfo d ∧ x = d.value ∧ (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isNone) ∨
     ∃ o, ci = .opaqueInfo o ∧ x = o.value
 
 /-- Kernames of the program's constants are distinct. Reference: none (DV-14). -/
@@ -1012,9 +1079,27 @@ def DepClosed (decls : List ConstantInfo) : Prop :=
     (∀ cv, ci = .ctorInfo cv → (findDecl decls cv.induct).isSome) ∧
     (∀ r, ci = .recInfo r → ∀ n ∈ r.all, (findDecl decls n).isSome)
 
-/-- The evaluation environment of `P` under the configuration's remapping (DV-12). -/
+/-- The evaluation environment of `P` under the configuration's remapping (DV-12), with the
+compiled pre-definitions through which the configuration erases structural recursion
+(`Erasure.preDef?`; DV-7). -/
 def evalEnvOf (view : EnvView) (cfg : ErasureConfig) (P : List ConstantInfo) : EvalEnv :=
-  ⟨P, axiomatized view cfg⟩
+  ⟨P, axiomatized view cfg, preDef? view cfg⟩
+
+/-- The compiled pre-definitions of `P` are well formed: the pre-definition `pre` of a declaration
+`ci` of `P` mentions only `ci` and declarations older than `ci` (after it in the newest-first `P`),
+mentions `ci` only at `ci`'s own level parameters (Lean's structural recursion is
+universe-monomorphic), and it is the Lean form of a closed Metalean term of `ci`'s type. Lean's
+kernel checks the `_unsafe_rec` companion against that type (`add_mutual`), in the environment of
+its elaboration (`addAndCompilePartialRec`, `Lean/Elab/PreDefinition/Basic.lean:280`). Reference:
+none (DV-31). -/
+def PreDefsOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView)
+    (cfg : ErasureConfig) (P : List ConstantInfo) : Prop :=
+  ∀ P₁ ci P₀ pre, P = P₁ ++ ci :: P₀ → preDef? view cfg ci = some pre →
+    ConstsIn (fun c => c = ci.name ∨ (findDecl P₀ c).isSome) pre ∧
+    ConstAt ci.name (ci.levelParams.map .param) pre ∧
+    ∃ p T : Metalean.Expr ζ ci.levelParams.length 0,
+      TrM E B ci.levelParams .nil [] pre p ∧ TrM E B ci.levelParams .nil [] ci.type T ∧
+      E[.nil] ⊢ p : T
 
 /-- The view `#erase` reads agrees with `P` on `P`'s names. Reference: `Σ ∼_ext X`
 (`abstract_env_ext_rel`, hypothesis of `MR E/ErasureFunctionProperties.v:657 erase_correct`). -/
@@ -1066,14 +1151,14 @@ def ReadClosed (decls : List ConstantInfo) (e : Expr) : Prop :=
   ∀ ci ∈ decls, (∀ x, ReadExpr decls ci x → ConstsIn inD x ∧ (HasNatLit x → inD ``Nat)) ∧
     (∀ n ∈ ci.all, inD n) ∧ (∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, inD n) ∧
     (∀ cv, ci = .ctorInfo cv → inD cv.induct) ∧
-    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name = some iv →
+    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name = some iv →
       inD iv.name ∧ inD (mkRecName iv.name)) ∧
     (∀ iv, ci = .inductInfo iv → iv.ctors.length = 1 → inD (mkRecName iv.name))
 
 /-- An inductive of `decls` that the traversal may eliminate: its `casesOn` is recognized, or it has
 one constructor with a field (so it may be projected). -/
 def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
-  (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome ∨
+  (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn")).isSome ∨
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
 /-- A recursor in the shape of the recursors the source semantics evaluates (`SrcEval.recIota`),
@@ -1083,7 +1168,7 @@ about the last fields of their constructor (`Erasure.recShapeInFragment`), and o
 `Erasure.recStaysConstant`, over the block that `visitRec` reads from `decls`. -/
 def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : RecursorVal) : Prop :=
   ∃ T iv cvs, r.name = mkRecName T ∧ r.all = [T] ∧
-    EvalEnv.recBlock? ⟨decls, fun _ => false⟩ r = some ([iv], cvs) ∧
+    EvalEnv.recBlock? ⟨decls, fun _ => false, fun _ => none⟩ r = some ([iv], cvs) ∧
     recShapeInFragment r [iv] cvs = true ∧ recStaysConstant cfg.nat r [iv] cvs = false
 
 /-- `x` mentions recursors of `decls` only in the shape that the fragment admits
@@ -1092,11 +1177,20 @@ def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : Recurso
 def RecShaped (cfg : ErasureConfig) (decls : List ConstantInfo) (x : Expr) : Prop :=
   ConstsIn (fun c => ∀ rv, findDecl decls c = some (.recInfo rv) → RecInFragment cfg decls rv) x
 
+/-- The fragment test reads the compiled pre-definitions (`Erasure.preDef?`) of the closure as it
+reads values: their constants are in the closure (`Nat` for a Nat literal), they are plain
+(`PlainExpr`), and they name recursors only in the shape the fragment admits (`RecShaped`). -/
+def PreRead (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop :=
+  ∀ ci ∈ decls, ∀ pre, preDef? view cfg ci = some pre →
+    ConstsIn (fun c => (findDecl decls c).isSome) pre ∧
+    (HasNatLit pre → (findDecl decls ``Nat).isSome) ∧ PlainExpr cfg pre ∧ RecShaped cfg decls pre
+
 /-- A declaration of the closure is inside the first-phase fragment (Phase I): every quotient
 constant; a recursor as `T.rec` of a recognized `T.casesOn` of the closure or of an inductive `T` of
 the closure with one constructor, or in the shape that `RecInFragment` admits; safe, with no `_unsafe_rec` companion (definitions and opaques: a `partial def` is an opaque with
-one), except, under `structural := .kernel`, a definition by structural recursion
-(`Erasure.isStructuralRecursive`), and no `implemented_by` target;
+one), except a definition by structural recursion (`Erasure.isStructuralRecursive`) under
+`structural := .kernel` or with a compiled pre-definition (`Erasure.preDef?`), and no
+`implemented_by` target;
 inductives not nested, of a sort that is syntactically `Prop`, never zero, or, when the traversal
 cannot eliminate them (`Eliminated`), not zero under every assignment (`PUnit`); when their
 `casesOn` is recognized, without a constructor field that is an index of the constructor's type
@@ -1105,13 +1199,14 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
     ConstantInfo → Prop
   | .quotInfo _ => True
   | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
-      EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
+      EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str T "casesOn") = some iv ∧
       (findDecl decls (.str T "casesOn")).isSome) ∨
     (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
       iv.ctors.length = 1) ∨
     RecInFragment cfg decls r
   | .defnInfo d => d.safety = .safe ∧ (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
-      (cfg.structural == .kernel && isStructuralRecursive (.defnInfo d)) = true) ∧
+      (isStructuralRecursive (.defnInfo d) &&
+        (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome)) = true) ∧
       view.implementedBy? d.name = none
   | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧
       view.implementedBy? o.name = none
@@ -1120,7 +1215,7 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
   | .inductInfo iv => iv.isUnsafe = false ∧ iv.numNested = 0 ∧
       (∃ n u, arityShape iv.type = some (n, u) ∧ (u = .zero ∨ u.isNeverZero = true ∨
         (mayBeNonZero iv.levelParams u = true ∧ ¬ Eliminated decls iv))) ∧
-      ((EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome →
+      ((EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn")).isSome →
         ∀ cn ∈ iv.ctors, ∀ cv, findDecl decls cn = some (.ctorInfo cv) →
           (indexFields cv.numParams cv.type).all (·.isNone) = true)
   | .ctorInfo cv => cv.isUnsafe = false ∧ (cfg.1 = .preferAxiom → view.isExtern cv.name = false)
@@ -1276,7 +1371,9 @@ erasable fields may erase as its reduced form (`casesReduced`, as the eraser emi
 discriminant's sort may be zero). `Quot.mk α r a` erases as its element and `Quot.lift α r β f h q`
 as `f` applied to `q` (DV-29). A recursor spine erases as the fixpoint of its block over its
 let-bound minors, as the eraser emits it, or with closed minors substituted (`recLet`, `recFix`;
-DV-30). Constructors of `Prop` inductives and eliminations of
+DV-30). A constant erased through its compiled pre-definition erases as a λ□ constant (`const`) or
+as its fixpoint (`constFix`), and a recursive call inside the fixpoint body as the fix variable
+(`fixVar`; DV-7). Constructors of `Prop` inductives and eliminations of
 inductives that are not subsingletons have no rule but `box`, as in MetaRocq. Reference: `MR E/Extract.v:88 erases`; MC §7.3, Fig. 18. -/
 inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
     (σ : EvalEnv) : {n : Nat} → Metalean.Ctx ζ lps.length 0 n → MLCtx ζ lps.length n → Expr →
@@ -1301,6 +1398,29 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
   | const : σ.isAtom c = false → specialArity σ c = none →
       (∀ rv, findDecl σ.decls c ≠ some (.recInfo rv)) →
       Erases E B lps σ Γ Δ (.const c us) (.const (toKername c))
+  /-- Inside the fixpoint body of a constant erased through its compiled pre-definition, a
+  recursive call: the constant erases to the fix variable `x` (`visitConst`,
+  `LeanToLambdaBox/Erasure.lean:940`), a fix-variable local of `Δ` (`MLDecl.vfix`) that stands
+  for the constant's translation at the call's levels; `mkDef` abstracts it (DV-7). -/
+  | fixVar {t : Metalean.Expr ζ lps.length n} :
+      σ.isAtom c = false → TrM E B lps Γ Δ (.const c us) t → Δ.findFix x = some t →
+      Erases E B lps σ Γ Δ (.const c us) (.fvar x)
+  /-- A definition, not a recognized `casesOn`, erased through its compiled pre-definition `pre`,
+  as its λ□ fixpoint (the form the unfolding of `tFix` substitutes for the recursive calls): one
+  definition named after `c`, recursive-argument index 0, whose body abstracts the fix variable
+  `x` from an erasure of `pre` at the constant's levels `us`, in which `x` stands for the
+  constant's translation `t`; `pre` mentions the constant only at the definition's own level
+  parameters and translates at them; the body is closed, without free variables. Reference:
+  `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
+  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} :
+      findDecl σ.decls c = some ci → ci.isDefinition = true → σ.casesOn? c = none →
+      σ.isAtom c = false → σ.axiomatized ci = false → σ.recPre? ci = some pre →
+      ConstAt c (ci.levelParams.map .param) pre →
+      (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) →
+      TrM E B lps .nil [] (.const c us) t →
+      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us pre) b →
+      closedn 1 (toBvar x 0 b) = true → (∀ y, hasFVar y (toBvar x 0 b) = false) →
+      Erases E B lps σ Γ Δ (.const c us) (.fix [⟨fixDefName c, toBvar x 0 b, 0⟩] 0)
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
   (DV-23). -/
   | ctor {as : List Expr} {as' : List LBTerm} :
@@ -1443,15 +1563,28 @@ def ErasesInd {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : Ev
       (ob.propositional = true ↔ PropInductive E B n)
 
 /-- A constant's λ□ body erases its Lean value: none for declarations without value and for
-remapped externs (DV-12), an erasure otherwise (no recursive constants in Metalean's fragment).
-Reference: `MR E/Extract.v:264 erases_constant_body`. -/
+remapped externs (DV-12); for a definition erased through its compiled pre-definition `pre`
+(`EvalEnv.recPre?`), the λ□ fixpoint of one definition named after it, recursive-argument index 0,
+whose body abstracts the fix variable `x` from an erasure of `pre` in which `x` is a fix-variable
+local (`MLDecl.vfix`) standing for the constant's translation at its own level parameters, `pre`
+translating at them, closed and without free variables (`visitMutual`,
+`LeanToLambdaBox/Erasure.lean:1269`; DV-7); an erasure of the value otherwise. Reference:
+`MR E/Extract.v:264 erases_constant_body`. -/
 def ErasesDecl {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : EvalEnv)
     (ci : ConstantInfo) (cb : ConstantBody) : Prop :=
   match ci.value? (allowOpaque := true) with
   | none => cb.cst_body = none
   | some v => (σ.axiomatized ci = true ∧ cb.cst_body = none) ∨
-    (σ.axiomatized ci = false ∧ ∃ b', cb.cst_body = some b' ∧
-      Erases E B ci.levelParams σ .nil [] v b')
+    (σ.axiomatized ci = false ∧ σ.recPre? ci = none ∧ ∃ b', cb.cst_body = some b' ∧
+      Erases E B ci.levelParams σ .nil [] v b') ∨
+    (σ.axiomatized ci = false ∧ ∃ (pre : Expr) (x : FVarId) (b : LBTerm)
+      (t : Metalean.Expr ζ ci.levelParams.length 0), σ.recPre? ci = some pre ∧
+      cb.cst_body = some (.fix [⟨fixDefName ci.name, toBvar x 0 b, 0⟩] 0) ∧
+      ConstAt ci.name (ci.levelParams.map .param) pre ∧
+      (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) ∧
+      TrM E B ci.levelParams .nil [] (.const ci.name (ci.levelParams.map .param)) t ∧
+      Erases E B ci.levelParams σ .nil [(some x, .vfix t)] pre b ∧
+      closedn 1 (toBvar x 0 b) = true ∧ ∀ y, hasFVar y (toBvar x 0 b) = false)
 
 /-- The λ□ environment contains erasures of the erased term's dependencies, transitively, incl.
 the inductive blocks of its constructors, cases and projections. Reference:

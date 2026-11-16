@@ -98,6 +98,19 @@ theorem MLCtx.findF_map_wk (Δ : MLCtx ζ ℓ n) (x : FVarId) :
     · simp only [List.map_cons, MLCtx.findF]
       split <;> simp [MLDecl.denote_wk, ih]
 
+/-- `findFix` after weakening every entry. -/
+theorem MLCtx.findFix_map_wk (Δ : MLCtx ζ ℓ n) (x : FVarId) :
+    MLCtx.findFix (Δ.map fun (y, d) => (y, d.wk)) x = (Δ.findFix x).map Metalean.Expr.wk := by
+  induction Δ with
+  | nil => rfl
+  | cons p Δ ih =>
+    obtain ⟨_ | y, d⟩ := p
+    · simp [MLCtx.findFix, ih]
+    · simp only [List.map_cons, MLCtx.findFix]
+      split
+      · cases d <;> rfl
+      · exact ih
+
 /-- `Δ'` answers every lookup `Δ` answers, with the same term. -/
 def MLCtx.Sub (Δ Δ' : MLCtx ζ ℓ n) : Prop :=
   (∀ i t, Δ.findB i = some t → Δ'.findB i = some t) ∧

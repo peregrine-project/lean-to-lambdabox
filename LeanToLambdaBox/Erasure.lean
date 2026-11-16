@@ -1329,7 +1329,10 @@ mutual
       let fixvarnames := names.map (remove_unsafe_rec (m := m))
       withReader (fun env => { env with fixvars := fixvarnames |>.zip ids |> Std.HashMap.ofList |> .some }) do
         let defs: List FixDef ← names.mapM (fun n => do
-          let ci ← getConst n -- here n is directly from the above ci.all, possibly _unsafe_rec
+          -- n is directly from the above ci.all, possibly _unsafe_rec. For its own name, the
+          -- declaration `declInfo?` returned: on the `Meta` path the one `getConst` returns, on
+          -- the pure path the one with the compiled pre-definition as value.
+          let ci ← if n == ci.name then pure ci else getConst n
           let e: Expr := ci.value! (allowOpaque := true)
           -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
           let t: LBTerm ← withReader (fun env => { env with decl := remove_unsafe_rec (m := m) n }) do
