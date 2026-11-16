@@ -230,15 +230,16 @@ end Restrict
 
 open Restrict Extend in
 /-- Evaluation in the program restricts to a dependency-closed sub-environment that contains the
-constants of the term and of the compiled pre-definitions of its declarations, and the result's
-constants lie in it, in a program that lists every constructor among its inductive's
-constructors. Reference: weakening of the global
+constants of the term and of the compiled pre-definitions of its declarations that are not
+recognized `casesOn`, and the result's constants lie in it, in a program that lists every
+constructor among its inductive's constructors. Reference: weakening of the global
 environment for evaluation (`MR E/EWcbvEval.v`, `eval_weakening`), read in the restricting
 direction. -/
 theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvView}
     {cfg : ErasureConfig} (hsub : SubEnv decls P)
     (hcl : DepClosed decls)
     (hpcl : ∀ ci ∈ decls, ∀ pre, preDef? view cfg ci = some pre →
+      (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
       ConstsIn (fun c => (findDecl decls c).isSome) pre)
     (hctors : ∀ C cv, findDecl P C = some (.ctorInfo cv) →
       ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors)
@@ -273,13 +274,16 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     intro hc
     have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
     have hfd' := (findDecl_agree hsub hcD).trans hfd
+    have hcas' := (casesOn?_agree (rp := preDef? view cfg) hsub hcl hcD
+      (axiomatized view cfg) (axiomatized view cfg)).trans hcas
     have hargs := fun i x w (hx : _[i]? = some x) (hw : _[i]? = some w) =>
       iha i x w hx hw (has x (mem hx))
     obtain ⟨ep, hv⟩ := ihp (ConstsIn_mkAppN.2 ⟨ConstsIn_instLevels
-      (hpcl _ (findDecl_eq_some hfd').1 _ hpre), fun w hw => by
+      (hpcl _ (findDecl_eq_some hfd').1 _ hpre (by
+        rw [(findDecl_eq_some hfd').2]; exact Option.isNone_iff_eq_none.2 hcas')), fun w hw => by
         obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hw
         exact (hargs i _ _ (List.getElem?_eq_getElem (by omega)) (List.getElem?_eq_getElem hi)).2⟩)
-    exact ⟨.deltaRec hfd' hdef ((casesOn?_agree hsub hcl hcD _ _).trans hcas)
+    exact ⟨.deltaRec hfd' hdef hcas'
       ((isAtom_agree (a := axiomatized view cfg) hsub hcl hcD).trans hat) hax hpre hlam hlen
       hlv (fun i x w hx hw => (hargs i x w hx hw).1) hC ep, hv⟩
   | constAtom ha =>

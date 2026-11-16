@@ -86,40 +86,41 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
 
 /-- Abstracting `x` into the bound variable `d`, on both sides, keeps the erasure of an
-alternative, when the λ□ body has no loose index from `d` on below the alternative's binders. -/
+alternative, when the λ□ body has no loose index from `d` on below the alternative's binders and
+`x` is no fix variable (`AbsFV.FixRel`). -/
 theorem ErasesAlt.absN {σ : EvalEnv} (x : FVarId)
     (hty : ∀ c ci, findDecl σ.decls c = some ci →
       AbsFV.LBV 0 ci.type ∧ FVarsIn (fun _ => False) ci.type)
     {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {k : Nat} {e : Expr}
     {br : List BinderName × LBTerm} (h : ErasesAlt E B lps σ Γ Δ k e br) :
-    ∀ (d : Nat) (Δ₁ : MLCtx ζ lps.length n), AbsFV.Rel x d Δ Δ₁ →
+    ∀ (d : Nat) (Δ₁ : MLCtx ζ lps.length n), AbsFV.Rel x d Δ Δ₁ → AbsFV.FixRel x Δ Δ₁ →
       closedn (d + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₁ k (AbsFV.absFV x d e) (br.1, _root_.toBvar x (d + br.1.length) br.2) := by
   refine ErasesAlt.rec (motive_1 := fun _ _ _ _ _ => True)
-    (motive_2 := fun Γ Δ k e br _ => ∀ (d : Nat) Δ₁, AbsFV.Rel x d Δ Δ₁ →
+    (motive_2 := fun Γ Δ k e br _ => ∀ (d : Nat) Δ₁, AbsFV.Rel x d Δ Δ₁ → AbsFV.FixRel x Δ Δ₁ →
       closedn (d + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ Δ₁ k (AbsFV.absFV x d e) (br.1, _root_.toBvar x (d + br.1.length) br.2))
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case done =>
-    intro _ _ _ _ _ he _ d Δ₁ W hcl
+    intro _ _ _ _ _ he _ d Δ₁ W F hcl
     simp only [List.length_nil, Nat.add_zero] at hcl ⊢
-    exact .done (AbsFV.Erases.absN x hty he d _ W hcl)
+    exact .done (AbsFV.Erases.absN x hty he d _ W F hcl)
   case alam =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih d Δ₁ W hcl
+    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih d Δ₁ W F hcl
     have e1 : ∀ l : Nat, d + 1 + l = d + (l + 1) := fun l => by omega
     dsimp only at hcl ih ⊢
     simp only [List.length_cons] at hcl ⊢
-    have := ih (d + 1) _ W.pushLam (by rw [e1]; exact hcl)
+    have := ih (d + 1) _ W.pushLam F.pushLam (by rw [e1]; exact hcl)
     rw [e1] at this
     simp only [AbsFV.absFV]
     exact .lam (AbsFV.TrM.absN hA W) hAt this
   case intro =>
-    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih d Δ₁ W hcl
+    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih d Δ₁ W F hcl
     have e1 : ∀ l : Nat, d + 1 + l = d + (l + 1) := fun l => by omega
     dsimp only at hcl ih ⊢
     simp only [List.length_cons] at hcl ⊢
-    have := ih (d + 1) _ W.pushLam (by rw [e1]; exact hcl)
+    have := ih (d + 1) _ W.pushLam F.pushLam (by rw [e1]; exact hcl)
     rw [e1] at this
     simp only [AbsFV.absFV, show (0 : Nat) < d + 1 by omega, ↓reduceIte] at this
     rw [show AbsFV.absFV x (d + 1) (e.liftLooseBVars' 0 1) =
@@ -355,7 +356,8 @@ theorem open_intro (henv : ProgEnv P ζ E B) (hE : EnvWF E) {decls : List Consta
       exact ⟨t₂, C', htr, TrM.inst_fvar hx hC, (Metalean.WHRedS.defeq hE hΓ' hred happ).right⟩
     · exact ⟨_, C', .app hsh hew hxv, TrM.inst_fvar hx hC, happ⟩
   · intro k ns tb h hcl
-    have := ErasesAlt.absN x hty h 0 _ (AbsFV.Rel.zero x Δ) (by simpa using hcl)
+    have := ErasesAlt.absN x hty h 0 _ (AbsFV.Rel.zero x Δ) (AbsFV.FixRel.zero x Δ)
+      (by simpa using hcl)
     have hfv : FVarsIn (· ≠ x) e := by
       refine fvarsIn_mono (fun z hz hzx => ?_) (TrM.fvarsIn he)
       subst hzx; simp [hx] at hz
@@ -392,7 +394,8 @@ theorem open_lam (henv : ProgEnv P ζ E B) (hE : EnvWF E) {σ : EvalEnv}
   obtain ⟨B'', hB'', hd⟩ := trM_open_conv hE henv.metaOrderOK hΓ hnb hx h01.left h01.symm hB₁ hBu
   refine ⟨A₀, hA₀, h01.left, ⟨b₀, B'', TrM.inst_fvar hx hb₀, hB'',
     (htb.trans (Metalean.TypeEq.ofDefEq hd)).conv hbt⟩, fun k ns tb' h hcl => ?_⟩
-  have := ErasesAlt.absN x hty h 0 _ (AbsFV.Rel.zero x Δ) (by simpa using hcl)
+  have := ErasesAlt.absN x hty h 0 _ (AbsFV.Rel.zero x Δ) (AbsFV.FixRel.zero x Δ)
+      (by simpa using hcl)
   have hfv : FVarsIn (· ≠ x) b := by
     have h' := (TrM.fvarsIn (TrM.lam (x := z) (bi := bi₀) hA₀ hb₀)).2
     refine fvarsIn_mono (fun w hw hwx => ?_) h'
@@ -411,7 +414,7 @@ variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : Li
 /-- `lambdaOrIntroToArity e T k K` at the pure backend, on a translated alternative `e` typed at
 the translation of `T`, whose λs are `T`'s `Π`s (`LamMatch`): every successful run is a run of the
 continuation `K` on the opened body and the `k` fresh variables, under locals and a context
-extended by the opened binders, where an erasure of the opened body closed over the variables
+extended by the opened binders and the same fix variables, where an erasure of the opened body closed over the variables
 (`altBody`, as `mkAlt` closes it) erases `e` under its `k` binders (`ErasesAlt`). `G` is a property
 of the alternative that opening keeps. -/
 theorem lambdaOrIntro_spec (hG : CoreEnv E B P decls view cfg) {α : Type} [Inhabited α]
@@ -427,7 +430,7 @@ theorem lambdaOrIntro_spec (hG : CoreEnv E B P decls view cfg) {α : Type} [Inha
       (∀ {m : Nat} (Γ' : Metalean.Ctx ζ lps.length 0 m) (Δ' : MLCtx ζ lps.length m) (e' : Expr)
           (t' : Metalean.Expr ζ lps.length m) (tc' : TravCtx) (ps₁ : PureState) (xs : List FVarId),
         CtxOK E B lps Γ' Δ' cfg tc' ps₁ → ps.next ≤ ps₁.next → TrM E B lps Γ' Δ' e' t' →
-        (∃ U, E[Γ'] ⊢ t' : U) → G e' →
+        (∃ U, E[Γ'] ⊢ t' : U) → G e' → tc'.fixvars = tc.fixvars →
         (∃ L, tc'.locals = L ++ tc.locals ∧ ∀ l ∈ L, ∃ j, ps.next ≤ j ∧ l.fvarId = pureFVar j) →
         (∃ ns, namesOf tc'.locals xs = some ns) → xs.length = k →
         (∀ r, closedn 0 r = true → Erases E B lps (evalEnvOf view cfg decls) Γ' Δ' e' r →
@@ -442,7 +445,7 @@ theorem lambdaOrIntro_spec (hG : CoreEnv E B P decls view cfg) {α : Type} [Inha
   | zero =>
     intro lps n Γ Δ e T t T' tc ps st K a st' ps' hctx he _ ht _ hGe hK hrun
     rw [lambdaOrIntroToArity] at hrun
-    refine hK Γ Δ e t tc ps [] hctx (Nat.le_refl _) he ⟨_, ht⟩ hGe ⟨[], rfl, fun _ h => nomatch h⟩
+    refine hK Γ Δ e t tc ps [] hctx (Nat.le_refl _) he ⟨_, ht⟩ hGe rfl ⟨[], rfl, fun _ h => nomatch h⟩
       ⟨[], rfl⟩ rfl (fun r _ hr ns hns => ?_) hrun
     cases hns
     exact .done hr
@@ -481,7 +484,7 @@ theorem lambdaOrIntro_spec (hG : CoreEnv E B P decls view cfg) {α : Type} [Inha
     subst hxd
     have hctx₁ := hctx.pushFVar (nm := y) hD hD' (tc.lctx.mkLocalDecl (pureFVar ps.next) y D bi)
     refine ih (K := fun e fs => K e (pureFVar ps.next :: fs)) hctx₁ he₁ hT₁ ht₁ hm₁ hG₁
-      (fun Γ' Δ' e' t' tc' ps₁ xs hctx' hps he' ht' hGe' hL hns' hlen' hE' hrun' => ?_) hrun
+      (fun Γ' Δ' e' t' tc' ps₁ xs hctx' hps he' ht' hGe' hfx hL hns' hlen' hE' hrun' => ?_) hrun
     obtain ⟨L, hLe, hLj⟩ := hL
     have hfind : tc'.locals.find? (·.fvarId == pureFVar ps.next) =
         some ⟨pureFVar ps.next, y, D, none⟩ := by
@@ -499,7 +502,7 @@ theorem lambdaOrIntro_spec (hG : CoreEnv E B P decls view cfg) {α : Type} [Inha
       rw [this]
       rfl
     refine hK Γ' Δ' e' t' tc' ps₁ (pureFVar ps.next :: xs) hctx' (by dsimp only at hps; omega)
-      he' ht' hGe' ⟨L ++ [⟨pureFVar ps.next, y, D, none⟩], by rw [hLe]; simp, fun l hl => ?_⟩
+      he' ht' hGe' hfx ⟨L ++ [⟨pureFVar ps.next, y, D, none⟩], by rw [hLe]; simp, fun l hl => ?_⟩
       ?_ (by simp [hlen']) (fun r hr her ns hns => ?_) hrun'
     · rcases List.mem_append.1 hl with hl | hl
       · obtain ⟨j, hj, hjl⟩ := hLj l hl
@@ -538,8 +541,8 @@ theorem visitAlt_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {k : Nat}
     {alt : Expr} {t : Metalean.Expr ζ lps.length n} {br : List BinderName × LBTerm}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d alt = true → S d) (hmf : MachineFree cfg alt)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls alt → InScope tc lps S d ls) (hmf : MachineFree cfg alt)
     (hnp : NatPlain cfg alt) (hrf : RecShaped cfg decls alt)
     (hok : StateOK E B (evalEnvOf view cfg decls) st) (he : TrM E B lps Γ Δ alt t)
     (ht : ∃ T, E[Γ] ⊢ t : T)
@@ -561,22 +564,29 @@ theorem visitAlt_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
   refine lambdaOrIntro_spec hG (fun br st' ps' => ErasesAlt E B lps (evalEnvOf view cfg decls) Γ Δ
       k alt br ∧ ErasesDeps E B (evalEnvOf view cfg decls) st'.gdecls br.2 ∧
       Grows E B (evalEnvOf view cfg decls) S st st' ps ps')
-    (fun e => (∀ d, nameOccurs d e = true → S d) ∧ MachineFree cfg e ∧ NatPlain cfg e ∧
+    (fun e => (∀ d ls, OccursAt d ls e → InScope tc lps S d ls) ∧ MachineFree cfg e ∧ NatPlain cfg e ∧
       RecShaped cfg decls e)
-    (fun z A b bi y h => ⟨fun d hd => h.1 d
-        (by rw [nameOccurs_inst_fvar] at hd; simpa [nameOccurs] using hd), mf_inst (a := .fvar y) trivial h.2.1.2,
-      np_inst (a := .fvar y) trivial h.2.2.1.2, ConstsIn_inst_fvar h.2.2.2.2⟩)
-    (fun e y h => ⟨fun d hd => h.1 d (by simpa [nameOccurs] using hd), ⟨h.2.1, trivial⟩,
-      ⟨h.2.2.1, trivial⟩, ⟨h.2.2.2, trivial⟩⟩)
+    (fun z A b bi y h => ⟨fun d ls hd => h.1 d ls ((occursAt_inst_fvar b 0).1 hd),
+      mf_inst (a := .fvar y) trivial h.2.1.2, np_inst (a := .fvar y) trivial h.2.2.1.2,
+      ConstsIn_inst_fvar h.2.2.2.2⟩)
+    (fun e y h => ⟨fun d ls hd => h.1 d ls (by
+        rcases hd with hd | hd
+        · exact hd
+        · exact hd.elim), ⟨h.2.1, trivial⟩, ⟨h.2.2.1, trivial⟩, ⟨h.2.2.2, trivial⟩⟩)
     k hctx he hT' htT' (inferType_lamMatch _ _ _ hinf) ⟨hocc, hmf, hnp, hrf⟩
-    (fun Γ' Δ' e' t' tc' ps₁ xs hctx' hps he' ht' hGe' _ hns hlen hE' hrun' => ?_) hrun
+    (fun Γ' Δ' e' t' tc' ps₁ xs hctx' hps he' ht' hGe' hfx _ hns hlen hE' hrun' => ?_) hrun
   simp only [List.isEmpty_nil, ↓reduceIte] at hrun'
   rw [runPure_bind] at hrun'
   obtain ⟨⟨⟨r, st₁⟩, ps₂⟩, hr, hrun'⟩ := OracleWhnf.ok_of_bind hrun'
   obtain ⟨ns, hns⟩ := hns
   rw [filter_keep _ _ (by simp [hlen]), List.toList_toArray, mkAlt_run hns] at hrun'
   cases hrun'
-  have ⟨her, hdeps, hgr⟩ := ih e' hctx' hsc hGe'.1 hGe'.2.1 hGe'.2.2.1 hGe'.2.2.2 hok he' ht' hr
+  have hocc' : ∀ d ls, OccursAt d ls e' → InScope tc' lps S d ls := fun d ls h => by
+    have := hGe'.1 d ls h
+    unfold InScope at this ⊢
+    rw [hfx]
+    exact this
+  have ⟨her, hdeps, hgr⟩ := ih e' hctx' hsc hocc' hGe'.2.1 hGe'.2.2.1 hGe'.2.2.2 hok he' ht' hr
   have hcl : closedn 0 r = true := by
     have := Erases.closed he' her
     rwa [countP_none hctx'.nobv] at this
@@ -669,9 +679,9 @@ theorem visitCasesOn_spec (hG : CoreEnv E B P decls view cfg) {f : Nat}
     (hm : ∀ (i : Nat) cn, iv.ctors[i]? = some cn → ∃ cv alt,
       findDecl decls cn = some (.ctorInfo cv) ∧ alts[i]? = some alt ∧
       m[cn]? = some (cv.numFields, alt))
-    (halts : ∀ alt ∈ alts, (∀ d, nameOccurs d alt = true → S d) ∧ MachineFree cfg alt ∧
+    (halts : ∀ alt ∈ alts, (∀ d ls, OccursAt d ls alt → InScope tc lps S d ls) ∧ MachineFree cfg alt ∧
       NatPlain cfg alt ∧ RecShaped cfg decls alt ∧ ∃ a', TrM E B lps Γ Δ alt a' ∧ ∃ A, E[Γ] ⊢ a' : A)
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hdd : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls d)
     (hrun : (visitCasesOn (m := PureM) (f + 1) iv m ∅ none d).runPure st tc ⟨decls, view⟩ ps =
@@ -937,8 +947,8 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {u : Level} (hu : ∀ m, as[casesMajor iv]? = some m →
       Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u)
     (hC3 : u.isNeverZero = true ∨ iv.ctors.length ≠ 1)
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls (mkAppN (.const c us) as.toArray) → InScope tc lps S d ls)
     (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
     (hnp : NatPlain cfg (mkAppN (.const c us) as.toArray))
     (hrf : RecShaped cfg decls (mkAppN (.const c us) as.toArray))
@@ -1096,15 +1106,14 @@ theorem casesSat_case (hG : CoreEnv E B P decls view cfg) {j : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) →
       Q (mkAppN (.const c us) as.toArray) → Q (.const c us) ∧ ∀ a ∈ as, Q a := fun hQ' h =>
     foldl_pred hQ' (by rw [← hsp]; exact h)
-  have hoccA := (hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc).2
+  have hoccA := (hQ (Q := fun x => ∀ d ls, OccursAt d ls x → InScope tc lps S d ls)
+    (fun f a h => ⟨fun d ls hd => h d ls (.inl hd), fun d ls hd => h d ls (.inr hd)⟩) hocc).2
   have hmfA := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   have hnpA := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   have hrfA := (hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf).2
   have htyA := (spine_typed (StepsCases.casesOn_notSpecial (σ := evalEnvOf view cfg decls)
     hG.prog hG.sub hd) he ⟨T, hT⟩).2
-  have hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+  have hargs : ∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA.2 a ha, hnpA.2 a ha, hrfA a ha, htyA a ha⟩
   -- the discriminant

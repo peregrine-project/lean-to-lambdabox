@@ -445,14 +445,15 @@ end Extend
 open Extend in
 /-- Moving the relation from a dependency-closed sub-environment to the program (the final
 theorem's last step): the relation reads, about the constants of the term and of the compiled
-pre-definitions of `decls` (the bodies of `Erases.constFix`), only what `decls` and `P` agree on.
-Reference: `erases_extends` (`MR E/ESubstitution.v:73`), weakening of the global
-environment. -/
+pre-definitions of `decls` that are not recognized `casesOn` (the bodies of `Erases.constFix`),
+only what `decls` and `P` agree on. Reference: `erases_extends` (`MR E/ESubstitution.v:73`),
+weakening of the global environment. -/
 theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {lps : List Name}
     {decls P : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {e : Expr} {tb : LBTerm}
     (hsub : SubEnv decls P) (hcl : DepClosed decls)
     (hpcl : ∀ ci ∈ decls, ∀ pre, preDef? view cfg ci = some pre →
+      (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
       ConstsIn (fun c => (findDecl decls c).isSome) pre)
     (hc : ConstsIn (fun c => (findDecl decls c).isSome) e)
     (h : Erases E B lps (evalEnvOf view cfg decls) Γ Δ e tb) :
@@ -490,7 +491,9 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
       ((casesOn?_agree hsub hcl hC _ _).symm.trans hcas)
       ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hax hpre hca hp ht
       (ih (ConstsIn_instLevels ?_)) hcl' hfv
-    exact hpcl ci (findDecl_eq_some hci).1 pre hpre
+    refine hpcl ci (findDecl_eq_some hci).1 pre hpre ?_
+    rw [(findDecl_eq_some hci).2]
+    exact Option.isNone_iff_eq_none.2 hcas
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hC
     have has := (ConstsIn_mkAppN.1 hC).2

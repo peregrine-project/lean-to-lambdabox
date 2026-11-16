@@ -364,6 +364,7 @@ structure Frag (P : List ConstantInfo) (view : EnvView) (cfg : ErasureConfig)
   plain : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → PlainExpr cfg x
   recShapedE : RecShaped cfg decls e
   recShaped : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x
+  preRead : PreRead view cfg decls
 
 namespace Frag
 
@@ -668,15 +669,35 @@ theorem step {ci : ConstantInfo} (hci : ci ∈ decls)
           obtain ⟨I, R, ctors, h'⟩ := hf.recog_of_dec hci (by rw [h]; rfl)
           rw [hrec] at h'; cases h'
       obtain ⟨vs, hvs, hvsc⟩ := hf.read_names hci (x := d.value) (.inr (.inl ⟨d, rfl, rfl, hnone⟩))
-      refine ⟨ty ++ vs ++ d.all, none, ?_, ?_, nofun, nofun⟩
+      obtain ⟨ps, hps, hpsc⟩ : ∃ ps, (match preDef? view cfg (.defnInfo d) with
+          | some p => exprConsts cfg p
+          | none => pure []) = .ok ps ∧ ∀ n ∈ ps, Cov cfg decls n := by
+        cases hp : preDef? view cfg (.defnInfo d) with
+        | none => exact ⟨[], rfl, nofun⟩
+        | some p =>
+          obtain ⟨h1, h2, h3, h4⟩ := hf.preRead _ hci p hp
+          exact hf.names_of h1 h2 h4 h3
+      refine ⟨ty ++ vs ++ ps ++ d.all, none, ?_, ?_, nofun, nofun⟩
       · dsimp only
-        rw [bind_ok_eq hvs]
-        rfl
+        revert hps
+        cases preDef? view cfg (.defnInfo d) with
+        | none =>
+          intro hps
+          cases hps
+          dsimp only
+          rw [pure_bind, bind_ok_eq hvs]
+          rfl
+        | some p =>
+          intro hps
+          dsimp only at hps ⊢
+          rw [bind_ok_eq hps, bind_ok_eq hvs]
+          rfl
       · intro n hn
         simp only [List.mem_append] at hn
-        rcases hn with (hn | hn) | hn
+        rcases hn with ((hn | hn) | hn) | hn
         · exact htyc n hn
         · exact hvsc n hn
+        · exact hpsc n hn
         · exact hall nofun n hn
   | thmInfo t =>
     refine ⟨ty ++ t.all, none, rfl, fun n hn => ?_, nofun, nofun⟩
@@ -967,18 +988,18 @@ open CollectSub CollectSpec CollectOk in
 fragment: on a program related to a Metalean environment and read through a view that agrees with
 it, a translated term with a sub-environment `decls` that holds what the traversal reads
 (`ReadClosed`), keeps every declaration inside the fragment (`PhaseIDecl`), reads only plain
-expressions (`PlainExpr`) that name recursors only in the fragment's shape (`RecShaped`), has
-distinct kernames and λ□ block names
-and fewer declarations than the fuel, `Erasure.collectDeps` succeeds. Its closure is a sub-list of
+expressions (`PlainExpr`) that name recursors only in the fragment's shape (`RecShaped`), reads
+the compiled pre-definitions of its declarations as values (`PreRead`), has distinct kernames and
+λ□ block names and fewer declarations than the fuel, `Erasure.collectDeps` succeeds. Its closure is a sub-list of
 `decls`. The test's exclusion of definitions, theorems and opaques of mutual blocks does not
 arise: the program relation asks each of them to be alone in its block (`ProgEnv`). Reference:
 none (DV-26). -/
 theorem collectDeps_ok_of : collectDeps_ok_of_statement := by
-  intro ζ E B P decls lps e t view cfg henv hview he _ hrm hsub hrc hph hpl hrf hki hbi hlen
+  intro ζ E B P decls lps e t view cfg henv hview he _ hrm hsub hrc hph hpl hrf hprd hki hbi hlen
   have hf : Frag P view cfg decls e :=
     ⟨ProgEnv.names_closed henv, ProgEnv.kinds_closed henv,
       fun _ hci _ hv => (NonRec.ProgEnv.scoped henv hci hv).1, hview,
-      fun ci hci => (findDecl_eq_some (hsub ci hci)).1, hrc, hph, hpl.1, hpl.2, hrf.1, hrf.2⟩
+      fun ci hci => (findDecl_eq_some (hsub ci hci)).1, hrc, hph, hpl.1, hpl.2, hrf.1, hrf.2, hprd⟩
   obtain ⟨cs, hcs, hcsc⟩ := hf.term_names
   obtain ⟨⟨decls', cases⟩, hcl, hs, hnd, hcases⟩ :=
     hf.closure_ok_of collectFuel (todo := cs) (acc := []) (cases := []) nofun List.nodup_nil hcsc

@@ -161,7 +161,7 @@ theorem stepIH_of_stepsB (h : StepsB) (hG : CoreEnv E B P decls view cfg) :
       intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hrun
       rw [visitExpr] at hrun; cases hrun
     · obtain rfl := Nat.le_zero.1 hm
-      intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hrun
+      intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ hrun
       rw [visitMutual] at hrun; cases hrun
   | fuel + 1 =>
     have ih := stepIH_of_stepsB h hG fuel
@@ -222,21 +222,28 @@ theorem exprConsts_natPlain {cfg : ErasureConfig} : ∀ {e : Expr} {cs : List Na
     obtain ⟨xs, he, -⟩ := OracleWhnf.ok_of_bind h
     exact exprConsts_natPlain (e := e) he
 
-/-- The term and every expression the traversal reads from the fragment test's closure are
+/-- The term, every expression the traversal reads from the fragment test's closure and the
+compiled pre-definitions of the closure's declarations that are not recognized `casesOn` are
 `NatPlain`: `Erasure.exprConsts` excludes Nat literals, `Nat.zero` and `Nat.casesOn` under
 `nat := .machine` and scans each of them. Reference: none. -/
 theorem collectDeps_natPlain {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0}
     {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P ζ E B)
-    (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
+    (hview : ViewAgrees view P) (hpre : PreDefsOK E B view cfg P) (he : TrM E B lps .nil [] e t)
     (h : collectDeps view cfg e = .ok decls) :
-    NatPlain cfg e ∧ ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → NatPlain cfg x := by
+    NatPlain cfg e ∧ (∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → NatPlain cfg x) ∧
+      ∀ ci ∈ decls, ∀ p, preDef? view cfg ci = some p →
+        (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone →
+        NatPlain cfg p := by
   obtain ⟨cs, cases, hcs, hcl, -, -, -⟩ := CollectSpec.collectDeps_ok h
-  obtain ⟨hsub, -, -, -, -, hscan⟩ := closure_ok henv hview hcl nofun
+  obtain ⟨hsub, -, -, -, -, hscan⟩ := closure_ok henv hview
+    (fun _ hci _ hp => PreDefsOK.namesIn henv hpre hci hp) hcl nofun
     ((TrM.namesIn henv he).exprConsts hcs) List.nodup_nil nofun
   have hr : Run P view cfg decls cases := ⟨ProgEnv.names_closed henv, hview, hsub, hscan⟩
-  refine ⟨exprConsts_natPlain hcs, fun ci hci x hx => ?_⟩
-  obtain ⟨xs, hxs, -⟩ := hr.read hci hx
-  exact exprConsts_natPlain hxs
+  refine ⟨exprConsts_natPlain hcs, fun ci hci x hx => ?_, fun ci hci p hp hcas => ?_⟩
+  · obtain ⟨xs, hxs, -⟩ := hr.read hci hx
+    exact exprConsts_natPlain hxs
+  · obtain ⟨ps, hps, -⟩ := hr.readPre hci hp hcas
+    exact exprConsts_natPlain hps
 
 /-- Under `remove_irrel_constr_args` the fragment test's closure has no inductive type. -/
 theorem collectDeps_irr {e : Expr} {view : EnvView} {cfg : ErasureConfig}
@@ -355,16 +362,21 @@ theorem noIndexFields {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P �
 
 /-- The closure facts of the fragment test's closure (`collectDeps_spec`, `collectDeps_sub`,
 `collectDeps_machineFree`, `collectDeps_natPlain`, `ownBlockValues`, `noIndexFields`,
-`collectDeps_irr`). Reference: the hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
+`collectDeps_irr`), with the program's well-formed compiled pre-definitions. Reference: the
+hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
 theorem coreEnv_of_collectDeps {lps : List Name} {e : Expr} {t : Metalean.Expr ζ lps.length 0}
     {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P ζ E B) (hwf : EnvWF E)
-    (hview : ViewAgrees view P) (he : TrM E B lps .nil [] e t)
+    (hview : ViewAgrees view P) (hpre : PreDefsOK E B view cfg P) (he : TrM E B lps .nil [] e t)
     (h : collectDeps view cfg e = .ok decls) : CoreEnv E B P decls view cfg := by
-  obtain ⟨hinj, -, -, hdeps, hcl, -, hph, ⟨-, hrf⟩, hbn, har⟩ := collectDeps_spec henv hview he h
-  have hsub := collectDeps_sub henv hview he h
-  exact ⟨henv, hwf, hsub, hinj, hbn, hcl, hdeps, (collectDeps_machineFree henv hview he h).2,
-    (collectDeps_natPlain henv hview he h).2, ownBlockValues henv hsub, noIndexFields henv hsub hph,
-    hph, hrf, har, collectDeps_irr h⟩
+  obtain ⟨hinj, -, -, hdeps, hcl, -, hph, ⟨-, hrf⟩, hbn, har, hprs⟩ :=
+    collectDeps_spec henv hview hpre he h
+  have hsub := collectDeps_sub henv hview hpre he h
+  obtain ⟨-, hmf, hpmf⟩ := collectDeps_machineFree henv hview hpre he h
+  obtain ⟨-, hnp, hpnp⟩ := collectDeps_natPlain henv hview hpre he h
+  exact ⟨henv, hwf, hsub, hinj, hbn, hcl, hdeps, hmf, hnp, ownBlockValues henv hsub,
+    noIndexFields henv hsub hph, hph, hrf, har, collectDeps_irr h, hpre, fun ci hci q hq hcas =>
+      have h1 := hprs ci hci q hq hcas
+      ⟨h1.1, h1.2.2.1, hpmf ci hci q hq hcas, hpnp ci hci q hq hcas, h1.2.2.2⟩⟩
 
 end
 
@@ -377,21 +389,30 @@ fragment test (`coreEnv_of_collectDeps`), applied in the empty context, from the
 the closure's names as the scope. Reference: `erase_correct`, its erasure part
 (`MR E/ErasureFunctionProperties.v:172`, `MR E/ErasureFunction.v:1309`). -/
 theorem erasePure_erases_of_stepsB (h : StepsB) : erasePure_erases_statement := by
-  intro ζ E B P decls lps e view cfg p inl henv hwf hview t he hty hcol hrun
-  have hG := coreEnv_of_collectDeps henv hwf hview he hcol
-  obtain ⟨-, -, -, -, -, hcE, -, ⟨hrfE, -⟩, -, -⟩ := collectDeps_spec henv hview he hcol
+  intro ζ E B P decls lps e view cfg p inl henv hwf hview hpre t he hty hcol hrun
+  have hG := coreEnv_of_collectDeps henv hwf hview hpre he hcol
+  obtain ⟨-, -, -, -, -, hcE, -, ⟨hrfE, -⟩, -, -, -⟩ := collectDeps_spec henv hview hpre he hcol
   unfold erasePure at hrun
   obtain ⟨⟨⟨r, st'⟩, ps'⟩, hvis, hret⟩ := OracleWhnf.ok_of_bind hrun
   cases hret
   have hctx : CtxOK E B lps (.nil : Metalean.Ctx ζ lps.length 0 0) [] cfg { «config» := cfg } {} :=
-    ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, rfl, rfl⟩
-  have hsc : ScopeOK decls (fun d => (findDecl decls d).isSome) := fun c hc => by
+    ⟨.nil, fun _ h => (nomatch h), fun _ => rfl, fun _ _ => rfl, fun _ _ h => (nomatch h), rfl⟩
+  have hsc : ScopeOK view cfg decls (fun d => (findDecl decls d).isSome) := fun c hc => by
     obtain ⟨ci, hci⟩ := Option.isSome_iff_exists.1 hc
-    exact ⟨ci, hci, fun v hv hthm hcs d hd =>
-      ConstsIn.nameOccurs (hG.value_consts hci hv hthm hcs).1 hd⟩
+    refine ⟨ci, hci, fun v hv hthm hcs d hd => ?_⟩
+    rw [TravFrame.declView_value] at hv
+    rcases hq : preDef? view cfg ci with _ | q
+    · rw [hq] at hv
+      exact ConstsIn.nameOccurs (hG.value_consts hci hv hthm hcs).1 hd
+    · rw [hq] at hv
+      cases hv
+      have hcsn : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isNone := by
+        simp [EvalEnv.casesOn?, (findDecl_eq_some hci).2, hcs]
+      exact ConstsIn.nameOccurs (hG.preRead ci (findDecl_eq_some hci).1 _ hq hcsn).1 hd
   obtain ⟨her, hdeps, hgr⟩ := (stepIH_of_stepsB h hG travFuel).expr travFuel (Nat.le_refl _) e hctx
-    hsc (fun d hd => ConstsIn.nameOccurs hcE hd) (collectDeps_machineFree henv hview he hcol).1
-    (collectDeps_natPlain henv hview he hcol).1 hrfE StateOK.empty he hty hvis
+    hsc (fun d _ hd => ⟨fun _ => ConstsIn.nameOccurs hcE hd.nameOccurs, fun h => (nomatch h)⟩)
+    (collectDeps_machineFree henv hview hpre he hcol).1
+    (collectDeps_natPlain henv hview hpre he hcol).1 hrfE StateOK.empty he hty hvis
   exact ⟨_, _, rfl, her, hdeps, hgr.inv.closed⟩
 
 end EraseProof
