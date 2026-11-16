@@ -70,6 +70,13 @@ theorem specialArity_casesOn {c : Name} {iv : InductiveVal} (hc : σ.casesOn? c 
   rw [hd, hc]
   rfl
 
+/-- A definition that is not a recognized `casesOn` has no arity. -/
+theorem specialArity_defn {c : Name} {ci : ConstantInfo} (hc : findDecl σ.decls c = some ci)
+    (hdef : ci.isDefinition = true) (hco : σ.casesOn? c = none) : specialArity σ c = none := by
+  unfold specialArity
+  rw [hc]
+  cases ci <;> simp_all [ConstantInfo.isDefinition]
+
 /-- A spine `c.{us} as` with `as` at most the arity `ar` of `c` is short. -/
 theorem shortSpine_of {c : Name} {us : List Level} {as : List Expr} {f a : Expr} {ar : Nat}
     (hx : Expr.app f a = mkAppN (.const c us) as.toArray) (har : specialArity σ c = some ar)
@@ -222,12 +229,14 @@ theorem app_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
   | eta heta =>
     obtain ⟨ar, har, hlt⟩ := etaSpine?_lt heta
     exact absurd (shortSpine_of hx har hlt.le) hns
-  | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
+  | bvar | fvar | lam | letE | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+    cases hx
 
 /-- An unfoldable constant is a definition of the evaluation environment that is neither remapped
 nor a recognized `casesOn`. -/
 theorem unfold?_spec {c : Name} {ci : ConstantInfo} {b : Expr} (h : σ.unfold? c = some (ci, b)) :
-    findDecl σ.decls c = some ci ∧ σ.axiomatized ci = false ∧ σ.casesOn? c = none := by
+    findDecl σ.decls c = some ci ∧ σ.axiomatized ci = false ∧ σ.casesOn? c = none ∧
+      σ.recPre? ci = none := by
   unfold EvalEnv.unfold? at h
   split at h
   · rename_i v hv
@@ -236,19 +245,26 @@ theorem unfold?_spec {c : Name} {ci : ConstantInfo} {b : Expr} (h : σ.unfold? c
     · rename_i hn
       cases h
       simp only [Bool.or_eq_true, Option.isSome_iff_ne_none, not_or, ne_eq, not_not] at hn
-      exact ⟨hv, Bool.eq_false_iff.2 hn.1, hn.2⟩
+      exact ⟨hv, Bool.eq_false_iff.2 hn.1.1, hn.1.2, hn.2⟩
   · cases h
 
-/-- An erasure of an unfoldable constant is the λ□ constant or `□`. -/
+/-- An erasure of an unfoldable constant, in a context without fix variables, is the λ□ constant
+or `□`. -/
 theorem const_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {c : Name} {us : List Level} {ci : ConstantInfo} {b : Expr} {tb : LBTerm}
+    (hΔ : ∀ y, Δ.findFix y = none)
     (hu : σ.unfold? c = some (ci, b)) (h : Erases E B lps σ Γ Δ (.const c us) tb) :
     tb = .const (toKername c) ∨ (tb = .box ∧ ErasableS E B lps Γ Δ (.const c us)) := by
-  obtain ⟨hfd, -, hco⟩ := unfold?_spec hu
+  obtain ⟨hfd, -, hco, hrp⟩ := unfold?_spec hu
   obtain ⟨d, hd⟩ := SrcDefeq.unfold?_defn hu
   generalize hx : Expr.const c us = x at h
   cases h with
   | const => cases hx; exact .inl rfl
+  | fixVar _ _ hfx => rw [hΔ] at hfx; cases hfx
+  | constFix hfd' _ _ _ _ hpre =>
+    cases hx
+    rw [hfd] at hfd'; cases hfd'
+    rw [hrp] at hpre; cases hpre
   | box hb => subst hx; exact .inr ⟨rfl, hb⟩
   | ctor hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
@@ -303,7 +319,8 @@ theorem box_of_projHead {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : ML
   | box hb => exact hb
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
-  | bvar | fvar | lam | letE | app | const | proj | litZero | litSucc => cases hx
+  | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | litZero | litSucc =>
+    cases hx
   | mdata => simp [Expr.getAppFn] at hfn
 
 /-- The image of the head of a saturating spine of an inductive type with one argument less. -/
@@ -398,14 +415,14 @@ erasable (`ErasableS.eval`), so it erases to `□`, which λ□ evaluates to its
 `Is_type_eval` (`MR E/EArities.v:570`). -/
 theorem erases_correct_box (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {e v : Expr} {t T : Metalean.Expr ζ lps.length 0} (he : TrM E B lps .nil [] e t)
-    (ht : E[.nil] ⊢ t : T) (hb : ErasableS E B lps .nil [] e) (hev : SrcEval σ C e v) :
+    (ht : E[.nil] ⊢ t : T) (hb : ErasableS E B lps .nil [] e) (hev : SrcEval σ (SrcConv E B lps) e v) :
     ∃ vb, Erases E B lps σ .nil [] v vb ∧ LBEval defaultFlags lenv .box vb :=
   ⟨.box, .box (ErasableS.eval henv hE hsub he ht hev hb), .atom rfl⟩
 
 /-- The `mdata` case of `erases_correct`: metadata is transparent in the translation, the
 relation and the source semantics. Reference: none (Lean syntax). -/
 theorem erases_correct_mdata (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
-    {d : MData} {e v : Expr} (hev : SrcEval σ C e v) (ih : ErasesSim E B lps σ lenv e v) :
+    {d : MData} {e v : Expr} (hev : SrcEval σ (SrcConv E B lps) e v) (ih : ErasesSim E B lps σ lenv e v) :
     ErasesSim E B lps σ lenv (.mdata d e) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have he' : TrM E B lps .nil [] e t := by
@@ -420,7 +437,8 @@ theorem erases_correct_mdata (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Su
   | box hb => subst hx; exact erases_correct_box henv hE hsub he ht hb (.mdata hev)
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | lam | letE | app | const | proj | litZero | litSucc => cases hx
+  | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | litZero | litSucc =>
+    cases hx
 
 /-- The `atom` case of `erases_correct`: a λ, sort or Π erases to a λ□ λ or to `□`, both λ□
 values. Reference: the `eval_atom` case of `erases_correct` (`MR E/ErasureCorrectness.v:1179`,
@@ -438,7 +456,7 @@ theorem erases_correct_atom {e : Expr} (ha : SrcAtom e) : ErasesSim E B lps σ l
   cases her with
   | lam | box => rfl
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix => exact absurd hx hns
-  | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata =>
+  | bvar | fvar | letE | app | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
     subst hx; simp [SrcAtom] at ha
 
 /-- The `constAtom` case of `erases_correct`: an atom constant erases only to `□` (it is neither
@@ -466,7 +484,7 @@ theorem erases_correct_constAtom {c : Name} {us : List Level} (ha : σ.isAtom c 
   generalize hx : Expr.const c us = x at her
   cases her with
   | box => exact .atom rfl
-  | const hna => cases hx; rw [ha] at hna; cases hna
+  | const hna | fixVar hna | constFix _ _ _ hna => cases hx; rw [ha] at hna; cases hna
   | ctor hc =>
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     exact absurd (.inl ⟨_, hc⟩) hns
@@ -503,15 +521,15 @@ the value. Reference: the `eval_beta` case of `erases_correct` (`MR E/ErasureCor
 Let. Thm 13 (β). -/
 theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {f a a' b v A : Expr} {x : Name} {bi : BinderInfo} (hns : ¬ ShortSpine σ (.app f a))
-    (hf : SrcEval σ C f (.lam x A b bi)) (ha : SrcEval σ C a a')
-    (hb : SrcEval σ C (b.instantiate1' a') v)
+    (hf : SrcEval σ (SrcConv E B lps) f (.lam x A b bi)) (ha : SrcEval σ (SrcConv E B lps) a a')
+    (hb : SrcEval σ (SrcConv E B lps) (b.instantiate1' a') v)
     (ihf : ErasesSim E B lps σ lenv f (.lam x A b bi)) (iha : ErasesSim E B lps σ lenv a a')
     (ihb : ErasesSim E B lps σ lenv (b.instantiate1' a') v) :
     ErasesSim E B lps σ lenv (.app f a) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
   have hord := henv.metaOrderOK
-  have hev : SrcEval σ C (.app f a) v := .beta hns hf ha hb
+  have hev : SrcEval σ (SrcConv E B lps) (.app f a) v := .beta hns hf ha hb
   have hspine := (SrcDefeq.sound_of (lps := lps) henv hE hsub
     (SrcProof.proofSound henv hE hsub) hf).2
   have hnq : ∀ c us (bs : List Expr) (bb : MBinding ζ), f = mkAppN (.const c us) bs.toArray →
@@ -576,7 +594,7 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     have htb'' := InstPre.PreTr.recover hord (InstPre.PreTr.ofTrM hb₀) (InstPre.Thin.id _) hokA
       ⟨T₀, by rw [Metalean.Expr.rename_id]; exact hb₀T''⟩
     have hsubst := Erases.inst henv hE hok hsub hval hbody htb'' hb₀T'' hva hta'
-      (Defeq.defeqDF hAA htaA) (closed0 hta' hva)
+      (Defeq.defeqDF hAA htaA) (closed0 hta' hva) fun _ => rfl
     have hdl' := ErasesDeps.eval hdf hevf
     cases hdl' with
     | lambda hdb =>
@@ -595,7 +613,8 @@ theorem erases_correct_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
       .box hevf heva⟩
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hlv (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hlv
+  | bvar | fvar | letE | app | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+    cases hlv
 
 /-- Substituting a typed source value for a `let`-bound local whose denotation is definitionally
 equal to the value's translation (the local of the erasure denotes the translation of the `let`
@@ -631,7 +650,8 @@ theorem SimCases.inst_let (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEn
       simp [MLCtx.findF] at ht
   have Ea : Erases E B lps σ .nil [] (val.liftLooseBVars' 0 0) val' := by
     rw [liftLooseBVars'_zero]; exact hv
-  refine (RelInst.Erases.instG hE hord hty (closed0 htv hv)).1 _ _ _ _ _ hb _ _ _ 0 _ hok
+  refine (RelInst.Erases.instG hE hord hty (closed0 htv hv)).1 _ _ _ _ _ hb _ _ _ 0 _
+    (fun _ => rfl) hok
     (Metalean.SubstWF.id hok) W Ea fun hs => ?_
   have hn := RelInst.node_of_value henv hsub hval hs htv
   have hhb : RelInst.HB E .nil v₀ := RelInst.HB.of_defeq_node hv₀ hn
@@ -646,14 +666,14 @@ value, which substituted into the erased body (`SimCases.inst_let`) erases the s
 substituted body. Reference: the `eval_zeta` case of `erases_correct`
 (`MR E/ErasureCorrectness.v:110`); Let. Thm 13 (ζ). -/
 theorem erases_correct_zeta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
-    {x : Name} {Ty val val' b v : Expr} {nd : Bool} (hv : SrcEval σ C val val')
-    (hb : SrcEval σ C (b.instantiate1' val') v) (ihv : ErasesSim E B lps σ lenv val val')
+    {x : Name} {Ty val val' b v : Expr} {nd : Bool} (hv : SrcEval σ (SrcConv E B lps) val val')
+    (hb : SrcEval σ (SrcConv E B lps) (b.instantiate1' val') v) (ihv : ErasesSim E B lps σ lenv val val')
     (ihb : ErasesSim E B lps σ lenv (b.instantiate1' val') v) :
     ErasesSim E B lps σ lenv (.letE x Ty val b nd) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
   have hord := henv.metaOrderOK
-  have hev : SrcEval σ C (.letE x Ty val b nd) v := .zeta hv hb
+  have hev : SrcEval σ (SrcConv E B lps) (.letE x Ty val b nd) v := .zeta hv hb
   -- the translation of the substituted body (as `SrcDefeq.case_zeta`)
   obtain ⟨tv, htv, ⟨V, htvV⟩, tb₁, htb₁, hTb₁, b₂, hb₂, ⟨U₂, hb₂T⟩⟩ :
       ∃ tv, TrM E B lps .nil [] val' tv ∧ (∃ V, E[.nil] ⊢ tv : V) ∧
@@ -694,7 +714,8 @@ theorem erases_correct_zeta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     exact ⟨res, hres, .zeta hevv hevres⟩
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | lam | app | const | proj | litZero | litSucc | mdata => cases hx
+  | bvar | fvar | lam | app | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+    cases hx
 
 /-- The `delta` case of `erases_correct`: an unfoldable constant erases to `□` or to its λ□
 constant; the λ□ declaration found at its kername is its own (`KernameInj`), whose body erases
@@ -704,17 +725,17 @@ Thm 13 (δ). -/
 theorem erases_correct_delta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hinj : KernameInj σ.decls) {c : Name} {us : List Level} {ci : ConstantInfo} {body v : Expr}
     (hu : σ.unfold? c = some (ci, body))
-    (hb : SrcEval σ C (Pure.instLevels ci.levelParams us body) v)
+    (hb : SrcEval σ (SrcConv E B lps) (Pure.instLevels ci.levelParams us body) v)
     (ih : ErasesSim E B lps σ lenv (Pure.instLevels ci.levelParams us body) v) :
     ErasesSim E B lps σ lenv (.const c us) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hev : SrcEval σ C (.const c us) v := .delta hu hb
+  have hev : SrcEval σ (SrcConv E B lps) (.const c us) v := .delta hu hb
   obtain ⟨b', hb', hred⟩ := ProgEnv.unfold henv hsub hu he
   have hd := WHRed.defeq hE hred hok ht
-  obtain ⟨hfd, hax, -⟩ := unfold?_spec hu
+  obtain ⟨hfd, hax, -, hrp⟩ := unfold?_spec hu
   obtain ⟨dv, η, ls, rfl, rfl, -, hls, hval, -⟩ := henv.unfold_delta hsub hu he
-  rcases const_inv hu her with rfl | ⟨rfl, hbx⟩
+  rcases const_inv (fun _ => rfl) hu her with rfl | ⟨rfl, hbx⟩
   · generalize hk : toKername c = kn at hdeps
     cases hdeps with
     | @const c' ci' cb hfd₂ hl hdecl hbody =>
@@ -722,11 +743,12 @@ theorem erases_correct_delta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Su
       rw [hfd] at hfd₂
       cases hfd₂
       simp only [ErasesDecl, ConstantInfo.value?] at hdecl
-      rcases hdecl with ⟨hax', -⟩ | ⟨-, b'', hcb, herb⟩
+      rcases hdecl with ⟨hax', -⟩ | ⟨-, -, b'', hcb, herb⟩ | ⟨-, pre, -, -, -, hpre, -⟩
       · rw [hax] at hax'; cases hax'
       · obtain ⟨res, hres, hevres⟩ := ih hb' ⟨_, hd.right⟩
           (Erases.instLevels henv hE hsub hls hval herb) (hbody b'' hcb)
         exact ⟨res, hres, .delta hl hcb hevres⟩
+      · rw [hrp] at hpre; cases hpre
   · exact erases_correct_box henv hE hsub he ht hbx hev
 
 /-- The `appCong` case of `erases_correct`. The head's value is an atom spine or a `PropProj`
@@ -748,13 +770,13 @@ theorem erases_correct_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       {as₁ as₂ : List (Metalean.Expr ζ lps.length 0)} {t₁ t T : Metalean.Expr ζ lps.length 0},
       SatTr E lps (.quot η .type) us as₁ t₁ → SatTr E lps (.quot η .type) us (as₁ ++ as₂) t →
       E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁)
-    {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hf : SrcEval σ C f f')
-    (hnb : ¬ BlocksCong σ f') (ha : SrcEval σ C a a')
+    {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hf : SrcEval σ (SrcConv E B lps) f f')
+    (hnb : ¬ BlocksCong σ f') (ha : SrcEval σ (SrcConv E B lps) a a')
     (ihf : ErasesSim E B lps σ lenv f f') (iha : ErasesSim E B lps σ lenv a a') :
     ErasesSim E B lps σ lenv (.app f a) (.app f' a') := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hev : SrcEval σ C (.app f a) (.app f' a') := .appCong hns hf hnb ha
+  have hev : SrcEval σ (SrcConv E B lps) (.app f a) (.app f' a') := .appCong hns hf hnb ha
   have hspine := (SrcDefeq.sound_of (lps := lps) henv hE hsub
     (SrcProof.proofSound henv hE hsub) hf).2
   have hfv : AtomSpine σ f' ∨ PropProj σ f' := by
