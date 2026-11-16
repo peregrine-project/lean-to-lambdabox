@@ -351,6 +351,7 @@ abbrev envS {ζ : Metalean.Sigs} {sig : Metalean.Sig} (E : Metalean.Env ζ) (ent
 def MLDecl.map {ζ ζ' : Metalean.Sigs} (pre : ζ ⟶ ζ') {ℓ n : Nat} : MLDecl ζ ℓ n → MLDecl ζ' ℓ n
   | .vlam v => .vlam v
   | .vlet e => .vlet (e.map pre)
+  | .vfix e => .vfix (e.map pre)
 
 /-- The locals, weakened along the environment. -/
 def MLCtx.envMap {ζ ζ' : Metalean.Sigs} (pre : ζ ⟶ ζ') {ℓ n : Nat} (Δ : MLCtx ζ ℓ n) :

@@ -299,7 +299,7 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | fixVar | box | litZero => intros; rfl
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
     simp only [closedn, closednD, List.length_singleton, Bool.and_true]
     exact TargetLift.closedn_mono _ 1 _ hcl (by omega)
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
@@ -425,13 +425,13 @@ theorem Erases.closed {e : Expr} {t : Metalean.Expr ζ lps.length n} {tb : LBTer
     closedn (Δ.countP (·.1.isNone)) tb = true :=
   Erases.closedn_of_bbound h _ (TrM.bbound he)
 
-/-- An erasure of a constructor spine with at least the constructor's arity, under locals without
-free variables (so no fix variable, `Erases.fixVar`), is `□` or the λ□ constructor applied to
+/-- An erasure of a constructor spine with at least the constructor's arity, under locals without a
+fix variable (`Erases.fixVar`), is `□` or the λ□ constructor applied to
 erasures of the arguments. Reference: the `tConstruct` inversion of `erases`
 (`MR E/Extract.v:106`), `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
 theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
-    (hle : cv.numParams + cv.numFields ≤ as.length) (hΔ : ∀ y, Δ.findF y = none)
+    (hle : cv.numParams + cv.numFields ≤ as.length) (hΔ : ∀ y, Δ.findFix y = none)
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
     (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
       ∃ iid as', IndIdOf σ cv.induct = some iid ∧ tb = mkApps (.construct iid cv.cidx []) as' ∧
@@ -695,7 +695,7 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
     have hns := isAtom_not_special ha
     cases h with
     | box => rfl
-    | const hat | fixVar hat | constFix _ _ hat => cases hx; rw [ha] at hat; cases hat
+    | const hat | fixVar hat | constFix _ _ _ hat => cases hx; rw [ha] at hat; cases hat
     | ctor hc =>
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
@@ -753,13 +753,13 @@ theorem Erases.atomSpine_box {e : Expr} {tb s : LBTerm} {lenv : GlobalDeclaratio
   LBEval.eq_box_of_headOf hv (Erases.headOf_atomSpine hsp h)
 
 /-- An erasure of a constructor spine with at least the constructor's arity, of an inductive in
-`Prop`, under locals without free variables, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
+`Prop`, under locals without a fix variable, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
 (`MR E/Extract.v:106`, `~~ isPropositional`), whose only alternative is `erases_box`
 (`MR E/Extract.v:140`). -/
 theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
     (hP : PropInductive E B cv.induct) (hle : cv.numParams + cv.numFields ≤ as.length)
-    (hΔ : ∀ y, Δ.findF y = none)
+    (hΔ : ∀ y, Δ.findFix y = none)
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) : tb = .box := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
