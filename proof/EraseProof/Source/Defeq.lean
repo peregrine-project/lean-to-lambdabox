@@ -15,7 +15,9 @@ A typed translation of a source term that evaluates is definitionally equal to a
 the value (`SrcDefeq.Sound`). `SrcDefeq.sound_of` proves it by induction on `SrcEval`, each rule
 a Metalean typed definitional equality: β (`WHRed.beta_defeq`, `TrM.inst`), ζ
 (`WHRed.zeta_defeq`, `TrM.inst_let`, with the let-bound local replaced by its value's translation,
-`SrcDefeq.PreTr.replace`), δ (`ProgEnv.unfold`), η of a recognized `casesOn` spine (Metalean's
+`SrcDefeq.PreTr.replace`), δ (`ProgEnv.unfold`), δ through a compiled pre-definition (its
+conversion premise, read as `SrcConv`, after replacing the arguments by their values,
+`SrcDefeq.apps_sound`), η of a recognized `casesOn` spine (Metalean's
 `eta` over the binders of the declared type, `SrcDefeq.eta_lams`, `SrcDefeq.piInst_tr`), ι
 (`casesOn_whred`, `casesOnLit_whred` after replacing the major by its value), projections
 (`proj_defeq`) and congruence (`DCong.defeq`, `TrM.apps`). A spine of a saturating head (an
@@ -361,6 +363,11 @@ theorem quot_head_eval (hsub : SubEnv σ.decls P) {e w : Expr} (hev : SrcEval σ
     intro c us bs q hx hq _
     cases head hx
     cases agree hq hc
+  | deltaRec hc hdef =>
+    intro c us bs q hx hq _
+    cases head hx
+    cases agree hq hc
+    cases hdef
   | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
     intro c us bs q hx hq _
     cases head hx
@@ -464,6 +471,10 @@ theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w 
     cases head hx
     obtain ⟨_, _, _, _, _, hB, -⟩ := henv.lookup_ctor (findDecl_sub hsub hc)
     rw [hB] at hb; cases hb
+  | deltaRec hc =>
+    intro c us bs ι η s os hx hb
+    cases head hx
+    exact recr hc hb
   | casesIota hcs | casesLitZero hcs | casesLitSucc hcs | casesProof hcs =>
     intro c us bs ι η s os hx hb
     cases head hx
@@ -680,6 +691,39 @@ theorem mkAppN_snoc (c : Name) (us : List Level) (bs : List Expr) (a : Expr) :
     mkAppN (.const c us) (bs ++ [a]).toArray = .app (mkAppN (.const c us) bs.toArray) a := by
   rw [mkAppN_eq_foldl, mkAppN_eq_foldl, List.foldl_append]; rfl
 
+/-- Application congruence on translations: a typed translation `f'' a''` of `f a`, whose parts
+are typed translations of `f` and `a`, is definitionally equal to a translation of `f' a'`. -/
+theorem app_tr_sound (hE : EnvWF E) {f a f' a' : Expr} {t T : Metalean.Expr ζ lps.length 0}
+    (ihf : Sound E B lps f f') (iha : Sound E B lps a a') (ht : E[.nil] ⊢ t : T)
+    (f'' a'' : Metalean.Expr ζ lps.length 0) (hf : TrM E B lps .nil [] f f'')
+    (ha : TrM E B lps .nil [] a a'') (heq : t = .app f'' a'') (hF : ∃ F, E[.nil] ⊢ f'' : F)
+    (hA : ∃ A, E[.nil] ⊢ a'' : A) :
+    ∃ t', TrM E B lps .nil [] (.app f' a') t' ∧ E[.nil] ⊢ t ≡ t' : T := by
+  subst heq
+  obtain ⟨F, hF⟩ := hF
+  obtain ⟨A₁, hA₁⟩ := hA
+  obtain ⟨tf, htf, hdf⟩ := ihf hf hF
+  obtain ⟨ta, hta, hda⟩ := iha ha hA₁
+  obtain ⟨t₂, ht₂, hred⟩ := TrM.apps htf (.cons hta .nil)
+  have h1 : E[.nil] ⊢ .app f'' a'' ≡ .app tf ta : T :=
+    DCong.defeq hE not_false (.app (.leaf hdf) (.leaf hda)) nil_ok (DCong.CtxConv.refl nil_ok) ht
+  exact ⟨t₂, ht₂, dtrans hE h1 (WHRedS.defeq hE nil_ok hred h1.right)⟩
+
+/-- Replacing the head and the arguments of an application whose head has no saturating binding by
+values with definitionally equal typed translations: such a spine translates argument by argument
+(`TrM.wf_app`). -/
+theorem apps_sound (hE : EnvWF E) {bs vs : List Expr} (hall : List.Forall₂ (Sound E B lps) bs vs) :
+    ∀ {f f' : Expr}, ¬ SpecialHead B f → Sound E B lps f f' →
+      Sound E B lps (mkAppN f bs.toArray) (mkAppN f' vs.toArray) := by
+  simp only [mkAppN_eq_foldl]
+  induction hall with
+  | nil => exact fun _ h => h
+  | cons ha _ ih =>
+    intro f f' hns hf
+    refine ih (f := .app f _) (f' := .app f' _) (fun h => hns h) fun he ht => ?_
+    obtain ⟨f'', a'', hf', ha', h₁, h₂, h₃⟩ := TrM.wf_app hE nil_ok hns he ht
+    exact app_tr_sound hE hf ha ht f'' a'' hf' ha' h₁ h₂ h₃
+
 /-- The case of `SrcEval.appCong`. -/
 theorem case_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hfev : SrcEval σ C f f')
@@ -687,17 +731,7 @@ theorem case_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.
     (ihf : Sound E B lps f f' ∧ SpineOK σ E B lps f f') (iha : Sound E B lps a a') :
     Sound E B lps (.app f a) (.app f' a') ∧ SpineOK σ E B lps (.app f a) (.app f' a') := by
   refine ⟨fun {t T} he ht => ?_, ?_⟩
-  · have general : ∀ f'' a'', TrM E B lps .nil [] f f'' → TrM E B lps .nil [] a a'' →
-        t = .app f'' a'' → (∃ F, E[.nil] ⊢ f'' : F) → (∃ A, E[.nil] ⊢ a'' : A) →
-        ∃ t', TrM E B lps .nil [] (.app f' a') t' ∧ E[.nil] ⊢ t ≡ t' : T := by
-      rintro f'' a'' hf' ha'' rfl ⟨F, hF⟩ ⟨A₁, hA₁⟩
-      obtain ⟨tf, htf, hdf⟩ := ihf.1 hf' hF
-      obtain ⟨ta, hta, hda⟩ := iha ha'' hA₁
-      obtain ⟨t₂, ht₂, hred⟩ := TrM.apps htf (.cons hta .nil)
-      have h1 : E[.nil] ⊢ .app f'' a'' ≡ .app tf ta : T :=
-        DCong.defeq hE not_false (.app (.leaf hdf) (.leaf hda)) nil_ok
-          (DCong.CtxConv.refl nil_ok) ht
-      exact ⟨t₂, ht₂, dtrans hE h1 (WHRedS.defeq hE nil_ok hred h1.right)⟩
+  · have general := app_tr_sound hE ihf.1 iha ht
     by_cases hsp : SpecialHead B f
     · obtain ⟨c, us, bb, hfn, hb, hs⟩ := hsp
       obtain ⟨bs, rfl⟩ := eq_mkAppN_of_getAppFn hfn
@@ -1797,6 +1831,25 @@ theorem sound_trans (hE : EnvWF E) {a b c : Expr} (h₁ : Sound E B lps a b)
   obtain ⟨t₂, he₂, hd₂⟩ := h₂ he₁ hd₁.right
   exact ⟨t₂, he₂, dtrans hE hd₁ hd₂⟩
 
+/-- The case of `SrcEval.deltaRec`: a definition has no saturating binding, so its spine
+translates argument by argument and the arguments are replaced by their values
+(`SrcDefeq.apps_sound`); then the conversion premise, then the evaluation of the pre-definition.
+Reference: `eval_fix` in `subject_reduction_eval` (`MR P/PCUICWcbvEval.v`); DV-7. -/
+theorem case_deltaRec (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
+    {c : Name} {ci : ConstantInfo} {us : List Level} {as vs : List Expr} {p v : Expr}
+    (hc : findDecl σ.decls c = some ci) (hdef : ci.isDefinition = true)
+    (hlen : as.length = vs.length)
+    (ih : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → Sound E B lps a v)
+    (hconv : Sound E B lps (mkAppN (.const c us) vs.toArray) p) (ihb : Sound E B lps p v) :
+    Sound E B lps (mkAppN (.const c us) as.toArray) v ∧
+      SpineOK σ E B lps (mkAppN (.const c us) as.toArray) v := by
+  obtain ⟨d, rfl⟩ : ∃ d, ci = .defnInfo d := by
+    cases ci <;> first | exact ⟨_, rfl⟩ | cases hdef
+  have hns : ¬ SpecialHead B (.const c us) := fun ⟨_, _, _, hfn, hb, hs⟩ => by
+    cases hfn; exact defn_not_special henv hsub hc hb hs
+  refine ⟨sound_trans hE (sound_trans hE ?_ hconv) ihb, spineOK_defn henv hsub hc⟩
+  exact apps_sound hE (CasesWhred.forall₂_of_getElem? hlen ih) hns fun he ht => ⟨_, he, ht⟩
+
 /-- The case of `SrcEval.recIota`: with the minors and the major replaced by the translations of
 their values (`special_congr`; the minors are not wrapped, since the recursive fields come last,
 `RecWhred.orders_identity`), ι and β (`RecWhred.recIota_whred`). -/
@@ -1885,14 +1938,19 @@ def ProofSound (σ : EvalEnv) (E : Metalean.Env ζ) (B : Binds ζ) (lps : List N
     Sound E B lps (mkAppN (.const c us) as.toArray) v
 
 /-- Subject reduction with the argument-wise evaluation of saturating spines, by induction on
-`SrcEval`, given the proof-irrelevant ι (`SrcDefeq.ProofSound`). -/
+`SrcEval` with Metalean's conversion as the conversion premise (`SrcConv`), given the
+proof-irrelevant ι (`SrcDefeq.ProofSound`). -/
 theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hproof : ProofSound σ E B lps)
-    {e v : Expr} (hev : SrcEval σ C e v) : Sound E B lps e v ∧ SpineOK σ E B lps e v := by
+    {e v : Expr} (hev : SrcEval σ (SrcConv E B lps) e v) :
+    Sound E B lps e v ∧ SpineOK σ E B lps e v := by
   induction hev with
   | beta hns hf _ _ ihf iha ihb => exact case_beta henv hE hsub hns hf ihf iha.1 ihb.1
   | zeta _ _ ihv ihb => exact case_zeta henv hE ihv.1 ihb.1
   | delta hu _ ih => exact case_delta henv hE hsub hu ih.1
+  | deltaRec hc hdef _ _ _ _ hlen _ hconv _ ih ihb =>
+    exact case_deltaRec henv hE hsub hc hdef hlen (fun i a v h₁ h₂ => (ih i a v h₁ h₂).1) hconv
+      ihb.1
   | constAtom ha => exact case_constAtom henv hsub ha
   | eta he =>
     refine ⟨?_, spineOK_eta henv hsub he⟩
