@@ -50,6 +50,11 @@ private theorem mkAppN_const_inj {c c' : Name} {us us' : List Level} {as as' : L
   cases h1
   exact ⟨rfl, rfl, by simpa [appArgs] using h2⟩
 
+/-- A constant spine that is a constant has no arguments. -/
+private theorem mkAppN_const_nil {c c' : Name} {us us' : List Level} {as : List Expr}
+    (h : mkAppN (.const c us) as.toArray = .const c' us') : as = [] :=
+  (mkAppN_const_inj (as' := []) h).2.2
+
 /-! ## Facts about the evaluation environment -/
 
 /-- A recognized `casesOn` constant is a definition. -/
@@ -289,10 +294,14 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
     (h : Erases E B lps σ Γ Δ e tb) : ∀ k, BBound k e → closedn k tb = true := by
   refine Erases.rec (motive_1 := fun _ _ e tb _ => ∀ k, BBound k e → closedn k tb = true)
     (motive_2 := fun _ _ _ e br _ => ∀ k, BBound k e → closedn (k + br.1.length) br.2 = true)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
-  case fvar | const | box | litZero => intros; rfl
+  case fvar | const | fixVar | box | litZero => intros; rfl
+  case constFix =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
+    simp only [closedn, closednD, List.length_singleton, Bool.and_true]
+    exact TargetLift.closedn_mono _ 1 _ hcl (by omega)
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk
   case letE =>
     intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb k hk
@@ -416,12 +425,13 @@ theorem Erases.closed {e : Expr} {t : Metalean.Expr ζ lps.length n} {tb : LBTer
     closedn (Δ.countP (·.1.isNone)) tb = true :=
   Erases.closedn_of_bbound h _ (TrM.bbound he)
 
-/-- An erasure of a constructor spine with at least the constructor's arity is `□` or the λ□
-constructor applied to erasures of the arguments. Reference: the `tConstruct` inversion of
-`erases` (`MR E/Extract.v:106`), `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
+/-- An erasure of a constructor spine with at least the constructor's arity, under locals without
+free variables (so no fix variable, `Erases.fixVar`), is `□` or the λ□ constructor applied to
+erasures of the arguments. Reference: the `tConstruct` inversion of `erases`
+(`MR E/Extract.v:106`), `erases_mkApps_inv` (`MR E/ErasureProperties.v:105`). -/
 theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
-    (hle : cv.numParams + cv.numFields ≤ as.length)
+    (hle : cv.numParams + cv.numFields ≤ as.length) (hΔ : ∀ y, Δ.findF y = none)
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
     (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
       ∃ iid as', IndIdOf σ cv.induct = some iid ∧ tb = mkApps (.construct iid cv.cidx []) as' ∧
@@ -445,6 +455,12 @@ theorem Erases.ctor_inv {c : Name} {cv : ConstructorVal} {us : List Level} {as :
     cases hfn
     rw [specialArity_ctor hc] at hsa
     cases hsa
+  | fixVar _ _ hF => rw [hΔ] at hF; cases hF
+  | constFix hci hdef =>
+    cases hfn
+    rw [hc] at hci
+    cases hci
+    cases hdef
   | cases hco | casesReduced hco =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     obtain ⟨d, hd⟩ := casesOn?_defn hco
@@ -523,6 +539,10 @@ theorem Erases.cases_inv {c : Name} {iv : InductiveVal} {us : List Level} {as : 
     cases hfn
     rw [specialArity_casesOn hc] at hsa
     cases hsa
+  | fixVar | constFix =>
+    rw [mkAppN_const_nil hx] at hle
+    simp only [casesArity, casesMajor, List.length_nil] at hle
+    omega
   | eta heta =>
     obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
     obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
@@ -575,6 +595,10 @@ theorem Erases.quot_inv {c : Name} {qv : QuotVal} {us : List Level} {as : List E
     cases hfn
     rw [hsa] at hsa'
     cases hsa'
+  | fixVar | constFix =>
+    rw [mkAppN_const_nil hx] at hle
+    cases hk : qv.kind <;> rw [hk] at har <;> simp only [quotEvalArity, reduceCtorEq,
+      Option.some.injEq] at har <;> simp only [List.length_nil] at hle <;> omega
   | eta heta =>
     obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
     obtain ⟨ar', har', hlt⟩ := etaSpine?_some heta
@@ -644,6 +668,10 @@ theorem Erases.rec_inv {c : Name} {rv : RecursorVal} {us : List Level} {as : Lis
   | const _ _ hnr =>
     cases hfn
     exact absurd hc (hnr rv)
+  | fixVar | constFix =>
+    rw [mkAppN_const_nil hx] at hge
+    simp only [List.length_nil] at hge
+    omega
   | eta heta =>
     obtain ⟨rfl, -, rfl⟩ := mkAppN_const_inj hx
     obtain ⟨ar, har, hlt⟩ := etaSpine?_some heta
@@ -667,7 +695,7 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
     have hns := isAtom_not_special ha
     cases h with
     | box => rfl
-    | const hat => cases hx; rw [ha] at hat; cases hat
+    | const hat | fixVar hat | constFix _ _ hat => cases hx; rw [ha] at hat; cases hat
     | ctor hc =>
       have := congrArg Expr.getAppFn hx
       rw [getAppFn_mkAppN_const] at this
@@ -714,7 +742,8 @@ private theorem Erases.headOf_atomSpine {e : Expr} {tb : LBTerm} (hsp : AtomSpin
       cases hfn rfl
       obtain ⟨_, har, _⟩ := etaSpine?_some heta
       exact absurd (specialArity_some har) hns
-    | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
+    | bvar | fvar | lam | letE | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+      cases hx
 
 /-- An erasure of an atom spine that is a λ□ evaluation result is `□`. Reference: DV-11; the
 analogue of `tInd`-headed values, which erase only by `erases_box` (`MR E/Extract.v:140`). -/
@@ -724,12 +753,13 @@ theorem Erases.atomSpine_box {e : Expr} {tb s : LBTerm} {lenv : GlobalDeclaratio
   LBEval.eq_box_of_headOf hv (Erases.headOf_atomSpine hsp h)
 
 /-- An erasure of a constructor spine with at least the constructor's arity, of an inductive in
-`Prop`, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
+`Prop`, under locals without free variables, is `□`: `Erases.ctor` needs `¬ PropInductive`. Reference: `erases_tConstruct`
 (`MR E/Extract.v:106`, `~~ isPropositional`), whose only alternative is `erases_box`
 (`MR E/Extract.v:140`). -/
 theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {as : List Expr}
     {tb : LBTerm} (hc : findDecl σ.decls c = some (.ctorInfo cv))
     (hP : PropInductive E B cv.induct) (hle : cv.numParams + cv.numFields ≤ as.length)
+    (hΔ : ∀ y, Δ.findF y = none)
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) : tb = .box := by
   generalize hx : mkAppN (.const c us) as.toArray = x at h
   have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
@@ -749,6 +779,12 @@ theorem Erases.ctorProp_box {c : Name} {cv : ConstructorVal} {us : List Level} {
     cases hfn
     rw [specialArity_ctor hc] at hsa
     cases hsa
+  | fixVar _ _ hF => rw [hΔ] at hF; cases hF
+  | constFix hci hdef =>
+    cases hfn
+    rw [hc] at hci
+    cases hci
+    cases hdef
   | cases hco | casesReduced hco =>
     obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
     obtain ⟨d, hd⟩ := casesOn?_defn hco
@@ -788,7 +824,8 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
     | proj => exact .inr ⟨_, _, rfl⟩
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact (spine he₀ rfl).elim
-    | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | litZero | litSucc | mdata =>
+      cases hx
   | @app f a _ ih =>
     generalize hx : Expr.app f a = x at h he₀
     cases h with
@@ -799,7 +836,8 @@ private theorem Erases.headOf_propProj {e : Expr} {tb : LBTerm} (hp : PropProj �
       exact this
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact (spine he₀ rfl).elim
-    | bvar | fvar | lam | letE | const | proj | litZero | litSucc | mdata => cases hx
+    | bvar | fvar | lam | letE | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+      cases hx
 
 /-- A λ□ evaluation result is not headed by a projection. Reference: `eval_to_value`
 (`MR E/EWcbvEval.v:771`): values are not stuck projections. -/
