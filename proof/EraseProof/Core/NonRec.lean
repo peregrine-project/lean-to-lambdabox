@@ -119,8 +119,10 @@ theorem ProgEnv.scoped {P : List ConstantInfo} (h : ProgEnv P ζ E B) {ci : Cons
 end NonRec
 
 open NonRec in
-/-- No declaration of a Metalean program is recursive for the traversal: the fix branch of
-`visitMutual` is dead on the pure path. Reference: none (DV-7 does not arise). -/
+/-- No declaration of a Metalean program is recursive for the traversal by its kernel value:
+`visitMutual` takes its fix branch on the pure path only for a compiled pre-definition
+(`Erasure.preDef?`), which `PureM.declInfo?` returns in place of the value. Reference: none
+(DV-7). -/
 theorem isRecursiveDecl_false {P : List ConstantInfo} {ζ : Metalean.Sigs} {E : Metalean.Env ζ}
     {B : Binds ζ} {c : Name} {ci : ConstantInfo} {v : Expr} (henv : ProgEnv P ζ E B)
     (hc : findDecl P c = some ci) (hv : ci.value? (allowOpaque := true) = some v) :
