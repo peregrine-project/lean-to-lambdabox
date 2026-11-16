@@ -762,8 +762,8 @@ theorem Erases.rename
       E[Γ₂] ⊢ ok → Thin Γ₁ Γ₂ ρ → MLCtx.Subs c j (fun v => .var (ρ v)) Δ₁ Δ₂ →
       closedn (c + br.1.length) br.2 = true →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (e.liftLooseBVars' c j) br)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
   case bvar =>
     intro _ _ _ i m Γ₂ Δ₂ c j ρ _ _ _ hcl
     simp only [closedn, decide_eq_true_eq] at hcl
@@ -800,6 +800,12 @@ theorem Erases.rename
   case const =>
     intro _ _ _ _ _ hat hsa hnr m Γ₂ Δ₂ c j ρ _ _ _ _
     exact .const hat hsa hnr
+  case fixVar =>
+    intro _ _ _ _ _ _ _ _ _ _ hat hB hF m Γ₂ Δ₂ c j ρ _ _ W _
+    exact .fixVar hat hB (W.2 _ _ hF)
+  case constFix =>
+    intro _ _ _ _ _ _ _ _ _ hci hdef hat hax hpre hb hcl' hfv _ m Γ₂ Δ₂ c j ρ _ _ _ _
+    exact .constFix hci hdef hat hax hpre hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W hcl
     rw [AbsFV.closedn_mkApps] at hcl
@@ -1032,7 +1038,20 @@ def HeadInv {n : Nat} (σ : EvalEnv) (E : Env ζ) (a : Lean.Expr) (Γ : Ctx ζ l
     (Δ : MLCtx ζ lps.length n) (d : Nat) (b : Lean.Expr) : Prop :=
   SpecialSpine σ a → E[Γ] ⊢ ok ∧ NoHead d b ∧ ∃ hd, Δ.findB d = some hd ∧ HB E Γ hd
 
-/-- Substitution at the bound variable `d`, generalised. -/
+/-- Locals without free variables stay so under a new bound λ-local. -/
+theorem noFV_pushLam {ℓ n : Nat} {Δ : MLCtx ζ ℓ n} (h : ∀ y, Δ.findF y = none) :
+    ∀ y, (Δ.pushLam none).findF y = none := by
+  intro y
+  simp [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, h y]
+
+/-- Locals without free variables stay so under a new bound local. -/
+theorem noFV_cons {ℓ n : Nat} {Δ : MLCtx ζ ℓ n} (h : ∀ y, Δ.findF y = none) (v : MLDecl ζ ℓ n) :
+    ∀ y, MLCtx.findF ((none, v) :: Δ) y = none :=
+  fun y => by simp [MLCtx.findF, h y]
+
+/-- Substitution at the bound variable `d`, generalised, under locals without free variables (so
+that no constant is erased to a fix variable, `Erases.fixVar`, whose local the substitution would
+only preserve up to conversion, `MLCtx.InstA`). -/
 theorem Erases.instG (hE : EnvWF E)
     (hord : ∀ c {ι : IndSig} (η : Head ζ (.inductive ι)) (s : Fin ι.nsorts)
       (k : Fin (ι.nctors s)) (o : List Nat), B c = some (.ctor η s k o) →
@@ -1042,14 +1061,14 @@ theorem Erases.instG (hE : EnvWF E)
     (∀ (n₁ : Nat) (Γ₁ : Ctx ζ lps.length 0 n₁) (Δ₁ : MLCtx ζ lps.length n₁) (b : Lean.Expr)
       (tb : LBTerm), Erases E B lps σ Γ₁ Δ₁ b tb →
       ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂) (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat)
-        (ς : Subst ζ lps.length n₁ n₂), E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
+        (ς : Subst ζ lps.length n₁ n₂), (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
         MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
         Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
         Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb)) ∧
     (∀ (n₁ : Nat) (Γ₁ : Ctx ζ lps.length 0 n₁) (Δ₁ : MLCtx ζ lps.length n₁) (k : Nat)
       (b : Lean.Expr) (br : List BinderName × LBTerm), ErasesAlt E B lps σ Γ₁ Δ₁ k b br →
       ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂) (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat)
-        (ς : Subst ζ lps.length n₁ n₂), E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
+        (ς : Subst ζ lps.length n₁ n₂), (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ →
         MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
         Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
         ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d)
@@ -1067,75 +1086,84 @@ theorem Erases.instG (hE : EnvWF E)
     fun hi x hx hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, NoHead.spine.mp h2 x hx, h3⟩
   refine ⟨@Erases.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
-      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb))
     (fun {n₁} Γ₁ Δ₁ k b br _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
-      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro,
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro,
     @ErasesAlt.rec ζ E B lps σ (fun {n₁} Γ₁ Δ₁ b tb _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
-      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       Erases E B lps σ Γ₂ Δ₂ (b.instantiate1' a d) (csubst a' d tb))
     (fun {n₁} Γ₁ Δ₁ k b br _ => ∀ (n₂ : Nat) (Γ₂ : Ctx ζ lps.length 0 n₂)
       (Δ₂ : MLCtx ζ lps.length n₂) (d : Nat) (ς : Subst ζ lps.length n₁ n₂),
-      E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
+      (∀ y, Δ₁.findF y = none) → E[Γ₂] ⊢ ok → E[Γ₂] ⊢ ς ⊣ Γ₁ → MLCtx.InstA E B lps a d ς Δ₁ Δ₂ →
       Erases E B lps σ Γ₂ Δ₂ (a.liftLooseBVars' 0 d) a' → HeadInv σ E a Γ₁ Δ₁ d b →
       ErasesAlt E B lps σ Γ₂ Δ₂ k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2))
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro⟩
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro⟩
   case bvar =>
-    intro _ _ _ i n₂ Γ₂ Δ₂ d ς _ _ _ Ea _
+    intro _ _ _ i n₂ Γ₂ Δ₂ d ς _ _ _ _ Ea _
     simp only [Lean.Expr.instantiate1', csubst]
     by_cases h₁ : i < d
     · simp only [h₁, ↓reduceIte, show d ≠ i by omega, show ¬ d < i by omega]; exact .bvar
     · by_cases h₂ : i = d
       · subst h₂; simp only [h₁, ↓reduceIte]; exact Ea
       · simp only [h₁, h₂, ↓reduceIte, show d ≠ i by omega, show d < i by omega]; exact .bvar
-  case fvar => intro _ _ _ y _ _ _ _ _ _ _ _ _ _; exact .fvar
+  case fvar => intro _ _ _ y _ _ _ _ _ _ _ _ _ _ _; exact .fvar
   case lam =>
-    intro _ Γ₁ _ _ _ _ _ _ _ hA hAt _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ Γ₁ _ _ _ _ _ _ _ hA hAt _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     obtain ⟨u, hAu⟩ := hAt
     obtain ⟨A'', hA'', -, hd⟩ := TrM.instA hE hord hΓ₂ hς W hA hAu
     have hAt'' : E[Γ₂] ⊢ A'' typ := ⟨u, hd.right⟩
     have hς' := SubstWF.snocConv (TypeEq.ofDefEq hd) (SubstWF.lift ⟨u, hAu⟩ hς)
     simp only [Lean.Expr.instantiate1', csubst]
-    refine .lam hA'' hAt'' (ih _ _ _ (d + 1) _ (.snoc hΓ₂ hAt'') hς' W.pushLam
+    refine .lam hA'' hAt'' (ih _ _ _ (d + 1) _ (noFV_pushLam hN) (.snoc hΓ₂ hAt'') hς' W.pushLam
       (Erases.wkLam hord hty (.snoc hΓ₂ hAt'') hcl Ea) fun hs => ?_)
     obtain ⟨hΓ₁, hn, hd₀, hfd, hhb⟩ := hi hs
     exact ⟨.snoc hΓ₁ ⟨u, hAu⟩, hn, hd₀.wk,
       by simp [MLCtx.pushLam, MLCtx.findB, MLCtx.findB_map_wk, hfd], hhb.wk hΓ₁⟩
   case letE =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hv hvt _ _ ihv ihb n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ _ _ _ _ _ _ _ _ hv hvt _ _ ihv ihb n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     obtain ⟨T, hvT⟩ := hvt
     obtain ⟨v'', hv'', hcv, hd⟩ := TrM.instA hE hord hΓ₂ hς W hv hvT
     simp only [Lean.Expr.instantiate1', csubst]
     refine .letE hv'' ⟨_, hd.right⟩
-      (ihv _ _ _ d ς hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.1, h3⟩)
-      (ihb _ _ _ (d + 1) ς hΓ₂ hς (W.cons hcv) (Erases.wkLet hord hty _ hΓ₂ hcl Ea) fun hs => ?_)
+      (ihv _ _ _ d ς hN hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.1, h3⟩)
+      (ihb _ _ _ (d + 1) ς (noFV_cons hN _) hΓ₂ hς (W.cons hcv) (Erases.wkLet hord hty _ hΓ₂ hcl Ea) fun hs => ?_)
     obtain ⟨hΓ₁, hn, hd₀, hfd, hhb⟩ := hi hs
     exact ⟨hΓ₁, hn.2, hd₀, by simpa [MLCtx.findB] using hfd, hhb⟩
   case app =>
-    intro f _ _ _ _ _ _ hns _ _ ihf iha n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro f _ _ _ _ _ _ hns _ _ ihf iha n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     simp only [Lean.Expr.instantiate1', csubst]
     refine .app (fun ⟨c, us, hc, hs⟩ => ?_)
-      (ihf _ _ _ d ς hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.2.1, h3⟩)
-      (iha _ _ _ d ς hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.2.2, h3⟩)
+      (ihf _ _ _ d ς hN hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.2.1, h3⟩)
+      (iha _ _ _ d ς hN hΓ₂ hς W Ea fun hs => let ⟨h1, h2, h3⟩ := hi hs; ⟨h1, h2.2.2, h3⟩)
     by_cases hfd : f.getAppFn = .bvar d
     · rw [inst_getAppFn_bvar hfd, liftLooseBVars'_getAppFn] at hc
       have hsa : SpecialSpine σ a := ⟨c, us, liftLooseBVars'_eq_const hc, hs⟩
       exact (hi hsa).2.1.1 hfd
     · exact hns ⟨c, us, inst_getAppFn_const hfd hc, hs⟩
   case const =>
-    intro _ _ _ _ _ hat hsa hnr _ _ _ _ _ _ _ _ _ _
+    intro _ _ _ _ _ hat hsa hnr _ _ _ _ _ _ _ _ _ _ _
     exact .const hat hsa hnr
+  case fixVar =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ hF _ _ _ _ _ hN _ _ _ _ _
+    rw [hN] at hF
+    cases hF
+  case constFix =>
+    intro _ _ _ _ _ _ _ _ _ hci hdef hat hax hpre hb hcl' hfv _ _ _ _ d _ _ _ _ _ _ _
+    rw [TargetSubst.csubst_closedn a' _ 0 d
+      (by simpa [closedn, closednD] using hcl') (Nat.zero_le _)]
+    exact .constFix hci hdef hat hax hpre hb hcl' hfv
   case ctor =>
-    intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     rw [inst_spine, csubst_mkApps]
     have hc0 : ∀ iid i, csubst a' d (.construct iid i []) = .construct iid i [] :=
       fun _ _ => by simp [csubst, csubstL]
@@ -1143,82 +1171,82 @@ theorem Erases.instG (hE : EnvWF E)
     refine .ctor hcv hnp hid (by simpa using hle) (by simpa using hlen) fun i x x' hx hx' => ?_
     obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
     obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-    exact ih i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+    exact ih i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
       (spineHI hi x₀ (List.mem_of_getElem? hx₀))
   case cases =>
     intro c iv _ _ _ _ _ maj _ pre alts extra _ _ hco hnr hss hid hpre halts _ hbrs hcf _ hlex _
-      ihm iha ihe n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+      ihm iha ihe n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     rw [inst_spine, csubst_mkApps]
     simp only [List.map_append, List.map_cons, List.map_nil, csubst]
     refine .cases hco hnr hss hid (by simpa using hpre) (by simpa using halts)
-      (ihm _ _ _ d ς hΓ₂ hς W Ea (hi' maj (by simp)))
+      (ihm _ _ _ d ς hN hΓ₂ hς W Ea (hi' maj (by simp)))
       (by simp [csubstB_eq, hbrs]) hcf
       (fun i cn alt br k h1 h2 h3 h4 => ?_) (by simpa using hlex) (fun i x x' hx hx' => ?_)
     · obtain ⟨a₀, ha₀, rfl⟩ := gmap h2
       rw [csubstB_eq, List.getElem?_map, Option.map_eq_some_iff] at h3
       obtain ⟨br₀, hbr₀, rfl⟩ := h3
-      exact iha i cn a₀ br₀ k h1 ha₀ hbr₀ h4 _ _ _ d ς hΓ₂ hς W Ea
+      exact iha i cn a₀ br₀ k h1 ha₀ hbr₀ h4 _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' a₀ (by simp [List.mem_of_getElem? ha₀]))
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case casesReduced =>
     intro c iv _ _ _ _ _ alt _ _ maj pre extra _ hco hfe hcs hcv hidx hpre _ hlex _ iha ihe
-      n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+      n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     rw [inst_spine, csubst_mkApps]
     simp only [List.map_append, List.map_cons, List.map_nil, List.map_replicate]
     have hbox : csubst a' d .box = .box := rfl
     rw [hbox]
     refine .casesReduced hco hfe hcs hcv hidx (by simpa using hpre)
-      (iha _ _ _ d ς hΓ₂ hς W Ea (hi' alt (by simp))) (by simpa using hlex)
+      (iha _ _ _ d ς hN hΓ₂ hς W Ea (hi' alt (by simp))) (by simpa using hlex)
       fun i x x' hx hx' => ?_
     obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
     obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
       (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case eta =>
-    intro c _ _ _ _ _ _ _ heta _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro c _ _ _ _ _ _ _ heta _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     rw [inst_spine]
-    refine .eta (etaSpine?_inst a d (hty c) heta) (ih _ _ _ d ς hΓ₂ hς W Ea fun hs => ?_)
+    refine .eta (etaSpine?_inst a d (hty c) heta) (ih _ _ _ d ς hN hΓ₂ hς W Ea fun hs => ?_)
     obtain ⟨h1, h2, h3⟩ := hi hs
     exact ⟨h1, NoHead.etaSpine heta (NoHead.spine.mp h2), h3⟩
   case proj =>
-    intro _ _ _ _ _ _ _ _ _ hss hid hS hsort _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ _ _ _ _ _ _ hss hid hS hsort _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     simp only [Lean.Expr.instantiate1', csubst]
-    exact .proj hss hid hS hsort (ih _ _ _ d ς hΓ₂ hς W Ea hi)
-  case litZero => intro _ _ _ _ hid _ _ _ _ _ _ _ _ _ _; exact .litZero hid
+    exact .proj hss hid hS hsort (ih _ _ _ d ς hN hΓ₂ hς W Ea hi)
+  case litZero => intro _ _ _ _ hid _ _ _ _ _ _ _ _ _ _ _; exact .litZero hid
   case litSucc =>
-    intro _ _ _ _ _ _ hid _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ _ _ _ hid _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     simp only [csubst]
-    exact .litSucc hid (ih _ _ _ d ς hΓ₂ hς W Ea hi)
+    exact .litSucc hid (ih _ _ _ d ς hN hΓ₂ hς W Ea hi)
   case quotMk =>
-    intros; rename_i hcq hk _ hlex _ iha ihe n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intros; rename_i hcq hk _ hlex _ iha ihe n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     rw [inst_spine, csubst_mkApps]
     simp only [List.map_append, List.map_cons, List.map_nil]
-    refine .quotMk hcq hk (iha _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex)
+    refine .quotMk hcq hk (iha _ _ _ d ς hN hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex)
       fun i x x' hx hx' => ?_
     obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
     obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
       (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case quotLift =>
-    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intros; rename_i hcq hk _ _ hlex _ ihf ihq ihe n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     rw [inst_spine, csubst_mkApps]
     simp only [List.map_append, List.map_cons, List.map_nil]
-    refine .quotLift hcq hk (ihf _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp)))
-      (ihq _ _ _ d ς hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex) fun i x x' hx hx' => ?_
+    refine .quotLift hcq hk (ihf _ _ _ d ς hN hΓ₂ hς W Ea (hi' _ (by simp)))
+      (ihq _ _ _ d ς hN hΓ₂ hς W Ea (hi' _ (by simp))) (by simpa using hlex) fun i x x' hx hx' => ?_
     obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
     obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+    exact ihe i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
       (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case recLet =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra mins' is' extra' hcr hF hps hms hmins
-      his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+      his hlm _ hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     obtain ⟨hml, hFc, -⟩ := RecLam.RecFixOf.closed hF
     have hz : (mins'.zip minors).length = rv.numMinors := by
@@ -1230,23 +1258,23 @@ theorem Erases.instG (hE : EnvWF E)
             [maj.instantiate1' a d] ++ extra.map (·.instantiate1' a d) by simp]
     refine .recLet hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
       (by simpa using his) (by simpa using hlm) (fun i x x' hx hx' => ?_) (by simpa using hli)
-      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hΓ₂ hς W Ea (hi' maj (by simp)))
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hN hΓ₂ hς W Ea (hi' maj (by simp)))
       (by simpa using hle) (fun i x x' hx hx' => ?_)
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihmin i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihmin i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case recFix =>
     intro _ rv _ minors F _ _ _ maj maj' ps ms mins is extra ws is' extra' hcr hF hps hms hmins
-      his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+      his hlw _ hws hli _ _ hle _ ihmin ihis ihmaj ihext n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     have hi' := spineHI hi
     obtain ⟨hml, hFc, hFx⟩ := RecLam.RecFixOf.closed hF
     have hG := RecLam.substl_fix (ws := ws) (by rw [← hlw, hmins]; exact hFc) hFx
@@ -1259,40 +1287,40 @@ theorem Erases.instG (hE : EnvWF E)
       List.map_append, List.map_append, List.map_singleton]
     refine .recFix hcr hF (by simpa using hps) (by simpa using hms) (by simpa using hmins)
       (by simpa using his) (by simpa using hlw) (fun i x x' hx hx' => ?_) hws (by simpa using hli)
-      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hΓ₂ hς W Ea (hi' maj (by simp)))
+      (fun i x x' hx hx' => ?_) (ihmaj _ _ _ d ς hN hΓ₂ hς W Ea (hi' maj (by simp)))
       (by simpa using hle) (fun i x x' hx hx' => ?_)
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
-      have h1 := ihmin i x₀ x' hx₀ hx' _ _ _ d ς hΓ₂ hς W Ea
+      have h1 := ihmin i x₀ x' hx₀ hx' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
       rwa [TargetSubst.csubst_closedn a' x' 0 d (hws x' (List.mem_of_getElem? hx')).1
         (Nat.zero_le _)] at h1
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihis i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
     · obtain ⟨x₀, hx₀, rfl⟩ := gmap hx
       obtain ⟨x₀', hx₀', rfl⟩ := gmapB hx'
-      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hΓ₂ hς W Ea
+      exact ihext i x₀ x₀' hx₀ hx₀' _ _ _ d ς hN hΓ₂ hς W Ea
         (hi' x₀ (by simp [List.mem_of_getElem? hx₀]))
   case mdata =>
-    intro _ _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
-    exact .mdata (ih _ _ _ d ς hΓ₂ hς W Ea hi)
+    intro _ _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
+    exact .mdata (ih _ _ _ d ς hN hΓ₂ hς W Ea hi)
   case box =>
-    intro _ _ _ _ hb n₂ Γ₂ Δ₂ d ς hΓ₂ hς W _ _
+    intro _ _ _ _ hb n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W _ _
     obtain ⟨t, ht, T, htT, hA⟩ := hb
     obtain ⟨t'', ht'', -, hd⟩ := TrM.instA hE hord hΓ₂ hς W ht htT
     exact .box ⟨t'', ht'', IsErasable.of_defeq hd (erasableTy_subst hς hA)⟩
   case done =>
-    intro _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
-    exact .done (ih _ _ _ d ς hΓ₂ hς W Ea hi)
+    intro _ _ _ _ _ _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
+    exact .done (ih _ _ _ d ς hN hΓ₂ hς W Ea hi)
   case alam =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ _ _ _ _ _ _ _ _ hA hAt _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     obtain ⟨u, hAu⟩ := hAt
     obtain ⟨A'', hA'', -, hd⟩ := TrM.instA hE hord hΓ₂ hς W hA hAu
     have hAt'' : E[Γ₂] ⊢ A'' typ := ⟨u, hd.right⟩
     have hς' := SubstWF.snocConv (TypeEq.ofDefEq hd) (SubstWF.lift ⟨u, hAu⟩ hς)
     simp only [Lean.Expr.instantiate1', List.length_cons]
-    have := ih _ _ _ (d + 1) _ (.snoc hΓ₂ hAt'') hς' W.pushLam
+    have := ih _ _ _ (d + 1) _ (noFV_pushLam hN) (.snoc hΓ₂ hAt'') hς' W.pushLam
       (Erases.wkLam hord hty (.snoc hΓ₂ hAt'') hcl Ea) fun hs => by
         obtain ⟨hΓ₁, hn, hd₀, hfd, hhb⟩ := hi hs
         exact ⟨.snoc hΓ₁ ⟨u, hAu⟩, hn, hd₀.wk,
@@ -1300,7 +1328,7 @@ theorem Erases.instG (hE : EnvWF E)
     rw [show d + 1 + _ = d + (_ + 1) from Nat.add_right_comm _ _ _] at this
     exact .lam hA'' hAt'' this
   case intro =>
-    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih n₂ Γ₂ Δ₂ d ς hΓ₂ hς W Ea hi
+    intro _ _ _ e _ _ _ _ _ _ _ he hty' _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     obtain ⟨e'', he'', -, hd⟩ := TrM.instA hE hord hΓ₂ hς W he hty'
     obtain ⟨_, hfa⟩ := hty'.regular
     obtain ⟨_, _, hA', -, -⟩ := hfa.forallE_ty_inv
@@ -1308,7 +1336,7 @@ theorem Erases.instG (hE : EnvWF E)
     simp only [Expr.subst] at hT
     have hA's := IsType.substitution ⟨_, hA'⟩ hς
     refine .intro he'' hT ?_
-    have := ih _ _ _ (d + 1) _ (.snoc hΓ₂ hA's) (SubstWF.lift ⟨_, hA'⟩ hς) W.pushLam
+    have := ih _ _ _ (d + 1) _ (noFV_pushLam hN) (.snoc hΓ₂ hA's) (SubstWF.lift ⟨_, hA'⟩ hς) W.pushLam
       (Erases.wkLam hord hty (.snoc hΓ₂ hA's) hcl Ea) fun hs => by
         obtain ⟨hΓ₁, hn, hd₀, hfd, hhb⟩ := hi hs
         refine ⟨.snoc hΓ₁ ⟨_, hA'⟩, ⟨fun hfn => ?_, ?_, trivial⟩, hd₀.wk,
@@ -1539,9 +1567,9 @@ theorem RelInst.inst_setup {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
   exact PreTr.noHead hE hord (PreTr.ofTrM htb) (ρ := Ren.id) hfd hΓA
     (by rw [Expr.rename_id]; exact hhb) ⟨_, by rw [Expr.rename_id]; exact hbT⟩
 
-/-- Substitution of a typed source value for the innermost bound variable of a typed body: the
-erasure of the instantiated body is the closed substitution of the value's erasure into the
-body's erasure. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), with `wf_ext`,
+/-- Substitution of a typed source value for the innermost bound variable of a typed body, under
+locals without free variables: the erasure of the instantiated body is the closed substitution of
+the value's erasure into the body's erasure. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`), with `wf_ext`,
 `wf_local` and the typings of the body and the value as `henv`, `hsub`, `hE`, `hΓ` and the
 typed translations. -/
 theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
@@ -1552,15 +1580,17 @@ theorem Erases.inst {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     (hb : Erases E B lps σ (Γ.snoc A) (Δ.pushLam none) b b')
     (htb : TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b₀) (hbT : E[Γ.snoc A] ⊢ b₀ : T)
     (ha : Erases E B lps σ Γ Δ a a')
-    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true) :
+    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true)
+    (hΔ : ∀ y, Δ.findF y = none) :
     Erases E B lps σ Γ Δ (b.instantiate1' a) (csubst a' 0 b') := by
   have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
     fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
   obtain ⟨hς, W, Ea, hi⟩ := RelInst.inst_setup henv hE hΓ hsub hval htb hbT ha hta hA
-  exact (Erases.instG hE henv.metaOrderOK hty hcl).1 _ _ _ _ _ hb _ _ _ 0 _ hΓ hς W Ea hi
+  exact (Erases.instG hE henv.metaOrderOK hty hcl).1 _ _ _ _ _ hb _ _ _ 0 _ (noFV_pushLam hΔ) hΓ hς
+    W Ea hi
 
 /-- Substitution of a typed source value into a `casesOn` alternative erased under its field
-binders: the branch's body is substituted below the field binders (the step of `iotaRed`,
+binders, under locals without free variables: the branch's body is substituted below the field binders (the step of `iotaRed`,
 `MR E/EGlobalEnv.v:281 iota_red`, `substl`). Reference: `erases_subst0` (`MR E/ESubstitution.v:612`)
 on the branches of `MR E/Extract.v:111 erases_tCase`. -/
 theorem ErasesAlt.inst {P : List ConstantInfo} {σ : EvalEnv} {n k : Nat}
@@ -1571,12 +1601,14 @@ theorem ErasesAlt.inst {P : List ConstantInfo} {σ : EvalEnv} {n k : Nat}
     (hb : ErasesAlt E B lps σ (Γ.snoc A) (Δ.pushLam none) k b (ns, t))
     (htb : TrM E B lps (Γ.snoc A) (Δ.pushLam none) b b₀) (hbT : E[Γ.snoc A] ⊢ b₀ : T)
     (ha : Erases E B lps σ Γ Δ a a')
-    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true) :
+    (hta : TrM E B lps Γ Δ a a₀) (hA : E[Γ] ⊢ a₀ : A) (hcl : closedn 0 a' = true)
+    (hΔ : ∀ y, Δ.findF y = none) :
     ErasesAlt E B lps σ Γ Δ k (b.instantiate1' a) (ns, csubst a' ns.length t) := by
   have hty : ∀ c ci, findDecl σ.decls c = some ci → AbsFV.LBV 0 ci.type :=
     fun c ci h => (AbsFV.closed_types henv hsub c ci h).1
   obtain ⟨hς, W, Ea, hi⟩ := RelInst.inst_setup henv hE hΓ hsub hval htb hbT ha hta hA
-  have := (Erases.instG hE henv.metaOrderOK hty hcl).2 _ _ _ _ _ _ hb _ _ _ 0 _ hΓ hς W Ea hi
+  have := (Erases.instG hE henv.metaOrderOK hty hcl).2 _ _ _ _ _ _ hb _ _ _ 0 _ (noFV_pushLam hΔ)
+    hΓ hς W Ea hi
   simpa using this
 
 end

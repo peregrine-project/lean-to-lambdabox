@@ -623,8 +623,8 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
       Erases E B lps σ (Γ{ls}) (Δ.instL ls) (Pure.instLevels lps' us e) tb)
     (motive_2 := fun Γ Δ k e br _ => LvlOK σ e →
       ErasesAlt E B lps σ (Γ{ls}) (Δ.instL ls) k (Pure.instLevels lps' us e) br)
-    ?bvar ?fvar ?lam ?letE ?app ?const ?ctor ?cases ?casesReduced ?eta ?proj ?litZero ?litSucc
-    ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hok
+    ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
+    ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h hok
   case bvar => intros; exact .bvar
   case fvar => intros; exact .fvar
   case lam =>
@@ -642,6 +642,9 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     obtain ⟨vs', hvs'⟩ := instLevels_eq_const hc
     exact ⟨c, vs', hvs', hs⟩
   case const => intro _ _ _ _ _ hat hsa hnr _; exact .const hat hsa hnr
+  case fixVar =>
+    intro _ _ _ _ _ _ _ _ _ _ hat hB hF _
+    exact .fixVar hat hB (by rw [MLCtx.findF_instL, hF]; rfl)
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hok
     have has := (LvlOK_mkAppN.1 hok).2
