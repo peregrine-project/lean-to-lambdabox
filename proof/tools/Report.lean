@@ -64,7 +64,7 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP and
   NV-A (`finalInstances`: `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`,
   `NVQ.final`, `NVR.final`, `NVS.final`, `NVL.final`, `NVQP.final`, `NVA.final`),
-  each of which applies `erase_correct` to its program's eight hypothesis terms, theorems within
+  each of which applies `erase_correct` to its program's nine hypothesis terms, theorems within
   the same three axioms; each corollary of `corollaries` (`erase_correct_firstorder`) has the same
   footprint, and its instances (`NV1.firstorder`, `NV2.firstorder`, `NVR.firstorder`,
   `NVS.firstorder`, `NVL.firstorder`, `NVQP.firstorder`) are
@@ -163,7 +163,7 @@ def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2,
     `EraseProof.Test.NVQ, `EraseProof.Test.NVR, `EraseProof.Test.NVS,
     `EraseProof.Test.NVL, `EraseProof.Test.NVQP, `EraseProof.Test.NVA].map fun ns =>
-    (ns ++ `final, #[`henv, `hwf, `hview, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
+    (ns ++ `final, #[`henv, `hwf, `hview, `hpre, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 /-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
 proved theorems that derive a more specific conclusion from `erase_correct`. Like the theorems of
