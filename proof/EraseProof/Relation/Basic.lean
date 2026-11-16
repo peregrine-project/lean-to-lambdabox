@@ -299,7 +299,7 @@ private theorem Erases.closedn_of_bbound {e : Expr} {tb : LBTerm}
   case bvar => intro _ _ _ _ k hk; simpa [closedn, BBound] using hk
   case fvar | const | fixVar | box | litZero => intros; rfl
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hcl _ _ k _
     simp only [closedn, closednD, List.length_singleton, Bool.and_true]
     exact TargetLift.closedn_mono _ 1 _ hcl (by omega)
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih k hk; exact ih (k + 1) hk

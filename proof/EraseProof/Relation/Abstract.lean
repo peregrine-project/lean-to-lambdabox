@@ -477,10 +477,10 @@ theorem Erases.absN {σ : EvalEnv} (x : FVarId)
       cases hF
     · exact .fixVar hat (TrM.absN hT W) (hN.2 y _ hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ d Δ₁ _ _ _
+    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv _ d Δ₁ _ _ _
     simp only [absFV]
     rw [TargetLift.toBvar_noFVar x _ d (by simp [hasFVar, hasFVarD, hfv x])]
-    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih d Δ₁ W hN hcl
     rw [closedn_mkApps] at hcl

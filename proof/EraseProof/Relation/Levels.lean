@@ -656,15 +656,14 @@ theorem Erases.instL_gen (henv : ProgEnv P ζ E B) (hE : Metalean.EnvWF E) (hsub
     intro _ _ _ _ _ _ _ hat hT hF _
     exact .fixVar hat (hT.instL hus) (by rw [MLCtx.findFix_instL, hF]; rfl)
   case constFix =>
-    intro c ci pre _ _ _ _ _ _ t us₀ hci hdef hcas hat hax hpre hp ht₀ ht _ hcl hfv ih _
+    intro c ci pre us₀ _ _ _ _ _ t hci hdef hcas hat hax hpre hca hp ht _ hcl hfv ih hok
     obtain ⟨p, hpT⟩ := hp
     have hlen : us₀.length = ci.levelParams.length := by
       cases ci <;> simp only [ConstantInfo.isDefinition, reduceCtorEq] at hdef
-      exact TrM.lvlOK henv hE hsub ht₀ _ hci (.inr (.inl ⟨_, rfl⟩))
+      exact hok _ hci (.inr (.inl ⟨_, rfl⟩))
     have hb := ih (LvlOK_instLevels _ _ (TrM.lvlOK henv hE hsub hpT))
     rw [instLevels_comp hlen (TrM.levelsTr hpT)] at hb
-    exact .constFix hci hdef hcas hat hax hpre ⟨p, hpT⟩
-      (by simpa [MLCtx.instL, Pure.instLevels] using ht₀.instL hus)
+    exact .constFix hci hdef hcas hat hax hpre hca ⟨p, hpT⟩
       (by simpa [MLCtx.instL, Pure.instLevels] using ht.instL hus)
       (by simpa [MLCtx.instL, MLDecl.instL] using hb) hcl hfv
   case ctor =>

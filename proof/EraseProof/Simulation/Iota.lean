@@ -202,7 +202,7 @@ theorem fixed_const {c : Name} {us : List Level} (ha : σ.isAtom c = true) :
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx.symm
     rw [SimCases.specialArity_casesOn hcs] at hsa; cases hsa
   | quotMk | quotLift | recIota => exact absurd (SrcDefeq.spine_const hx.symm).1 (by simp)
-  | deltaRec _ _ _ _ _ hpos hlen =>
+  | deltaRec _ _ _ _ _ _ hpos hlen =>
     obtain ⟨rfl, -, -⟩ := SrcDefeq.spine_const hx.symm
     simp only [List.length_nil] at hlen
     omega
@@ -282,6 +282,23 @@ theorem fixed_app {f a : Expr} (hfv : SrcValue σ f) (hf : Fixed σ C f) (ha : F
   | quotMk hc hk => exact (hsp (ar := 3) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
   | quotLift hc hk => exact (hsp (ar := 6) hx (by simp [specialArity, hc, hk, quotEvalArity])).elim
   | recIota hcr => exact (hsp hx (by unfold specialArity; rw [hcr])).elim
+  | @deltaRec c _ _ us _ _ _ hfd hdef _ hat =>
+    obtain ⟨bs, -, hf'⟩ := SrcDefeq.spine_app hx.symm
+    have hfn : f.getAppFn = .const c us := by
+      rw [hf']; exact SrcDefeq.getAppFn_mkAppN_const _ _ bs
+    clear hf'
+    cases hfv with
+    | lam | sort | forallE | lit => simp [Expr.getAppFn] at hfn
+    | spine hsp =>
+      obtain ⟨c', us', hc', hat'⟩ := RelInst.atomSpine_head hsp
+      rw [hfn] at hc'; cases hc'
+      rw [hat'] at hat; cases hat
+    | propProj hp =>
+      obtain ⟨S, i, e₀, he⟩ := RelInst.propProj_head hp
+      rw [he] at hfn; cases hfn
+    | ctor hc _ | quotMk hc _ _ =>
+      rw [SrcDefeq.getAppFn_mkAppN_const] at hfn; cases hfn
+      rw [hc] at hfd; cases hfd; cases hdef
   | atom ha' => subst hx; simp [SrcAtom] at ha'
   | zeta | delta | constAtom | proj | projProp | lit | mdata => cases hx
 

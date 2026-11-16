@@ -269,7 +269,7 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     have hu' := (unfold?_agree (a := axiomatized view cfg) hsub hcl hc).trans hu
     obtain ⟨eb, hv⟩ := ih (ConstsIn_instLevels (unfold?_consts hcl hu'))
     exact ⟨.delta hu' eb, hv⟩
-  | deltaRec hfd hdef hcas hax hpre hlam hlen hlv _ hC _ iha ihp =>
+  | deltaRec hfd hdef hcas hat hax hpre hlam hlen hlv _ hC _ iha ihp =>
     intro hc
     have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
     have hfd' := (findDecl_agree hsub hcD).trans hfd
@@ -279,7 +279,8 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
       (hpcl _ (findDecl_eq_some hfd').1 _ hpre), fun w hw => by
         obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hw
         exact (hargs i _ _ (List.getElem?_eq_getElem (by omega)) (List.getElem?_eq_getElem hi)).2⟩)
-    exact ⟨.deltaRec hfd' hdef ((casesOn?_agree hsub hcl hcD _ _).trans hcas) hax hpre hlam hlen
+    exact ⟨.deltaRec hfd' hdef ((casesOn?_agree hsub hcl hcD _ _).trans hcas)
+      ((isAtom_agree (a := axiomatized view cfg) hsub hcl hcD).trans hat) hax hpre hlam hlen
       hlv (fun i x w hx hw => (hargs i x w hx hw).1) hC ep, hv⟩
   | constAtom ha =>
     intro hc
