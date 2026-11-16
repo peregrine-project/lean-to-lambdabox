@@ -103,8 +103,8 @@ def CasesCaseSpec : Prop :=
       (∀ m, as[casesMajor iv]? = some m →
         Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u) →
       (u.isNeverZero = true ∨ iv.ctors.length ≠ 1) →
-      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-      (∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d) →
+      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+      (∀ d ls, OccursAt d ls (mkAppN (.const c us) as.toArray) → InScope tc lps S d ls) →
       MachineFree cfg (mkAppN (.const c us) as.toArray) →
       NatPlain cfg (mkAppN (.const c us) as.toArray) →
       RecShaped cfg decls (mkAppN (.const c us) as.toArray) →
