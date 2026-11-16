@@ -37,14 +37,14 @@ theorem casesOn_B : (evalEnvOf view cfg P).casesOn? `B.casesOn = some B_ind := b
 /-- A field-less constructor of `B` evaluates to itself (`eval_construct` with no argument). -/
 theorem ev_ctor0 {c : Name} {cv : ConstructorVal}
     (hc : findDecl P c = some (.ctorInfo cv)) (hn : cv.numParams + cv.numFields = 0) :
-    SrcEval (evalEnvOf view cfg P) (.const c []) (.const c []) :=
+    SrcEval (evalEnvOf view cfg P) C (.const c []) (.const c []) :=
   SrcEval.ctor (as := []) (vs := []) hc hn.symm rfl (fun _ _ _ h => nomatch h)
 
 /-- `hev`: `B.neg B.f` evaluates to `B.t`. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e cT := by
-  have hF : SrcEval (evalEnvOf view cfg P) cF cF := ev_ctor0 rfl rfl
-  have hT : SrcEval (evalEnvOf view cfg P) cT cT := ev_ctor0 rfl rfl
-  have hcases : SrcEval (evalEnvOf view cfg P)
+theorem hev : SrcEval (evalEnvOf view cfg P) C e cT := by
+  have hF : SrcEval (evalEnvOf view cfg P) C cF cF := ev_ctor0 rfl rfl
+  have hT : SrcEval (evalEnvOf view cfg P) C cT cT := ev_ctor0 rfl rfl
+  have hcases : SrcEval (evalEnvOf view cfg P) C
       (mkAppN (.const `B.casesOn [.succ .zero]) [.lam `x tB tB .default, cF, cT, cF].toArray) cT :=
     SrcEval.casesIota (i := 0) (fs := []) casesOn_B rfl rfl hF
       ⟨`B.f, [], Bf_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl hT

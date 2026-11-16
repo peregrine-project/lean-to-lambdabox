@@ -41,11 +41,11 @@ theorem hfrag : collectDeps view cfg e = .ok D := hcollect
 /-- A field-less constructor evaluates to itself (`eval_construct` with no argument). -/
 theorem ev_ctor0 {c : Name} {cv : ConstructorVal}
     (hc : findDecl P c = some (.ctorInfo cv)) (hn : cv.numParams + cv.numFields = 0) :
-    SrcEval (evalEnvOf view cfg P) (.const c []) (.const c []) :=
+    SrcEval (evalEnvOf view cfg P) C (.const c []) (.const c []) :=
   SrcEval.ctor (as := []) (vs := []) hc hn.symm rfl (fun _ _ _ h => nomatch h)
 
 /-- The major `N.s N.z` evaluates to itself. -/
-theorem ev_mj : SrcEval (evalEnvOf view cfg P) mj mj := by
+theorem ev_mj : SrcEval (evalEnvOf view cfg P) C mj mj := by
   refine SrcEval.ctor (c := `N.s) (us := []) (as := [cZ]) (vs := [cZ]) rfl rfl rfl ?_
   intro i a v h1 h2
   rcases i with _ | i <;> simp at h1 h2
@@ -54,7 +54,7 @@ theorem ev_mj : SrcEval (evalEnvOf view cfg P) mj mj := by
 
 /-- The minor premises evaluate to themselves: `B.t` is a constructor, `fun n ih => ih` a λ. -/
 theorem ev_mins : ∀ (i : Nat) m mv, [cT, minS][i]? = some m → [cT, minS][i]? = some mv →
-    SrcEval (evalEnvOf view cfg P) m mv := by
+    SrcEval (evalEnvOf view cfg P) C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact ev_ctor0 rfl rfl
@@ -70,7 +70,7 @@ theorem minors_shape : ∀ mi ∈ minorsN, mi.ihs.map (fun h => (h.field, h.bind
 
 /-- `@N.rec (fun _ => B) B.t (fun n ih => ih) N.z` evaluates to `B.t`: the recursor ι on `N.z`,
 whose minor `B.t` has no field and no induction hypothesis. -/
-theorem ev_ih : SrcEval (evalEnvOf view cfg P)
+theorem ev_ih : SrcEval (evalEnvOf view cfg P) C
     (mkAppN (.const `N.rec [.succ .zero]) ([] ++ [motB] ++ [cT, minS] ++ [cZ]).toArray) cT :=
   SrcEval.recIota (ps := []) (ms := [motB]) (mins := [cT, minS]) (mvs := [cT, minS]) (fs := [])
     (rfs := []) (ihvs := []) (T := `N) (iv := N_ind) (cvs := [Nz_ctor, Ns_ctor]) rfl rfl rfl rfl
@@ -79,15 +79,15 @@ theorem ev_ih : SrcEval (evalEnvOf view cfg P)
     (fun _ _ _ h => nomatch h) (ev_ctor0 rfl rfl)
 
 /-- `(fun n ih => ih) N.z B.t` evaluates to `B.t`. -/
-theorem ev_minS : SrcEval (evalEnvOf view cfg P) (mkAppN minS ([cZ] ++ [cT]).toArray) cT := by
-  have hT : SrcEval (evalEnvOf view cfg P) cT cT := ev_ctor0 rfl rfl
-  have h1 : SrcEval (evalEnvOf view cfg P) (.app minS cZ) (.lam `ih tB (.bvar 0) .default) :=
+theorem ev_minS : SrcEval (evalEnvOf view cfg P) C (mkAppN minS ([cZ] ++ [cT]).toArray) cT := by
+  have hT : SrcEval (evalEnvOf view cfg P) C cT cT := ev_ctor0 rfl rfl
+  have h1 : SrcEval (evalEnvOf view cfg P) C (.app minS cZ) (.lam `ih tB (.bvar 0) .default) :=
     SrcEval.beta (by rintro ⟨c, us, ar, h, -⟩; cases h) (SrcEval.atom trivial) (ev_ctor0 rfl rfl)
       (SrcEval.atom trivial)
   exact SrcEval.beta (by rintro ⟨c, us, ar, h, -⟩; cases h) h1 hT hT
 
 /-- `hev`: `e` evaluates to `B.t`. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e cT :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e cT :=
   SrcEval.recIota (ps := []) (ms := [motB]) (mins := [cT, minS]) (mvs := [cT, minS]) (fs := [cZ])
     (rfs := [cZ]) (ihvs := [cT]) (T := `N) (iv := N_ind) (cvs := [Nz_ctor, Ns_ctor]) rfl rfl rfl
     rfl rfl recShape_N minors_shape rfl rfl rfl rfl ev_mins ev_mj

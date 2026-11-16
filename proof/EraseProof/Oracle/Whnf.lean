@@ -558,17 +558,17 @@ theorem whnf_iota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv cx.dec
   -- the ι-rule
   have hrn : rv.name = r := (findDecl_eq_some (l := cx.decls) hr).2
   have hcT : r = mkRecName T₀ := hrn.symm.trans hname
-  have hcr : findDecl (⟨cx.decls, fun _ => false⟩ : EvalEnv).decls r = some (.recInfo rv) := hr
-  have hblk : (⟨cx.decls, fun _ => false⟩ : EvalEnv).recBlock? rv = some ([iv], cvs) := by
+  have hcr : findDecl (⟨cx.decls, fun _ => false, fun _ => none⟩ : EvalEnv).decls r = some (.recInfo rv) := hr
+  have hblk : (⟨cx.decls, fun _ => false, fun _ => none⟩ : EvalEnv).recBlock? rv = some ([iv], cvs) := by
     have hT' : findDecl cx.decls T₀ = some (.inductInfo iv) := hT
-    have hcvs' : (iv.ctors.mapM (⟨cx.decls, fun _ => false⟩ : EvalEnv).ctorOf?) = some cvs := hcvs
+    have hcvs' : (iv.ctors.mapM (⟨cx.decls, fun _ => false, fun _ => none⟩ : EvalEnv).ctorOf?) = some cvs := hcvs
     simp [EvalEnv.recBlock?, hall, EvalEnv.indOf?, hT', hcvs']
   have htake : (pre ++ [a]).take (rv.numParams + rv.numMotives + rv.numMinors) = pre := by
     exact List.take_left' hpl
   rw [htake] at hmk hw
   have hT₀ : cv.induct = T₀ := by
     rw [hall] at hind; exact (List.singleton_inj.mp hind).symm
-  have hcv : CtorValue ⟨cx.decls, fun _ => false⟩ T₀ wa cv.cidx (cargs.drop cv.numParams) := by
+  have hcv : CtorValue ⟨cx.decls, fun _ => false, fun _ => none⟩ T₀ wa cv.cidx (cargs.drop cv.numParams) := by
     refine ⟨C, uC, cv, cargs.take cv.numParams, hC, hT₀, rfl, by simp; omega, by simp; omega, ?_⟩
     rw [List.take_append_drop]
     have := CasesShape.spine_mkAppN wa

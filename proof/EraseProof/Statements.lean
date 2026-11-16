@@ -33,7 +33,7 @@ def erases_correct_statement : Prop :=
     BlockNamesInj σ.decls → ArityTypes σ.decls → LenvClosed lenv →
     ∀ {t : Metalean.Expr ζ lps.length 0},
       TrM E B lps .nil [] e t → (∃ T, E[.nil] ⊢ t : T) →
-      Erases E B lps σ .nil [] e tb → ErasesDeps E B σ lenv tb → SrcEval σ e v →
+      Erases E B lps σ .nil [] e tb → ErasesDeps E B σ lenv tb → SrcEval σ (SrcConv E B lps) e v →
       ∃ vb, Erases E B lps σ .nil [] v vb ∧ LBEval defaultFlags lenv tb vb
 
 /-- The statement of `collectDeps_ok_of`, a lower bound of the fragment test: a typed program whose
@@ -141,7 +141,7 @@ def erase_correct_statement : Prop :=
     (hty   : ∃ T, E[.nil] ⊢ t : T) →
     (hfrag : collectDeps view cfg e = .ok decls) →
     (hrun  : eraseEntry view cfg e = pure (p, inl)) →
-    (hev   : SrcEval (evalEnvOf view cfg P) e v) →
+    (hev   : SrcEval (evalEnvOf view cfg P) (SrcConv E B lps) e v) →
     ∃ lenv tb vb, p = .untyped lenv (some tb) ∧
       Erases E B lps (evalEnvOf view cfg P) .nil [] v vb ∧
       LBEval defaultFlags lenv tb vb ∧

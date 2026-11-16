@@ -26,6 +26,8 @@ namespace EraseProof
 
 namespace SrcProof
 
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ}
 
 /-! ## Telescopes -/
@@ -1219,7 +1221,7 @@ its type, to a translation of the value. Reference: `subject_reduction_eval`
 (`MR P/PCUICWcbvEval.v`), per rule `WHRed.*_defeq` (`ML Metatheory/SubjectReduction.lean`). -/
 theorem SrcEval.defeq {e v : Expr} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {t T : Metalean.Expr ζ lps.length 0}
-    (he : TrM E B lps .nil [] e t) (ht : E[.nil] ⊢ t : T) (hev : SrcEval σ e v) :
+    (he : TrM E B lps .nil [] e t) (ht : E[.nil] ⊢ t : T) (hev : SrcEval σ C e v) :
     ∃ t', TrM E B lps .nil [] v t' ∧ E[.nil] ⊢ t ≡ t' : T :=
   (SrcDefeq.sound_of henv hE hsub (SrcProof.proofSound henv hE hsub) hev).1 he ht
 
@@ -1228,7 +1230,7 @@ equal, at its type, to a translation of the value, which therefore has the same 
 `Is_type_eval` (`MR E/ErasureCorrectness.v`). -/
 theorem ErasableS.eval {e v : Expr} (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {t T : Metalean.Expr ζ lps.length 0}
-    (_he : TrM E B lps .nil [] e t) (_ht : E[.nil] ⊢ t : T) (hev : SrcEval σ e v)
+    (_he : TrM E B lps .nil [] e t) (_ht : E[.nil] ⊢ t : T) (hev : SrcEval σ C e v)
     (h : ErasableS E B lps .nil [] e) : ErasableS E B lps .nil [] v := by
   obtain ⟨t₀, htr, T₀, ht₀, hT₀⟩ := h
   obtain ⟨t', htr', hd⟩ := SrcEval.defeq henv hE hsub htr ht₀ hev

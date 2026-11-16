@@ -44,8 +44,8 @@ theorem casesOn_Eq : (evalEnvOf view cfg P).casesOn? `Eq.casesOn = some Eq_ind :
 /-- `@Eq.refl.{1} B B.t`. -/
 def reflE : Expr := mkAppN (.const `Eq.refl [l1]) #[tB, cT]
 
-theorem ev_refl : SrcEval (evalEnvOf view cfg P) reflE reflE := by
-  have hT : SrcEval (evalEnvOf view cfg P) (mkAppN cT ([] : List Expr).toArray)
+theorem ev_refl : SrcEval (evalEnvOf view cfg P) C reflE reflE := by
+  have hT : SrcEval (evalEnvOf view cfg P) C (mkAppN cT ([] : List Expr).toArray)
       (mkAppN cT ([] : List Expr).toArray) :=
     SrcEval.ctor (as := []) (vs := []) rfl rfl rfl (fun _ _ _ h => nomatch h)
   refine SrcEval.ctor (as := [tB, cT]) (vs := [tB, cT]) rfl rfl rfl ?_
@@ -55,7 +55,7 @@ theorem ev_refl : SrcEval (evalEnvOf view cfg P) reflE reflE := by
   · exact hT
 
 /-- `hev`: `e` evaluates to `fun y => y` (ι on `Eq.refl`). -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e idB :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e idB :=
   SrcEval.casesIota (as := [tB, cT, motE, cT, reflE, idB]) (i := 0) (fs := []) casesOn_Eq rfl rfl
     ev_refl ⟨`Eq.refl, [l1], Eq_refl, [tB, cT], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl
     (SrcEval.atom trivial)
@@ -97,7 +97,7 @@ theorem casesOn_Eq : (evalEnvOf view cfg P).casesOn? `Eq.casesOn = some Eq_ind :
 
 /-- `hev`: `e` evaluates to `fun y => y`: the major `hEq` is an atom whose statement is the type of
 `@Eq.refl B B.t`, so the `casesOn` continues with the alternative. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e idB :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e idB :=
   SrcEval.casesProof (as := [tB, cT, motE, cT, .const `hEq [], idB]) (ps := [tB, cT]) (vs := [l1])
     casesOn_Eq rfl rfl (SrcEval.constAtom rfl) (AtomSpine.const rfl) rfl rfl rfl rfl rfl rfl rfl
     rfl rfl (SrcEval.atom trivial)

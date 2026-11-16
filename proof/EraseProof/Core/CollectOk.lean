@@ -296,7 +296,7 @@ view has. -/
 theorem viewCtors_of_mapM {view : EnvView} {decls : List ConstantInfo}
     (hvw : ∀ y ∈ decls, view.find? y.name = some y) :
     ∀ {l : List Name} {cvs : List ConstructorVal},
-    l.mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false⟩) = some cvs → viewCtors view l = cvs
+    l.mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false, fun _ => none⟩) = some cvs → viewCtors view l = cvs
   | [], cvs, h => by cases h; rfl
   | n :: l, cvs, h => by
     simp only [List.mapM_cons, bind, pure, Option.bind_eq_some_iff, Option.some.injEq] at h
@@ -387,7 +387,7 @@ theorem rcd {ci : ConstantInfo} (hci : ci ∈ decls) :
     (∀ x, ReadExpr decls ci x → ConstsIn inD x ∧ (HasNatLit x → inD ``Nat)) ∧
     (∀ n ∈ ci.all, inD n) ∧ (∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, inD n) ∧
     (∀ cv, ci = .ctorInfo cv → inD cv.induct) ∧
-    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name = some iv →
+    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name = some iv →
       inD iv.name ∧ inD (mkRecName iv.name)) ∧
     (∀ iv, ci = .inductInfo iv → iv.ctors.length = 1 → inD (mkRecName iv.name)) :=
   hf.rc.2.2 ci hci
@@ -463,14 +463,14 @@ constructors, and
 theorem recog_dec {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
     {ctors : List ConstantInfo} (hd : .defnInfo d ∈ decls)
     (hrec : recognizeCasesOn view (.defnInfo d) = some (I, R, ctors)) :
-    (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isSome ∧ .inductInfo I ∈ decls ∧
+    (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isSome ∧ .inductInfo I ∈ decls ∧
       .recInfo R ∈ decls ∧ d.name = .str I.name "casesOn" ∧
       ctors = I.ctors.flatMap (viewFind view) := by
   obtain ⟨T, hT, hI, hR, hct, hc⟩ := recognize_iff.1 hrec
   obtain ⟨hIf, hIn⟩ := viewFind_eq hI
   obtain ⟨hRf, hRn⟩ := viewFind_eq hR
   have hl := recog_view (hf.vw hd) hI hR
-  have hcs : (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isSome := by
+  have hcs : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isSome := by
     by_contra hnone
     have hx : ReadExpr decls (.defnInfo d) d.value :=
       .inr (.inl ⟨d, rfl, rfl, by simpa using hnone⟩)
@@ -547,7 +547,7 @@ theorem recog_dec {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
 
 /-- A `casesOn` recognized on `decls` is recognized by the view. -/
 theorem recog_of_dec {d : DefinitionVal} (hd : .defnInfo d ∈ decls)
-    (hcs : (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isSome) :
+    (hcs : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isSome) :
     ∃ I R ctors, recognizeCasesOn view (.defnInfo d) = some (I, R, ctors) := by
   obtain ⟨iv, hiv⟩ := Option.isSome_iff_exists.1 hcs
   obtain ⟨-, R, ctors, h⟩ := recog_of_ds_of hf.closed hf.hview hf.sub hf.inds hd hiv
@@ -606,7 +606,7 @@ theorem step {ci : ConstantInfo} (hci : ci ∈ decls)
       (∀ r, ro = some r → r ∈ decls ∧ r.name ≠ ci.name ∧
         ∃ tys, exprConsts cfg r.type = .ok tys ∧ ∀ n ∈ tys, Cov cfg decls n) ∧
       (∀ r d, ro = some r → ci = .defnInfo d →
-        (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name).isSome) := by
+        (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name).isSome) := by
   have hdex := hf.dex hci hnr
   obtain ⟨ty, hty, htyc⟩ := hf.read_names hci (x := ci.type) (.inl rfl)
   have hall : (∀ R, ci ≠ .recInfo R) → ∀ n ∈ ci.all, Cov cfg decls n := fun hr n hn =>
@@ -661,8 +661,8 @@ theorem step {ci : ConstantInfo} (hci : ci ∈ decls)
       · intro _ _ _ _
         exact hcs
     | none =>
-      have hnone : (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isNone := by
-        cases h : EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name with
+      have hnone : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isNone := by
+        cases h : EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name with
         | none => rfl
         | some iv =>
           obtain ⟨I, R, ctors, h'⟩ := hf.recog_of_dec hci (by rw [h]; rfl)
@@ -778,11 +778,11 @@ distinct names, and its recognized `casesOn` are recognized on `decls`. -/
 theorem closure_ok_of : ∀ (f : Nat) {todo : List Name} {acc : List ConstantInfo}
     {cases : List Name}, (∀ y ∈ acc, y ∈ decls) → (acc.map (·.name)).Nodup →
     (∀ n ∈ todo, Cov cfg decls n) →
-    (∀ m ∈ cases, (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ m).isSome) →
+    (∀ m ∈ cases, (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ m).isSome) →
     decls.length ≤ f + acc.length →
     ∃ res, closure view cfg f todo acc cases = .ok res ∧ (∀ y ∈ res.1, y ∈ decls) ∧
       (res.1.map (·.name)).Nodup ∧
-      ∀ m ∈ res.2, (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ m).isSome
+      ∀ m ∈ res.2, (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ m).isSome
   | 0, todo, acc, cases, hacc, hnd, htodo, hcases, hlen => by
     obtain ⟨rest, hrest, hsub, hnone⟩ := hf.dropKnown_ok_of hacc htodo
     cases rest with
@@ -835,7 +835,7 @@ theorem closure_ok_of : ∀ (f : Nat) {todo : List Name} {acc : List ConstantInf
       | some r =>
         obtain ⟨hr, hrn, tys, htys, htysc⟩ := hro r rfl
         have hcases1 : ∀ m ∈ (if y matches .defnInfo _ then y.name :: cases else cases),
-            (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ m).isSome := by
+            (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ m).isSome := by
           intro m hm
           cases y with
           | defnInfo d =>
@@ -922,7 +922,7 @@ theorem eliminatedUndecided_none_of {view : EnvView} {cfg : ErasureConfig}
     {l decls : List ConstantInfo} {cases : List Name} (hs : ∀ y ∈ l, y ∈ decls)
     (hfd : ∀ y ∈ decls, findDecl decls y.name = some y)
     (hph : ∀ ci ∈ decls, PhaseIDecl view cfg decls ci)
-    (hcases : ∀ m ∈ cases, (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ m).isSome) :
+    (hcases : ∀ m ∈ cases, (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ m).isSome) :
     eliminatedUndecided l cases = none := by
   unfold eliminatedUndecided
   rw [List.findSome?_eq_none_iff]

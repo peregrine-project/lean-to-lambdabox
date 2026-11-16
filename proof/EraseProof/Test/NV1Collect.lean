@@ -83,7 +83,7 @@ theorem forall_eq_some {α : Type} {f : Option α} {Q : α → Prop} [DecidableP
 test `p`. -/
 def readAll (decls : List ConstantInfo) (p : Expr → Bool) : Bool :=
   decls.all fun ci => p ci.type && match ci with
-    | .defnInfo d => (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isSome || p d.value
+    | .defnInfo d => (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isSome || p d.value
     | .opaqueInfo o => p o.value
     | _ => true
 
@@ -164,7 +164,7 @@ theorem subD : SubEnv D P := by
   intro ci h
   rcases mem_D h with rfl | rfl | rfl | rfl | rfl | rfl <;> rfl
 
-theorem casesOnD : EvalEnv.casesOn? ⟨D, fun _ => false⟩ `B.casesOn = some B_ind := by rfl
+theorem casesOnD : EvalEnv.casesOn? ⟨D, fun _ => false, fun _ => none⟩ `B.casesOn = some B_ind := by rfl
 
 /-- The expressions the traversal reads from a declaration of `D`: its type, and `B.neg`'s value
 (`B.casesOn`'s is not read: it is a recognized `casesOn`). -/

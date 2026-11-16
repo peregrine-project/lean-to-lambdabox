@@ -31,6 +31,8 @@ namespace Steps
 open TravFrame
 
 section
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P decls : List ConstantInfo}
   {view : EnvView} {cfg : ErasureConfig}
 
