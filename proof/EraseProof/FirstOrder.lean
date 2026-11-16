@@ -133,12 +133,13 @@ theorem erase_correct_firstorder {P decls : List ConstantInfo} {ζ : Metalean.Si
     {E : Metalean.Env ζ} {B : Binds ζ} {view : EnvView} {cfg : ErasureConfig} {lps : List Name}
     {e v : Expr} {t : Metalean.Expr ζ lps.length 0} {p : Program} {inl : List Kername}
     (henv : ProgEnv P ζ E B) (hwf : Metalean.EnvWF E) (hview : ViewAgrees view P)
-    (he : TrM E B lps .nil [] e t) (hty : ∃ T, E[.nil] ⊢ t : T)
+    (hpre : PreDefsOK E B view cfg P) (he : TrM E B lps .nil [] e t) (hty : ∃ T, E[.nil] ⊢ t : T)
     (hfrag : collectDeps view cfg e = .ok decls) (hrun : eraseEntry view cfg e = pure (p, inl))
-    (hev : SrcEval (evalEnvOf view cfg P) (SrcConv E B lps) e v) (hfo : FirstOrderValue (evalEnvOf view cfg P) v) :
+    (hev : SrcEval (evalEnvOf view cfg P) (SrcConv E B lps) e v)
+    (hfo : FirstOrderValue (evalEnvOf view cfg P) v) :
     ∃ lenv tb, p = .untyped lenv (some tb) ∧
       LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg P) v []) := by
-  obtain ⟨lenv, tb, vb, hp, hv, hlb, -⟩ := erase_correct henv hwf hview he hty hfrag hrun hev
+  obtain ⟨lenv, tb, vb, hp, hv, hlb, -⟩ := erase_correct henv hwf hview hpre he hty hfrag hrun hev
   have hsub : SubEnv (evalEnvOf view cfg P).decls P := fun _ => CollectSub.findDecl_of_view hview
   rw [← Erases.firstOrder henv hwf hsub hfo hv hlb]
   exact ⟨lenv, tb, hp, hlb⟩
