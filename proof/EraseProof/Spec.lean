@@ -895,9 +895,9 @@ inductive SrcEval (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr �
   `v`. Lean's code generator runs the definition so (`addAndCompilePartialRec`,
   `Lean/Elab/PreDefinition/Basic.lean:280`), and λ□ unfolds the emitted fixpoint at the first
   argument (`eval_fix`, `MR P/PCUICWcbvEval.v:273`; DV-7). -/
-  | deltaRec {as vs : List Expr} : findDecl σ.decls c = some ci → σ.axiomatized ci = false →
-      σ.recPre? ci = some pre → 0 < lamArity pre → as.length = lamArity pre →
-      as.length = vs.length →
+  | deltaRec {as vs : List Expr} : findDecl σ.decls c = some ci → ci.isDefinition = true →
+      σ.axiomatized ci = false → σ.recPre? ci = some pre → 0 < lamArity pre →
+      as.length = lamArity pre → as.length = vs.length →
       (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
       C (mkAppN (.const c us) vs.toArray)
         (mkAppN (Pure.instLevels ci.levelParams us pre) vs.toArray) →
