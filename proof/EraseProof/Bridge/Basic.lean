@@ -111,19 +111,6 @@ theorem MLCtx.findFix_map_wk (Δ : MLCtx ζ ℓ n) (x : FVarId) :
       · cases d <;> rfl
       · exact ih
 
-/-- A fix-variable local denotes the constant translation it stands for. -/
-theorem MLCtx.findF_of_findFix {Δ : MLCtx ζ ℓ n} {x : FVarId} {t : Metalean.Expr ζ ℓ n}
-    (h : Δ.findFix x = some t) : Δ.findF x = some t := by
-  induction Δ with
-  | nil => cases h
-  | cons p Δ ih =>
-    obtain ⟨_ | y, d⟩ := p
-    · exact ih h
-    · simp only [MLCtx.findFix, MLCtx.findF] at h ⊢
-      split at h
-      · cases d <;> simp_all [MLDecl.fixVal?, MLDecl.denote]
-      · rw [if_neg ‹_›]; exact ih h
-
 /-- `Δ'` answers every lookup `Δ` answers, with the same term. -/
 def MLCtx.Sub (Δ Δ' : MLCtx ζ ℓ n) : Prop :=
   (∀ i t, Δ.findB i = some t → Δ'.findB i = some t) ∧
