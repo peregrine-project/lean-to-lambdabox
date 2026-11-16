@@ -42,11 +42,11 @@ theorem casesOn_W : (evalEnvOf view cfg P).casesOn? `W.casesOn = some W_ind := b
 /-- A field-less constructor evaluates to itself (`eval_construct` with no argument). -/
 theorem ev_ctor0 {c : Name} {cv : ConstructorVal}
     (hc : findDecl P c = some (.ctorInfo cv)) (hn : cv.numParams + cv.numFields = 0) :
-    SrcEval (evalEnvOf view cfg P) (.const c []) (.const c []) :=
+    SrcEval (evalEnvOf view cfg P) C (.const c []) (.const c []) :=
   SrcEval.ctor (as := []) (vs := []) hc hn.symm rfl (fun _ _ _ h => nomatch h)
 
 /-- The major `W.s B.t T.i` evaluates to itself. -/
-theorem ev_mj : SrcEval (evalEnvOf view cfg P) mj mj := by
+theorem ev_mj : SrcEval (evalEnvOf view cfg P) C mj mj := by
   refine SrcEval.ctor (c := `W.s) (us := []) (as := [cT, cI]) (vs := [cT, cI]) rfl rfl rfl ?_
   intro i a v h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
@@ -54,15 +54,15 @@ theorem ev_mj : SrcEval (evalEnvOf view cfg P) mj mj := by
   · exact ev_ctor0 rfl rfl
 
 /-- `(fun b h => b) B.t T.i` evaluates to `B.t`. -/
-theorem ev_alt : SrcEval (evalEnvOf view cfg P) (mkAppN altS #[cT, cI]) cT := by
-  have hT : SrcEval (evalEnvOf view cfg P) cT cT := ev_ctor0 rfl rfl
-  have h1 : SrcEval (evalEnvOf view cfg P) (.app altS cT) (.lam `h tT cT .default) :=
+theorem ev_alt : SrcEval (evalEnvOf view cfg P) C (mkAppN altS #[cT, cI]) cT := by
+  have hT : SrcEval (evalEnvOf view cfg P) C cT cT := ev_ctor0 rfl rfl
+  have h1 : SrcEval (evalEnvOf view cfg P) C (.app altS cT) (.lam `h tT cT .default) :=
     SrcEval.beta (by rintro ⟨c, us, ar, h, -⟩; cases h) (SrcEval.atom trivial) hT
       (SrcEval.atom trivial)
   exact SrcEval.beta (by rintro ⟨c, us, ar, h, -⟩; cases h) h1 (ev_ctor0 rfl rfl) hT
 
 /-- `hev`: `e` evaluates to `B.t`. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e cT :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e cT :=
   SrcEval.casesIota (as := [motB, mj, cF, altS]) (i := 1) (fs := [cT, cI]) casesOn_W rfl rfl ev_mj
     ⟨`W.s, [], Ws_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl ev_alt
 

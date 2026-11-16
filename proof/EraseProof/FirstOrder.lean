@@ -134,7 +134,7 @@ theorem erase_correct_firstorder {P decls : List ConstantInfo} {ζ : Metalean.Si
     (henv : ProgEnv P ζ E B) (hwf : Metalean.EnvWF E) (hview : ViewAgrees view P)
     (he : TrM E B lps .nil [] e t) (hty : ∃ T, E[.nil] ⊢ t : T)
     (hfrag : collectDeps view cfg e = .ok decls) (hrun : eraseEntry view cfg e = pure (p, inl))
-    (hev : SrcEval (evalEnvOf view cfg P) e v) (hfo : FirstOrderValue (evalEnvOf view cfg P) v) :
+    (hev : SrcEval (evalEnvOf view cfg P) (SrcConv E B lps) e v) (hfo : FirstOrderValue (evalEnvOf view cfg P) v) :
     ∃ lenv tb, p = .untyped lenv (some tb) ∧
       LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg P) v []) := by
   obtain ⟨lenv, tb, vb, hp, hv, hlb, -⟩ := erase_correct henv hwf hview he hty hfrag hrun hev

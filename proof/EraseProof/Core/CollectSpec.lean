@@ -997,7 +997,7 @@ theorem recog_of_ds_of {view : EnvView} {decls : List ConstantInfo}
     (hblk : ∀ iv, .inductInfo iv ∈ decls →
       (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∀ n ∈ iv.all, n ∈ decls.map (·.name))
     {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
-    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax⟩ d.name = some iv) :
+    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some iv) :
     .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) := by
   have vw : ∀ y ∈ decls, view.find? y.name = some y := fun y hy => hview y (hsub y hy)
   unfold EvalEnv.casesOn? at hcs
@@ -1104,7 +1104,7 @@ theorem reads_agree {d : DefinitionVal} {iv : InductiveVal} {R : RecursorVal} {T
 theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
     {ctors : List ConstantInfo} (hd : .defnInfo d ∈ decls)
     (hrec : recognizeCasesOn view (.defnInfo d) = some (I, R, ctors)) (ax : ConstantInfo → Bool) :
-    EvalEnv.casesOn? ⟨decls, ax⟩ d.name = some I ∧ .inductInfo I ∈ decls ∧
+    EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some I ∧ .inductInfo I ∈ decls ∧
       .recInfo R ∈ decls ∧ ∃ T, d.name = .str T "casesOn" ∧ R.name = mkRecName T ∧
       ctors = I.ctors.flatMap (viewFind view) := by
   obtain ⟨T, hT, hI, hR, hct, hc⟩ := recognize_iff.1 hrec
@@ -1140,7 +1140,7 @@ theorem recog_ds {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
 
 /-- A `casesOn` recognized on the closure is recognized by the view. -/
 theorem recog_of_ds {d : DefinitionVal} {iv : InductiveVal} (hd : .defnInfo d ∈ decls)
-    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax⟩ d.name = some iv) :
+    {ax : ConstantInfo → Bool} (hcs : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ d.name = some iv) :
     .inductInfo iv ∈ decls ∧ ∃ R ctors, recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) :=
   recog_of_ds_of hr.closed hr.hview hr.sub hr.inds hd hcs
 
@@ -1212,12 +1212,12 @@ theorem recr_all {R : RecursorVal} (hR : .recInfo R ∈ decls) :
 closure's. -/
 theorem viewCtors_agree : ∀ {l : List Name}, (∀ n ∈ l, ∃ cv, viewFind view n = [.ctorInfo cv] ∧
     findDecl decls n = some (.ctorInfo cv)) →
-    l.mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false⟩) = some (viewCtors view l)
+    l.mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false, fun _ => none⟩) = some (viewCtors view l)
   | [], _ => rfl
   | n :: l, h => by
     obtain ⟨cv, hv, hf⟩ := h n List.mem_cons_self
     have ih := viewCtors_agree (l := l) (fun m hm => h m (List.mem_cons_of_mem _ hm))
-    have hc : EvalEnv.ctorOf? ⟨decls, fun _ => false⟩ n = some cv := by
+    have hc : EvalEnv.ctorOf? ⟨decls, fun _ => false, fun _ => none⟩ n = some cv := by
       simp [EvalEnv.ctorOf?, hf]
     simp only [List.mapM_cons, hc, ih, viewCtors, List.flatMap_cons, hv, bind, pure,
       Option.bind_some]
@@ -1257,7 +1257,7 @@ theorem rec_frag {R : RecursorVal} (hR : .recInfo R ∈ decls)
       have hzc : z = .ctorInfo cv := eq_of_name hr.hview (hr.sub z hz) hcvP (hzn.trans hcvn.symm)
       subst hzc
       exact ⟨cv, viewFind_of (hzn ▸ hr.vw hz) hzn, hzn ▸ hr.fd hz⟩
-    have hcvs : (([I].flatMap (·.ctors)).mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false⟩)) =
+    have hcvs : (([I].flatMap (·.ctors)).mapM (EvalEnv.ctorOf? ⟨decls, fun _ => false, fun _ => none⟩)) =
         some (recViewCvs view [I]) := by
       have h0 := hr.viewCtors_agree hcv
       simpa [recViewCvs] using h0
@@ -1274,7 +1274,7 @@ theorem rec_frag {R : RecursorVal} (hR : .recInfo R ∈ decls)
 
 /-- The definition behind a `casesOn` recognized on the closure. -/
 theorem defn_of_casesOn {n : Name} {iv : InductiveVal} {ax : ConstantInfo → Bool}
-    (h : EvalEnv.casesOn? ⟨decls, ax⟩ n = some iv) :
+    (h : EvalEnv.casesOn? ⟨decls, ax, fun _ => none⟩ n = some iv) :
     ∃ d, .defnInfo d ∈ decls ∧ d.name = n := by
   unfold EvalEnv.casesOn? at h
   split at h
@@ -1301,7 +1301,7 @@ theorem phase (hel : eliminatedUndecided decls cases = none) {ci : ConstantInfo}
       obtain ⟨hu, hnn, b, hb⟩ := dex.2.2.2.2.1 iv rfl
       obtain ⟨n, u, hsh, hu'⟩ := sortDecided_ok hb
       -- the `casesOn` of `iv`, when recognized on the closure, was recognized by the view
-      have hrecog : ∀ iv', EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn") =
+      have hrecog : ∀ iv', EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn") =
           some iv' → ∃ d R ctors, .defnInfo d ∈ decls ∧ d.name = .str iv.name "casesOn" ∧
             recognizeCasesOn view (.defnInfo d) = some (iv, R, ctors) := by
         intro iv' hiv'

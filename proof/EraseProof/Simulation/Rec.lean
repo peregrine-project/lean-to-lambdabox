@@ -24,6 +24,8 @@ namespace SimRec
 
 open TargetSubst TargetLift RecEval RecFix
 
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
   {σ : EvalEnv} {lps : List Name} {lenv : GlobalDeclarations}
 
@@ -364,13 +366,13 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
       (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
-    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
-    (hmajS : SrcDefeq.Sound E B lps maj mj) (hfields : ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ f)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv)
+    (hmajS : SrcDefeq.Sound E B lps maj mj) (hfields : ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ C f)
     (hcv : CtorValue σ T mj k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
     (ihmaj : ErasesSim E B lps σ lenv maj mj₀)
     (hconv : ∀ mb, Erases E B lps σ .nil [] mj₀ mb → ¬ PropInductive E B T →
       Erases E B lps σ .nil [] mj mb)
@@ -760,8 +762,8 @@ theorem rec_core (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
 /-- The fields of the constructor form (`natLitCtor`) of a value are values that evaluate only to
 themselves: those of a constructor value, or the literal below a successor literal. -/
 theorem fields_natLitCtor {m mv : Expr} {T : Name} {i : Nat} {fs : List Expr}
-    (hm : SrcEval σ m mv) (hcv : CtorValue σ T (natLitCtor mv) i fs) :
-    ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ f := by
+    (hm : SrcEval σ C m mv) (hcv : CtorValue σ T (natLitCtor mv) i fs) :
+    ∀ f ∈ fs, SrcValue σ f ∧ SimIota.Fixed σ C f := by
   rcases natLitCtor_cases mv with ⟨k, rfl⟩ | h
   · cases k with
     | zero =>
@@ -965,13 +967,13 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
       (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
     (hps : ps.length = rv.numParams) (hms : ms.length = rv.numMotives)
     (hmins : mins.length = rv.numMinors) (hlm : mins.length = mvs.length)
-    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv)
-    (hmaj : SrcEval σ maj mj) (hcv : CtorValue σ T (natLitCtor mj) k fs) (hmi : minors[k]? = some mi)
+    (hmv : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv)
+    (hmaj : SrcEval σ C maj mj) (hcv : CtorValue σ T (natLitCtor mj) k fs) (hmi : minors[k]? = some mi)
     (hmk : mvs[k]? = some mk) (hrfs : (mi.ihs.mapM fun h => fs[h.field]?) = some rfs)
     (hrl : rfs.length = ihvs.length)
     (hih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
-    (hv : SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v)
+      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w)
+    (hv : SrcEval σ C (mkAppN mk (fs ++ ihvs).toArray) v)
     (ihm : ∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → ErasesSim E B lps σ lenv m mv)
     (ihmaj : ErasesSim E B lps σ lenv maj mj)
     (ihih : ∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
@@ -979,7 +981,7 @@ theorem erases_correct_recIota (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : 
     (ihv : ErasesSim E B lps σ lenv (mkAppN mk (fs ++ ihvs).toArray) v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v := by
   intro t tb he ⟨T₀, ht⟩ her hdeps
-  have hsrc : SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v :=
     .recIota hcr hall hcT hblk hni hshape hihs hps hms hmins hlm hmv hmaj hcv hmi hmk hrfs hrl hih hv
   have hargs := rec_args henv hE hsub hcr hall hcT hblk hshape hihs he ht
   have hminT : ∀ (i : Nat) m, mins[i]? = some m → ∃ (a₀ A : Metalean.Expr ζ lps.length 0),

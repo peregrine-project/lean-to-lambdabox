@@ -18,6 +18,8 @@ namespace Restrict
 
 open Extend
 
+variable {C : Expr → Expr → Prop}
+
 variable {D P : List ConstantInfo} {a : ConstantInfo → Bool}
 
 /-- The head constant of a term whose constants lie in `D` is in `D`. -/
@@ -31,7 +33,7 @@ theorem head_mem {x : Expr} {c : Name} {us : List Level}
 /-- Short spines agree on terms whose constants lie in the sub-environment. -/
 theorem shortSpine_iff (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
     (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
-    ShortSpine ⟨D, a⟩ x ↔ ShortSpine ⟨P, a⟩ x := by
+    ShortSpine ⟨D, a, fun _ => none⟩ x ↔ ShortSpine ⟨P, a, fun _ => none⟩ x := by
   constructor
   · rintro ⟨c, us, ar, hfn, hs, hn⟩
     exact ⟨c, us, ar, hfn, (specialArity_agree hsub hcl (head_mem hx hfn)).symm.trans hs, hn⟩
@@ -40,23 +42,23 @@ theorem shortSpine_iff (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
 
 /-- Atom spines of the program are atom spines of the sub-environment. -/
 theorem AtomSpine.restrict (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
-    (h : AtomSpine ⟨P, a⟩ x) (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
-    AtomSpine ⟨D, a⟩ x := by
+    (h : AtomSpine ⟨P, a, fun _ => none⟩ x) (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
+    AtomSpine ⟨D, a, fun _ => none⟩ x := by
   induction h with
   | const ha => exact .const ((isAtom_agree hsub hcl hx).trans ha)
   | app _ ih => exact .app (ih hx.1)
 
 /-- `Prop` inductives agree on the sub-environment's names. -/
 theorem propInd_agree (hsub : SubEnv D P) {S : Name} (hS : (findDecl D S).isSome) :
-    EvalEnv.propInd ⟨D, a⟩ S = EvalEnv.propInd ⟨P, a⟩ S := by
+    EvalEnv.propInd ⟨D, a, fun _ => none⟩ S = EvalEnv.propInd ⟨P, a, fun _ => none⟩ S := by
   unfold EvalEnv.propInd
   dsimp only
   rw [findDecl_agree hsub hS]
 
 /-- Neutral proofs of the program are neutral proofs of the sub-environment. -/
 theorem PropProj.restrict (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
-    (h : PropProj ⟨P, a⟩ x) (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
-    PropProj ⟨D, a⟩ x := by
+    (h : PropProj ⟨P, a, fun _ => none⟩ x) (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
+    PropProj ⟨D, a, fun _ => none⟩ x := by
   induction h with
   | proj hS hA =>
     exact .proj ((propInd_agree hsub hx.1).trans hS) (AtomSpine.restrict hsub hcl hA hx.2)
@@ -66,8 +68,8 @@ theorem PropProj.restrict (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
 /-- A constructor value of the program is one of the sub-environment, and its fields' constants
 lie in the sub-environment. -/
 theorem CtorValue.restrict (hsub : SubEnv D P) {T : Name} {m : Expr} {i : Nat} {fs : List Expr}
-    (h : CtorValue ⟨P, a⟩ T m i fs) (hm : ConstsIn (fun c => (findDecl D c).isSome) m) :
-    CtorValue ⟨D, a⟩ T m i fs ∧ ∀ x ∈ fs, ConstsIn (fun c => (findDecl D c).isSome) x := by
+    (h : CtorValue ⟨P, a, fun _ => none⟩ T m i fs) (hm : ConstsIn (fun c => (findDecl D c).isSome) m) :
+    CtorValue ⟨D, a, fun _ => none⟩ T m i fs ∧ ∀ x ∈ fs, ConstsIn (fun c => (findDecl D c).isSome) x := by
   obtain ⟨C, us, cv, ps, hC, h1, h2, h3, h4, rfl⟩ := h
   have ⟨hCD, has⟩ := ConstsIn_mkAppN.1 hm
   exact ⟨⟨C, us, cv, ps, (findDecl_agree hsub hCD).trans hC, h1, h2, h3, h4, rfl⟩,
@@ -81,7 +83,7 @@ theorem natLitCtor_restrict (hsub : SubEnv D P) (hcl : DepClosed D)
     (hctors : ∀ C cv, findDecl P C = some (.ctorInfo cv) →
       ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors)
     {T : Name} {mj : Expr} {i : Nat} {fs : List Expr} (hT : (findDecl D T).isSome)
-    (hcv : CtorValue ⟨P, a⟩ T (natLitCtor mj) i fs)
+    (hcv : CtorValue ⟨P, a, fun _ => none⟩ T (natLitCtor mj) i fs)
     (hmj : ConstsIn (fun c => (findDecl D c).isSome) mj) :
     ConstsIn (fun c => (findDecl D c).isSome) (natLitCtor mj) := by
   have hD : ∀ (C : Name) (us : List Level) (as : List Expr),
@@ -101,7 +103,7 @@ theorem natLitCtor_restrict (hsub : SubEnv D P) (hcl : DepClosed D)
 /-- The statement of a spine whose constants lie in the sub-environment is the same. -/
 theorem spineType?_agree (hsub : SubEnv D P) {x : Expr}
     (hx : ConstsIn (fun c => (findDecl D c).isSome) x) :
-    EvalEnv.spineType? ⟨D, a⟩ x = EvalEnv.spineType? ⟨P, a⟩ x := by
+    EvalEnv.spineType? ⟨D, a, fun _ => none⟩ x = EvalEnv.spineType? ⟨P, a, fun _ => none⟩ x := by
   unfold EvalEnv.spineType?
   split
   next h us hfn => dsimp only; rw [findDecl_agree hsub (head_mem hx hfn)]
@@ -109,14 +111,14 @@ theorem spineType?_agree (hsub : SubEnv D P) {x : Expr}
 
 /-- Heads that block `appCong` in the sub-environment block it in the program. -/
 theorem BlocksCong_sub (hsub : SubEnv D P) (hcl : DepClosed D) {x : Expr}
-    (hx : ConstsIn (fun c => (findDecl D c).isSome) x) (h : BlocksCong ⟨D, a⟩ x) :
-    BlocksCong ⟨P, a⟩ x := by
+    (hx : ConstsIn (fun c => (findDecl D c).isSome) x) (h : BlocksCong ⟨D, a, fun _ => none⟩ x) :
+    BlocksCong ⟨P, a, fun _ => none⟩ x := by
   have key : ((∃ c us cv, x.getAppFn = .const c us ∧ findDecl D c = some (.ctorInfo cv)) ∨
-      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨D, a⟩ c = some iv) ∨
+      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨D, a, fun _ => none⟩ c = some iv) ∨
       (∃ c us qv, x.getAppFn = .const c us ∧ findDecl D c = some (.quotInfo qv) ∧
         qv.kind = .ctor)) →
       (∃ c us cv, x.getAppFn = .const c us ∧ findDecl P c = some (.ctorInfo cv)) ∨
-      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨P, a⟩ c = some iv) ∨
+      (∃ c us iv, x.getAppFn = .const c us ∧ EvalEnv.casesOn? ⟨P, a, fun _ => none⟩ c = some iv) ∨
       (∃ c us qv, x.getAppFn = .const c us ∧ findDecl P c = some (.quotInfo qv) ∧
         qv.kind = .ctor) := by
     rintro (⟨c, us, cv, hfn, hcv⟩ | ⟨c, us, iv, hfn, hco⟩ | ⟨c, us, qv, hfn, hqv, hk⟩)
@@ -141,7 +143,7 @@ theorem casesOn?_mem {σ : EvalEnv} {c : Name} {iv : InductiveVal} (h : σ.cases
 
 /-- The constants of a δ-unfolding in the sub-environment lie in it. -/
 theorem unfold?_consts (hcl : DepClosed D) {c : Name} {ci : ConstantInfo} {body : Expr}
-    (h : EvalEnv.unfold? ⟨D, a⟩ c = some (ci, body)) :
+    (h : EvalEnv.unfold? ⟨D, a, fun _ => none⟩ c = some (ci, body)) :
     ConstsIn (fun c => (findDecl D c).isSome) body := by
   unfold EvalEnv.unfold? at h
   split at h
@@ -160,14 +162,14 @@ theorem unfold?_consts (hcl : DepClosed D) {c : Name} {ci : ConstantInfo} {body 
 /-- The η-expansions of a spine of the sub-environment agree. -/
 theorem etaSpine?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {us : List Level}
     {as : List Expr} (hc : (findDecl D c).isSome) :
-    EvalEnv.etaSpine? ⟨D, a⟩ c us as = EvalEnv.etaSpine? ⟨P, a⟩ c us as := by
+    EvalEnv.etaSpine? ⟨D, a, fun _ => none⟩ c us as = EvalEnv.etaSpine? ⟨P, a, fun _ => none⟩ c us as := by
   unfold EvalEnv.etaSpine?
   dsimp only
   rw [findDecl_agree hsub hc, specialArity_agree hsub hcl hc]
 
 /-- The constructors of the inductive of a recognized `casesOn` of the sub-environment lie in it. -/
 theorem ctor_mem_of_casesOn? (hcl : DepClosed D) {c n : Name} {iv : InductiveVal}
-    (h : EvalEnv.casesOn? ⟨D, a⟩ c = some iv) (hn : n ∈ iv.ctors) : (findDecl D n).isSome :=
+    (h : EvalEnv.casesOn? ⟨D, a, fun _ => none⟩ c = some iv) (hn : n ∈ iv.ctors) : (findDecl D n).isSome :=
   (hcl _ (casesOn?_mem h)).2.2.1 iv rfl n hn
 
 /-- A `mapM` into `Option` that succeeds with `f` succeeds with the same results with any `g`
@@ -199,7 +201,7 @@ theorem mem_mapM {α β : Type} {f : α → Option β} :
 sub-environment: its inductives and their constructors lie in it (`DepClosed`). -/
 theorem recBlock?_restrict (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {rv : RecursorVal}
     (hr : findDecl D c = some (.recInfo rv)) {r}
-    (h : EvalEnv.recBlock? ⟨P, a⟩ rv = some r) : EvalEnv.recBlock? ⟨D, a⟩ rv = some r := by
+    (h : EvalEnv.recBlock? ⟨P, a, fun _ => none⟩ rv = some r) : EvalEnv.recBlock? ⟨D, a, fun _ => none⟩ rv = some r := by
   obtain ⟨-, -, -, -, hrall⟩ := hcl _ (findDecl_eq_some hr).1
   have hall := hrall rv rfl
   unfold EvalEnv.recBlock? at h ⊢
@@ -238,13 +240,13 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     (hctors : ∀ C cv, findDecl P C = some (.ctorInfo cv) →
       ∃ iv, findDecl P cv.induct = some (.inductInfo iv) ∧ C ∈ iv.ctors)
     (hc : ConstsIn (fun c => (findDecl decls c).isSome) e)
-    (hev : SrcEval (evalEnvOf view cfg P) e v) :
-    SrcEval (evalEnvOf view cfg decls) e v ∧ ConstsIn (fun c => (findDecl decls c).isSome) v := by
+    (hev : SrcEval (evalEnvOf view cfg P) C e v) :
+    SrcEval (evalEnvOf view cfg decls) C e v ∧ ConstsIn (fun c => (findDecl decls c).isSome) v := by
   have mem : ∀ {l : List Expr} {i : Nat} {x : Expr}, l[i]? = some x → x ∈ l :=
     fun h => List.mem_of_getElem? h
   have agreeCases : ∀ {c : Name} {iv : InductiveVal}, (findDecl decls c).isSome →
       (evalEnvOf view cfg P).casesOn? c = some iv →
-      EvalEnv.casesOn? ⟨decls, axiomatized view cfg⟩ c = some iv := fun hcD hco =>
+      EvalEnv.casesOn? ⟨decls, axiomatized view cfg, fun _ => none⟩ c = some iv := fun hcD hco =>
     (casesOn?_agree hsub hcl hcD (axiomatized view cfg) (axiomatized view cfg)).trans hco
   revert hc
   induction hev with
@@ -334,7 +336,7 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
     have ⟨hcD, has⟩ := ConstsIn_mkAppN.1 hc
     have hcr' := (findDecl_agree hsub hcD).trans hcr
     have hmv : ∀ i m mv, mins[i]? = some m → mvs[i]? = some mv →
-        SrcEval (evalEnvOf view cfg decls) m mv ∧ ConstsIn (fun c => (findDecl decls c).isSome) mv :=
+        SrcEval (evalEnvOf view cfg decls) C m mv ∧ ConstsIn (fun c => (findDecl decls c).isSome) mv :=
       fun i m mv h1 h2 => ihmin i m mv h1 h2 (has m (by simp [mem h1]))
     obtain ⟨em, hmjC⟩ := ihmaj (has _ (by simp))
     have hTD : (findDecl decls T).isSome :=
@@ -356,7 +358,7 @@ theorem SrcEval.restrict {decls P : List ConstantInfo} {e v : Expr} {view : EnvV
         obtain ⟨h, -, hh⟩ := mem_mapM hrfs f hf
         exact hfs f (List.mem_of_getElem? hh)
     have hih : ∀ i f w, rfs[i]? = some f → ihvs[i]? = some w →
-        SrcEval (evalEnvOf view cfg decls) (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w ∧
+        SrcEval (evalEnvOf view cfg decls) C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w ∧
           ConstsIn (fun c => (findDecl decls c).isSome) w :=
       fun i f w h1 h2 => ihih i f w h1 h2 (hIC f (List.mem_of_getElem? h1))
     have hK : ConstsIn (fun c => (findDecl decls c).isSome) (mkAppN mk (fs ++ ihvs).toArray) := by

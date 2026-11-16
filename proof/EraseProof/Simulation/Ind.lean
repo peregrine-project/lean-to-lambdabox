@@ -32,6 +32,8 @@ theorem isNeverZero_of_evidentZero : ∀ {l : Level}, EvidentZero l = true → l
 end SimInd
 
 section
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
   {σ : EvalEnv} {lps : List Name} {lenv : GlobalDeclarations}
 
@@ -771,12 +773,12 @@ theorem erases_correct_lit (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
 as its η-expansion, a λ, whose erasure is a λ□ value, or to `□`. Reference: none (MetaRocq
 η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
 theorem erases_correct_eta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
-    {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
+    {C : Expr → Expr → Prop} {c : Name} {us : List Level} {as : List Expr} {e' : Expr}
     (heta : σ.etaSpine? c us as = some e') :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) e' := by
   intro t tb he ⟨T, ht⟩ her _
   rcases eta_inv heta her with ⟨rfl, hbx⟩ | h
-  · exact erases_correct_box henv hE hsub he ht hbx (.eta heta)
+  · exact erases_correct_box (C := C) henv hE hsub he ht hbx (.eta heta)
   · obtain ⟨x, A, b, bi, rfl⟩ := etaSpine?_lam heta
     exact ⟨tb, h, .atom (lam_erases_atom h)⟩
 
@@ -788,11 +790,11 @@ theorem erases_correct_ctor (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     (hbinj : BlockNamesInj σ.decls) {c : Name} {us : List Level} {cv : ConstructorVal}
     {as vs : List Expr} (hc : findDecl σ.decls c = some (.ctorInfo cv))
     (hlen : as.length = cv.numParams + cv.numFields) (hlen' : as.length = vs.length)
-    (hev : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v)
+    (hev : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v)
     (ih : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → ErasesSim E B lps σ lenv a v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) :=
     .ctor hc hlen hlen' hev
   rcases Erases.ctor_inv hc (by omega) her with ⟨rfl, hbx⟩ | ⟨iid, as', hid, rfl, hlen'', hall⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
@@ -844,10 +846,10 @@ never-zero sort has no proofs, `eval_proj_prop` applies, and the field is a proo
 `eval_proj` case of `erases_correct` (`MR E/ErasureCorrectness.v:489`). -/
 theorem erases_correct_proj (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls) {S : Name} {i : Nat} {e m a : Expr} {fs : List Expr}
-    (hm : SrcEval σ e m) (hcv : CtorValue σ S m 0 fs) (ha : fs[i]? = some a)
+    (hm : SrcEval σ C e m) (hcv : CtorValue σ S m 0 fs) (ha : fs[i]? = some a)
     (ih : ErasesSim E B lps σ lenv e m) : ErasesSim E B lps σ lenv (.proj S i e) a := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (.proj S i e) a := .proj hm hcv ha
+  have hsrc : SrcEval σ C (.proj S i e) a := .proj hm hcv ha
   rcases proj_inv her with ⟨rfl, hbx⟩ | ⟨iid, iv, e', -, hid, hiv, hdisj, he', rfl⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
   obtain ⟨e₀, M, he₀, hM⟩ := trM_proj_major he ht
@@ -906,11 +908,11 @@ value, a neutral proof projection, is erasable. Reference: none (DV-24); the λ�
 `eval_proj_prop` (`MR E/EWcbvEval.v:238`). -/
 theorem erases_correct_projProp (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls) {S : Name} {i : Nat} {e m : Expr}
-    (hS : σ.propInd S = true) (hm : SrcEval σ e m) (hv : AtomSpine σ m ∨ PropProj σ m)
+    (hS : σ.propInd S = true) (hm : SrcEval σ C e m) (hv : AtomSpine σ m ∨ PropProj σ m)
     (ih : ErasesSim E B lps σ lenv e m) :
     ErasesSim E B lps σ lenv (.proj S i e) (.proj S i m) := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (.proj S i e) (.proj S i m) := .projProp hS hm hv
+  have hsrc : SrcEval σ C (.proj S i e) (.proj S i m) := .projProp hS hm hv
   rcases proj_inv her with ⟨rfl, hbx⟩ | ⟨iid, iv, e', -, hid, hiv, -, he', rfl⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
   obtain ⟨e₀, M, he₀, hM⟩ := trM_proj_major he ht
@@ -938,16 +940,16 @@ theorem erases_correct_casesProof (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {c : Name} {us vs : List Level} {iv : InductiveVal}
     {as ps : List Expr} {m mv alt v st : Expr} {l : Level} {cn : Name} {cv : ConstructorVal}
     (hcs : σ.casesOn? c = some iv) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m mv) (hat : AtomSpine σ mv)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ C m mv) (hat : AtomSpine σ mv)
     (hl : casesSortLevel iv us = some l) (hz : EvidentZero l = true) (hcn : iv.ctors = [cn])
     (hcv : findDecl σ.decls cn = some (.ctorInfo cv)) (hnf : cv.numFields = 0)
     (hst : σ.spineType? mv = some st) (hps : ps.length = cv.numParams)
     (hpi : piInst ps (Pure.instLevels cv.levelParams vs cv.type) = some st)
-    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ alt v)
+    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ C alt v)
     (ihalt : ErasesSim E B lps σ lenv alt v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) as.toArray) v :=
     .casesProof hcs hlen hm hmv hat hl hz hcn hcv hnf hst hps hpi halt hv
   rcases Erases.cases_inv hcs (by omega) her with ⟨rfl, hbx⟩ | ⟨-, -, -, -, -, -, -, -, -, hnr, -⟩ |
     ⟨pre, maj, alt', extra, cn', cv', altb, extra', rfl, -, hcn', hcv', -, hpre, haltb, hlex, -, rfl⟩
@@ -983,14 +985,14 @@ theorem erases_correct_casesLitZero (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) (hbinj : BlockNamesInj σ.decls) {c : Name} {us : List Level}
     {iv : InductiveVal} {as : List Expr} {m alt v : Expr}
     (hcs : σ.casesOn? c = some iv) (hnat : iv.name = ``Nat) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m (.lit (.natVal 0)))
-    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ alt v)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ C m (.lit (.natVal 0)))
+    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ C alt v)
     (ihm : ErasesSim E B lps σ lenv m (.lit (.natVal 0)))
     (ihalt : ErasesSim E B lps σ lenv alt v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) as.toArray) v :=
     .casesLitZero hcs hnat hlen hm hmv halt hv
   -- the Metalean `Nat`
   obtain ⟨m₀, M, hm₀, hM⟩ := casesOn_arg henv hsub hcs hm he ht

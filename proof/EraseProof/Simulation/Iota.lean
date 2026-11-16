@@ -25,17 +25,19 @@ namespace EraseProof
 
 namespace SimIota
 
+variable {C : Expr → Expr → Prop}
+
 variable {σ : EvalEnv}
 
 /-- `a` evaluates to itself only. -/
-def Fixed (σ : EvalEnv) (a : Expr) : Prop := ∀ w, SrcEval σ a w → w = a
+def Fixed (σ : EvalEnv) (C : Expr → Expr → Prop) (a : Expr) : Prop := ∀ w, SrcEval σ C a w → w = a
 
 /-- An evaluation result: a value that evaluates to itself only, and whose arguments are results
 when it is a constructor spine. -/
-inductive Res (σ : EvalEnv) : Expr → Prop
-  | mk {v : Expr} : SrcValue σ v → Fixed σ v →
+inductive Res (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Prop
+  | mk {v : Expr} : SrcValue σ v → Fixed σ C v →
       (∀ c us cv (as : List Expr), findDecl σ.decls c = some (.ctorInfo cv) →
-        v = mkAppN (.const c us) as.toArray → ∀ a ∈ as, Res σ a) → Res σ v
+        v = mkAppN (.const c us) as.toArray → ∀ a ∈ as, Res σ C a) → Res σ C v
 
 /-- Constant spines are injective in the constant, its levels and the arguments. -/
 theorem mkAppN_inj {c c' : Name} {us us' : List Level} {as as' : List Expr}
@@ -88,12 +90,12 @@ theorem unfold_not_special {c : Name} {ci : ConstantInfo} {b : Expr}
 arguments: the η-expansion, a saturated constructor, a saturated `casesOn`, a saturated quotient
 constant or a saturated recursor. -/
 theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar : Nat}
-    (h : SrcEval σ (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
+    (h : SrcEval σ C (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
     (hle : as.length ≤ ar) :
     σ.etaSpine? c us as = some w ∨
     (∃ cv, ∃ vs : List Expr, findDecl σ.decls c = some (.ctorInfo cv) ∧
       as.length = cv.numParams + cv.numFields ∧ as.length = vs.length ∧
-      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v) ∧
+      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) ∧
       w = mkAppN (.const c us) vs.toArray) ∨
     (∃ iv, σ.casesOn? c = some iv ∧ as.length = casesArity iv) ∨
     (∃ qv, findDecl σ.decls c = some (.quotInfo qv) ∧ quotEvalArity qv.kind = some as.length) ∨
@@ -133,7 +135,7 @@ theorem eval_spine_inv {c : Name} {us : List Level} {as : List Expr} {w : Expr} 
 
 /-- A short spine with fewer arguments than its arity evaluates to its η-expansion only. -/
 theorem eval_short {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar : Nat}
-    (h : SrcEval σ (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
+    (h : SrcEval σ C (mkAppN (.const c us) as.toArray) w) (har : specialArity σ c = some ar)
     (hlt : as.length < ar) : σ.etaSpine? c us as = some w := by
   rcases eval_spine_inv h har hlt.le with h | ⟨cv, vs, hc, hlen, -⟩ | ⟨iv, hiv, hl⟩ |
     ⟨qv, hqv, hq⟩ | ⟨rv, hrv, hl⟩
@@ -152,7 +154,7 @@ theorem eval_short {c : Name} {us : List Level} {as : List Expr} {w : Expr} {ar 
     omega
 
 /-- λ, sort and Π evaluate to themselves only. -/
-theorem fixed_atom {e : Expr} (ha : SrcAtom e) : Fixed σ e := by
+theorem fixed_atom {e : Expr} (ha : SrcAtom e) : Fixed σ C e := by
   intro w h
   have hfn : ∀ c us, e.getAppFn ≠ .const c us := by
     intro c us h'; cases e <;> simp [SrcAtom, Expr.getAppFn] at ha h'
@@ -165,7 +167,7 @@ theorem fixed_atom {e : Expr} (ha : SrcAtom e) : Fixed σ e := by
     subst hx; simp [SrcAtom] at ha
 
 /-- Nat literals evaluate to themselves only. -/
-theorem fixed_lit {k : Nat} : Fixed σ (.lit (.natVal k)) := by
+theorem fixed_lit {k : Nat} : Fixed σ C (.lit (.natVal k)) := by
   intro w h
   generalize hx : Expr.lit (.natVal k) = x at h
   cases h with
@@ -177,7 +179,7 @@ theorem fixed_lit {k : Nat} : Fixed σ (.lit (.natVal k)) := by
 
 /-- An atom constant evaluates to itself only. -/
 theorem fixed_const {c : Name} {us : List Level} (ha : σ.isAtom c = true) :
-    Fixed σ (.const c us) := by
+    Fixed σ C (.const c us) := by
   intro w h
   obtain ⟨hu, hsa⟩ := isAtom_spec ha
   generalize hx : Expr.const c us = x at h
@@ -201,7 +203,7 @@ theorem fixed_const {c : Name} {us : List Level} (ha : σ.isAtom c = true) :
 /-- A saturated constructor spine of fixed arguments evaluates to itself only. -/
 theorem fixed_ctor {c : Name} {us : List Level} {cv : ConstructorVal} {vs : List Expr}
     (hc : findDecl σ.decls c = some (.ctorInfo cv)) (hlen : vs.length = cv.numParams + cv.numFields)
-    (hfix : ∀ a ∈ vs, Fixed σ a) : Fixed σ (mkAppN (.const c us) vs.toArray) := by
+    (hfix : ∀ a ∈ vs, Fixed σ C a) : Fixed σ C (mkAppN (.const c us) vs.toArray) := by
   intro w h
   have har : specialArity σ c = some (cv.numParams + cv.numFields) := by
     unfold specialArity; rw [hc]
@@ -242,9 +244,9 @@ theorem srcValue_noArity {e : Expr} (hv : SrcValue σ e) (hnb : ¬ BlocksCong σ
 
 /-- An application whose head is fixed and blocks no congruence, of a fixed argument, evaluates to
 itself only. -/
-theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ BlocksCong σ f)
+theorem fixed_app {f a : Expr} (hf : Fixed σ C f) (ha : Fixed σ C a) (hnb : ¬ BlocksCong σ f)
     (hna : ∀ c us ar, f.getAppFn = .const c us → specialArity σ c ≠ some ar) :
-    Fixed σ (.app f a) := by
+    Fixed σ C (.app f a) := by
   intro w h
   have hsp : ∀ {c us} {as : List Expr} {ar : Nat}, Expr.app f a = mkAppN (.const c us) as.toArray →
       specialArity σ c = some ar → False := by
@@ -274,8 +276,8 @@ theorem fixed_app {f a : Expr} (hf : Fixed σ f) (ha : Fixed σ a) (hnb : ¬ Blo
   | zeta | delta | constAtom | proj | projProp | lit | mdata => cases hx
 
 /-- A `Prop` projection of a fixed neutral proof evaluates to itself only. -/
-theorem fixed_projProp {S : Name} {i : Nat} {m : Expr} (hm : Fixed σ m)
-    (hv : AtomSpine σ m ∨ PropProj σ m) : Fixed σ (.proj S i m) := by
+theorem fixed_projProp {S : Name} {i : Nat} {m : Expr} (hm : Fixed σ C m)
+    (hv : AtomSpine σ m ∨ PropProj σ m) : Fixed σ C (.proj S i m) := by
   intro w h
   generalize hx : Expr.proj S i m = x at h
   cases h with
@@ -304,8 +306,8 @@ theorem fixed_projProp {S : Name} {i : Nat} {m : Expr} (hm : Fixed σ m)
 
 /-- A `Quot.mk` spine of a fixed element evaluates to itself only. -/
 theorem fixed_quotMk {c : Name} {us : List Level} {qv : QuotVal} {α r a : Expr}
-    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : Fixed σ a) :
-    Fixed σ (mkAppN (.const c us) [α, r, a].toArray) := by
+    (hc : findDecl σ.decls c = some (.quotInfo qv)) (hk : qv.kind = .ctor) (ha : Fixed σ C a) :
+    Fixed σ C (mkAppN (.const c us) [α, r, a].toArray) := by
   intro w h
   have har : specialArity σ c = some 3 := by simp [specialArity, hc, hk, quotEvalArity]
   generalize hx : mkAppN (.const c us) [α, r, a].toArray = x at h
@@ -342,10 +344,10 @@ theorem fixed_quotMk {c : Name} {us : List Level} {qv : QuotVal} {α r a : Expr}
 /-- Every evaluation result is a `Res`: in particular it evaluates to itself only, and so do the
 arguments of a constructor value that is a result. Reference: `eval_to_value`
 (`MR P/PCUICWcbvEval.v:570`), `value_final` (`:727`) with `eval_deterministic` (`:1227`). -/
-theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
+theorem res_of_eval {e v : Expr} (hev : SrcEval σ C e v) : Res σ C v := by
   have nonspine : ∀ {x : Expr}, (∀ c us, x.getAppFn ≠ .const c us) →
       ∀ c us cv (as : List Expr), findDecl σ.decls c = some (.ctorInfo cv) →
-        x = mkAppN (.const c us) as.toArray → ∀ a ∈ as, Res σ a :=
+        x = mkAppN (.const c us) as.toArray → ∀ a ∈ as, Res σ C a :=
     fun hfn _ _ _ _ _ hx => absurd hx (CasesWhred.ne_mkAppN_const hfn)
   induction hev with
   | beta _ _ _ _ _ _ ih => exact ih
@@ -360,7 +362,7 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
     obtain ⟨x, A, b, bi, rfl⟩ := SimInd.etaSpine?_lam h
     exact .mk .lam (fixed_atom trivial) (nonspine fun _ _ h => by cases h)
   | @ctor c cv us as vs hc hl hlv hev ih =>
-    have hres : ∀ a ∈ vs, Res σ a := by
+    have hres : ∀ a ∈ vs, Res σ C a := by
       intro a ha
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem ha
       exact ih i as[i] _ (List.getElem?_eq_getElem (by omega)) (List.getElem?_eq_getElem hi)
@@ -403,14 +405,14 @@ theorem res_of_eval {e v : Expr} (hev : SrcEval σ e v) : Res σ v := by
   | mdata _ ih => exact ih
   | atom h =>
     rename_i e
-    refine .mk (SrcEval.atom h).value (fixed_atom h) (nonspine ?_)
+    refine .mk (SrcEval.atom (C := C) h).value (fixed_atom h) (nonspine ?_)
     intro c us h'
     cases e <;> simp [SrcAtom, Expr.getAppFn] at h h'
 
 /-- The fields of a constructor value that is an evaluation result are values that evaluate to
 themselves only. -/
 theorem fields_of_eval {m mv : Expr} {T : Name} {i : Nat} {fs : List Expr}
-    (hm : SrcEval σ m mv) (hcv : CtorValue σ T mv i fs) : ∀ f ∈ fs, SrcValue σ f ∧ Fixed σ f := by
+    (hm : SrcEval σ C m mv) (hcv : CtorValue σ T mv i fs) : ∀ f ∈ fs, SrcValue σ f ∧ Fixed σ C f := by
   obtain ⟨C, us, cv, ps, hC, -, -, -, -, rfl⟩ := hcv
   obtain ⟨-, -, hargs⟩ := res_of_eval hm
   intro f hf
@@ -490,18 +492,18 @@ theorem etaSpine?_snoc {c : Name} {us : List Level} {as : List Expr} {x : Name} 
 /-! ## Head β-reduction of spines of fixed arguments -/
 
 /-- One head β-step of a λ-headed spine whose arguments evaluate to themselves only. -/
-inductive HStep (σ : EvalEnv) : Expr → Expr → Prop
+inductive HStep (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr → Prop
   | beta {n : Name} {A b a : Expr} {bi : BinderInfo} :
-      Fixed σ a → HStep σ (.app (.lam n A b bi) a) (b.instantiate1' a)
-  | app {f f' a : Expr} : HStep σ f f' → Fixed σ a → HStep σ (.app f a) (.app f' a)
+      Fixed σ C a → HStep σ C (.app (.lam n A b bi) a) (b.instantiate1' a)
+  | app {f f' a : Expr} : HStep σ C f f' → Fixed σ C a → HStep σ C (.app f a) (.app f' a)
 
 /-- Head β-reduction: a sequence of `HStep`s. -/
-inductive HeadBeta (σ : EvalEnv) : Expr → Expr → Prop
-  | refl {e : Expr} : HeadBeta σ e e
-  | step {e e' X : Expr} : HStep σ e e' → HeadBeta σ e' X → HeadBeta σ e X
+inductive HeadBeta (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr → Prop
+  | refl {e : Expr} : HeadBeta σ C e e
+  | step {e e' X : Expr} : HStep σ C e e' → HeadBeta σ C e' X → HeadBeta σ C e X
 
 /-- A head step starts from an application whose head is a λ. -/
-theorem HStep.head {e e' : Expr} (h : HStep σ e e') :
+theorem HStep.head {e e' : Expr} (h : HStep σ C e e') :
     ∃ f a, e = .app f a ∧ ∃ n A b bi, e.getAppFn = .lam n A b bi := by
   induction h with
   | beta => exact ⟨_, _, rfl, _, _, _, _, rfl⟩
@@ -510,7 +512,7 @@ theorem HStep.head {e e' : Expr} (h : HStep σ e e') :
     exact ⟨_, _, rfl, n, A, b, bi, by simpa [Expr.getAppFn] using h⟩
 
 /-- A term whose head is not a λ has no head β-reduct but itself. -/
-theorem HeadBeta.eq_of_head {e X : Expr} (h : HeadBeta σ e X)
+theorem HeadBeta.eq_of_head {e X : Expr} (h : HeadBeta σ C e X)
     (he : ∀ f a, e = .app f a → ∀ n A b bi, e.getAppFn ≠ .lam n A b bi) : X = e := by
   cases h with
   | refl => rfl
@@ -519,9 +521,9 @@ theorem HeadBeta.eq_of_head {e X : Expr} (h : HeadBeta σ e X)
     exact absurd h (he f a rfl n A b bi)
 
 /-- `HeadBeta.app_inv`, for a term that is an application. -/
-theorem HeadBeta.app_inv' {e X : Expr} (h : HeadBeta σ e X) : ∀ {F a : Expr}, e = .app F a →
-    X = .app F a ∨ (Fixed σ a ∧ ((∃ XF, HeadBeta σ F XF ∧ X = .app XF a) ∨
-      ∃ n A b bi, HeadBeta σ F (.lam n A b bi) ∧ HeadBeta σ (b.instantiate1' a) X)) := by
+theorem HeadBeta.app_inv' {e X : Expr} (h : HeadBeta σ C e X) : ∀ {F a : Expr}, e = .app F a →
+    X = .app F a ∨ (Fixed σ C a ∧ ((∃ XF, HeadBeta σ C F XF ∧ X = .app XF a) ∨
+      ∃ n A b bi, HeadBeta σ C F (.lam n A b bi) ∧ HeadBeta σ C (b.instantiate1' a) X)) := by
   induction h with
   | refl => intro F a hx; exact .inl hx
   | step hs _ ih =>
@@ -538,15 +540,15 @@ theorem HeadBeta.app_inv' {e X : Expr} (h : HeadBeta σ e X) : ∀ {F a : Expr},
 
 /-- Head β-reducts of an application: itself, or (the argument fixed) an application of a reduct
 of the head, or a reduct of the β-reduct once the head has reduced to a λ. -/
-theorem HeadBeta.app_inv {F a X : Expr} (h : HeadBeta σ (.app F a) X) :
-    X = .app F a ∨ (Fixed σ a ∧ ((∃ XF, HeadBeta σ F XF ∧ X = .app XF a) ∨
-      ∃ n A b bi, HeadBeta σ F (.lam n A b bi) ∧ HeadBeta σ (b.instantiate1' a) X)) :=
+theorem HeadBeta.app_inv {F a X : Expr} (h : HeadBeta σ C (.app F a) X) :
+    X = .app F a ∨ (Fixed σ C a ∧ ((∃ XF, HeadBeta σ C F XF ∧ X = .app XF a) ∨
+      ∃ n A b bi, HeadBeta σ C F (.lam n A b bi) ∧ HeadBeta σ C (b.instantiate1' a) X)) :=
   h.app_inv' rfl
 
 /-- A head step under fixed arguments. -/
-theorem HStep.spine {F F' : Expr} (h : HStep σ F F') :
-    ∀ {rest : List Expr}, (∀ a ∈ rest, Fixed σ a) →
-      HStep σ (mkAppN F rest.toArray) (mkAppN F' rest.toArray) := by
+theorem HStep.spine {F F' : Expr} (h : HStep σ C F F') :
+    ∀ {rest : List Expr}, (∀ a ∈ rest, Fixed σ C a) →
+      HStep σ C (mkAppN F rest.toArray) (mkAppN F' rest.toArray) := by
   intro rest
   induction rest using List.reverseRecOn with
   | nil => intro _; rw [mkAppN_eq_foldl, mkAppN_eq_foldl]; exact h
@@ -578,9 +580,9 @@ theorem erasesAlt_length : ∀ {k n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
 
 /-- A field of a constructor value for the ι driver: a value that evaluates to itself only, with a
 closed erasure. -/
-def FieldOK (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) (σ : EvalEnv) (f : Lean.Expr)
+def FieldOK (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) (σ : EvalEnv) (C : Expr → Expr → Prop) (f : Lean.Expr)
     (f' : LBTerm) : Prop :=
-  SrcValue σ f ∧ Fixed σ f ∧ Erases E B lps σ .nil [] f f' ∧ closedn 0 f' = true
+  SrcValue σ f ∧ Fixed σ C f ∧ Erases E B lps σ .nil [] f f' ∧ closedn 0 f' = true
 
 /-- A property of the related pairs holds of the left entries. -/
 theorem forall₂_left {α β : Type} {R : α → β → Prop} {Q : α → Prop} (hQ : ∀ a b, R a b → Q a)
@@ -618,12 +620,12 @@ erased branch (`ErasesAlt.inst`) erases a head-β-reduct of the alternative appl
 which has a typed translation. Reference: `iota_red` (`MR E/EGlobalEnv.v:281`) with
 `erases_subst0` (`MR E/ESubstitution.v:612`). -/
 theorem drive (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P) :
-    ∀ {fs : List Lean.Expr} {fs' : List LBTerm}, List.Forall₂ (FieldOK E B lps σ) fs fs' →
+    ∀ {fs : List Lean.Expr} {fs' : List LBTerm}, List.Forall₂ (FieldOK E B lps σ C) fs fs' →
     ∀ {alt : Lean.Expr} {ns : List BinderName} {t : LBTerm} {alt₀ : Metalean.Expr ζ lps.length 0}
       {fs₀ : List (Metalean.Expr ζ lps.length 0)},
       ErasesAlt E B lps σ .nil [] fs.length alt (ns, t) → TrM E B lps .nil [] alt alt₀ →
       List.Forall₂ (TrM E B lps .nil []) fs fs₀ → (∃ T, E[.nil] ⊢ alt₀.appList fs₀ : T) →
-      ∃ X tX, HeadBeta σ (mkAppN alt fs.toArray) X ∧
+      ∃ X tX, HeadBeta σ C (mkAppN alt fs.toArray) X ∧
         Erases E B lps σ .nil [] X (substl fs'.reverse t) ∧ TrM E B lps .nil [] X tX ∧
         ∃ T, E[.nil] ⊢ tX : T := by
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
@@ -641,7 +643,7 @@ theorem drive (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P
     cases hfs₀ with
     | @cons _ f₀ _ rest₀ hf₀ hrest₀ =>
     obtain ⟨hval, hfix, herf, hcl⟩ := hf
-    have hfixs : ∀ a ∈ fs, Fixed σ a := forall₂_left (fun _ _ h => h.2.1) hrest
+    have hfixs : ∀ a ∈ fs, Fixed σ C a := forall₂_left (fun _ _ h => h.2.1) hrest
     have hcls : ∀ g ∈ fs', closedn 0 g = true := forall₂_right (fun _ _ h => h.2.2.2) hrest
     have hlen : fs.length = fs'.length := hrest.length_eq
     have hsubstl := substl_cons_closed (t := t) hcl hcls
@@ -958,7 +960,7 @@ theorem appArg_step (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.d
     · exact hbox hF' hb
     obtain ⟨x, A, b, bi, rfl⟩ := SimInd.etaSpine?_lam heta
     obtain ⟨X, Y, hF₀T, hf₀X, -⟩ := happ.app_inv
-    obtain ⟨tl, htl, hdl⟩ := SrcEval.defeq henv hE hsub hF₀ hF₀T (.eta heta)
+    obtain ⟨tl, htl, hdl⟩ := SrcEval.defeq henv hE hsub hF₀ hF₀T (SrcEval.eta (C := fun _ _ => True) heta)
     rcases lam_erases_inv he' with ⟨rfl, hb⟩ | ⟨A', b', rfl, hA', hA't, hb'⟩
     · -- the η-expansion is erasable, hence so is the spine
       obtain ⟨w, hw, Tw, hwT, hwA⟩ := hb
@@ -1154,14 +1156,14 @@ theorem erases_correct_casesIota (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     {c : Name} {us : List Level} {iv : InductiveVal} {as fs : List Lean.Expr}
     {m mv alt v : Lean.Expr} {i : Nat}
     (hcs : σ.casesOn? c = some iv) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m mv) (hcv : CtorValue σ iv.name mv i fs)
-    (halt : as[casesMajor iv + 1 + i]? = some alt) (hv : SrcEval σ (mkAppN alt fs.toArray) v)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ C m mv) (hcv : CtorValue σ iv.name mv i fs)
+    (halt : as[casesMajor iv + 1 + i]? = some alt) (hv : SrcEval σ C (mkAppN alt fs.toArray) v)
     (ihm : ErasesSim E B lps σ lenv m mv)
-    (ihb : ∀ X, HeadBeta σ (mkAppN alt fs.toArray) X → ErasesSim E B lps σ lenv X v) :
+    (ihb : ∀ X, HeadBeta σ C (mkAppN alt fs.toArray) X → ErasesSim E B lps σ lenv X v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) as.toArray) v :=
     .casesIota hcs hlen hm hmv hcv halt hv
   have hivD := SimInd.casesOn?_ind hcs
   -- the spine with the major's value: recursor form and ι form
@@ -1181,7 +1183,7 @@ theorem erases_correct_casesIota (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     hm₂ hcv (by rw [hrest _ (by omega)]; exact halt) ht₂'
   have hI : ∃ T, E[.nil] ⊢ alt₀.appList fs₀ : T := ⟨T, (WHRedS.defeq hE hok hredI hd2.right).right⟩
   have hfields := fields_of_eval hmv hcv
-  obtain ⟨C, us', cv, ps, hC, hind, hcidx, hps, hfs, rfl⟩ := hcv
+  obtain ⟨cn, us', cv, ps, hC, hind, hcidx, hps, hfs, rfl⟩ := hcv
   have hlenC : (ps ++ fs).length = cv.numParams + cv.numFields := by simp [hps, hfs]
   obtain ⟨ι', η', s', c', ls, ps', fds, rfs, hBC, rfl⟩ := SimInd.ctorNode_tr henv hsub hC hlenC hm'
   rw [hind, hBT] at hBC
@@ -1261,12 +1263,12 @@ theorem erases_correct_casesIota (henv : ProgEnv P ζ E B) (hE : EnvWF E)
       simpa using halt
     obtain ⟨br, hbr⟩ : ∃ br, brs[cv.cidx]? = some br :=
       ⟨_, List.getElem?_eq_getElem (by omega)⟩
-    have hk : ctorFields σ C = some cv.numFields := by unfold ctorFields; rw [hC]
+    have hk : ctorFields σ cn = some cv.numFields := by unfold ctorFields; rw [hC]
     obtain ⟨ns, tbr⟩ := br
-    have halt'' := halt' _ C alt _ _ hCi halti hbr hk
+    have halt'' := halt' _ cn alt _ _ hCi halti hbr hk
     -- the fields
     have hfs' : (as'.drop cv.numParams).length = fs.length := by simp; omega
-    have hok' : List.Forall₂ (FieldOK E B lps σ) fs (as'.drop cv.numParams) := by
+    have hok' : List.Forall₂ (FieldOK E B lps σ C) fs (as'.drop cv.numParams) := by
       refine CasesWhred.forall₂_of_getElem? hfs'.symm fun j f f' hf hf' => ?_
       obtain ⟨hsv, hfx⟩ := hfields f (List.mem_of_getElem? hf)
       have hf'' : as'[cv.numParams + j]? = some f' := by
@@ -1330,14 +1332,14 @@ theorem erases_correct_casesLitSucc (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) (hbinj : BlockNamesInj σ.decls) {c : Name} {us : List Level}
     {iv : InductiveVal} {as : List Lean.Expr} {m alt v : Lean.Expr} {k : Nat}
     (hcs : σ.casesOn? c = some iv) (hnat : iv.name = ``Nat) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m (.lit (.natVal (k + 1))))
-    (halt : as[casesMajor iv + 2]? = some alt) (hv : SrcEval σ (.app alt (.lit (.natVal k))) v)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ C m (.lit (.natVal (k + 1))))
+    (halt : as[casesMajor iv + 2]? = some alt) (hv : SrcEval σ C (.app alt (.lit (.natVal k))) v)
     (ihm : ErasesSim E B lps σ lenv m (.lit (.natVal (k + 1))))
-    (ihb : ∀ X, HeadBeta σ (.app alt (.lit (.natVal k))) X → ErasesSim E B lps σ lenv X v) :
+    (ihb : ∀ X, HeadBeta σ C (.app alt (.lit (.natVal k))) X → ErasesSim E B lps σ lenv X v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ C (mkAppN (.const c us) as.toArray) v :=
     .casesLitSucc hcs hnat hlen hm hmv halt hv
   -- the Metalean `Nat`
   obtain ⟨m₀, M, hm₀, hM⟩ := SimInd.casesOn_arg henv hsub hcs hm he ht
@@ -1449,7 +1451,7 @@ theorem erases_correct_casesLitSucc (henv : ProgEnv P ζ E B) (hE : EnvWF E)
   have halt'' := halt' 1 _ _ _ _ hcn1 halt1 hbr hn1
   obtain ⟨f₀, -, hf₀⟩ := CasesWhred.forall₂_getElem? hfs₀ (i := 0) rfl
   have hcl := SimCases.closed0 hf₀ hetk
-  have hok' : List.Forall₂ (FieldOK E B lps σ) [.lit (.natVal k)] [tk] :=
+  have hok' : List.Forall₂ (FieldOK E B lps σ C) [.lit (.natVal k)] [tk] :=
     .cons ⟨.lit, fixed_lit, hetk, hcl⟩ .nil
   obtain ⟨X, tX, hXb, hXe, hXt, hXT⟩ := drive henv hE hsub hok' halt'' halt₀ hfs₀ hI
   rw [mkAppN_single] at hXb

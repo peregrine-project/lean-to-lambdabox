@@ -34,13 +34,14 @@ namespace EraseProof
 
 namespace SrcDefeq
 
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
   {σ : EvalEnv} {lps : List Name}
 
 /-- The conclusion of `SrcEval.defeq` for one evaluation `e ⇓ v`. -/
-def Sound (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) (e v : Expr) : Prop :=
-  ∀ {t T : Metalean.Expr ζ lps.length 0}, TrM E B lps .nil [] e t → E[.nil] ⊢ t : T →
-    ∃ t', TrM E B lps .nil [] v t' ∧ E[.nil] ⊢ t ≡ t' : T
+abbrev Sound (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name) (e v : Expr) : Prop :=
+  SrcConv E B lps e v
 
 /-- A spine of a saturating head other than a recursor or a quotient constant with its own rules,
 with at least a constructor's arity of arguments, evaluates argument by argument, and its head is
@@ -306,7 +307,7 @@ theorem blocksCong_ctor {e : Expr} {c : Name} {us : List Level} {cv : Constructo
 /-- A spine headed by a quotient constant of the program other than the type former `Quot`
 evaluates only if its head is a constant of the evaluation environment with an arity (`Quot.mk`,
 `Quot.lift`): `Quot.ind` has no rule. -/
-theorem quot_head_eval (hsub : SubEnv σ.decls P) {e w : Expr} (hev : SrcEval σ e w) :
+theorem quot_head_eval (hsub : SubEnv σ.decls P) {e w : Expr} (hev : SrcEval σ C e w) :
     ∀ {c : Name} {us : List Level} {bs : List Expr} {q : QuotVal},
       e = mkAppN (.const c us) bs.toArray → findDecl P c = some (.quotInfo q) → q.kind ≠ .type →
       findDecl σ.decls c = some (.quotInfo q) ∧ (quotEvalArity q.kind).isSome := by
@@ -390,7 +391,7 @@ theorem quot_app_tr (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Na
     {us : List Level} {bs : List Expr} {a w : Expr} {η : Metalean.Head ζ .quot}
     {k : Metalean.Export.QuotKind} {t T : Metalean.Expr ζ lps.length 0}
     (hb : B c = some (.quot η k)) (hkt : k ≠ .type)
-    (hf : SrcEval σ (mkAppN (.const c us) bs.toArray) w)
+    (hf : SrcEval σ C (mkAppN (.const c us) bs.toArray) w)
     (hns : ¬ ShortSpine σ (.app (mkAppN (.const c us) bs.toArray) a))
     (he : TrM E B lps .nil [] (.app (mkAppN (.const c us) bs.toArray) a) t)
     (ht : E[.nil] ⊢ t : T) :
@@ -412,7 +413,7 @@ theorem quot_app_tr (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Na
 recursor of the evaluation environment, whose arity is Metalean's `recrEnd`: by `SrcEval.eta`, by
 `SrcEval.recIota`, or as the head of an application. -/
 theorem rec_head_eval (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {e w : Expr}
-    (hev : SrcEval σ e w) :
+    (hev : SrcEval σ C e w) :
     ∀ {c : Name} {us : List Level} {bs : List Expr} {ι : Metalean.IndSig}
       {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))},
       e = mkAppN (.const c us) bs.toArray → B c = some (.recr η s os) →
@@ -493,7 +494,7 @@ theorem rec_app_tr (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P) {c : Nam
     {us : List Level} {bs : List Expr} {a w : Expr} {ι : Metalean.IndSig}
     {η : Metalean.Head ζ (.inductive ι)} {s : Fin ι.nsorts} {os : List (List (List Nat))}
     {t T : Metalean.Expr ζ lps.length 0}
-    (hb : B c = some (.recr η s os)) (hf : SrcEval σ (mkAppN (.const c us) bs.toArray) w)
+    (hb : B c = some (.recr η s os)) (hf : SrcEval σ C (mkAppN (.const c us) bs.toArray) w)
     (hns : ¬ ShortSpine σ (.app (mkAppN (.const c us) bs.toArray) a))
     (he : TrM E B lps .nil [] (.app (mkAppN (.const c us) bs.toArray) a) t)
     (ht : E[.nil] ⊢ t : T) :
@@ -519,7 +520,7 @@ theorem blocksCong_quot {e : Expr} {c : Name} {us : List Level} {qv : QuotVal}
 theorem case_beta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     {f a a' b v : Expr} {x : Name}
     {A : Expr} {bi : BinderInfo} (hns : ¬ ShortSpine σ (.app f a))
-    (hfev : SrcEval σ f (.lam x A b bi))
+    (hfev : SrcEval σ C f (.lam x A b bi))
     (ihf : Sound E B lps f (.lam x A b bi) ∧ SpineOK σ E B lps f (.lam x A b bi))
     (iha : Sound E B lps a a') (ihb : Sound E B lps (b.instantiate1' a') v) :
     Sound E B lps (.app f a) v ∧ SpineOK σ E B lps (.app f a) v := by
@@ -681,7 +682,7 @@ theorem mkAppN_snoc (c : Name) (us : List Level) (bs : List Expr) (a : Expr) :
 
 /-- The case of `SrcEval.appCong`. -/
 theorem case_appCong (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
-    {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hfev : SrcEval σ f f')
+    {f a f' a' : Expr} (hns : ¬ ShortSpine σ (.app f a)) (hfev : SrcEval σ C f f')
     (hnb : ¬ BlocksCong σ f')
     (ihf : Sound E B lps f f' ∧ SpineOK σ E B lps f f') (iha : Sound E B lps a a') :
     Sound E B lps (.app f a) (.app f' a') ∧ SpineOK σ E B lps (.app f a) (.app f' a') := by
@@ -1887,7 +1888,7 @@ def ProofSound (σ : EvalEnv) (E : Metalean.Env ζ) (B : Binds ζ) (lps : List N
 `SrcEval`, given the proof-irrelevant ι (`SrcDefeq.ProofSound`). -/
 theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hproof : ProofSound σ E B lps)
-    {e v : Expr} (hev : SrcEval σ e v) : Sound E B lps e v ∧ SpineOK σ E B lps e v := by
+    {e v : Expr} (hev : SrcEval σ C e v) : Sound E B lps e v ∧ SpineOK σ E B lps e v := by
   induction hev with
   | beta hns hf _ _ ihf iha ihb => exact case_beta henv hE hsub hns hf ihf iha.1 ihb.1
   | zeta _ _ ihv ihb => exact case_zeta henv hE ihv.1 ihb.1

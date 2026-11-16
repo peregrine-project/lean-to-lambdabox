@@ -334,7 +334,7 @@ theorem noIndexFields {view : EnvView} {cfg : ErasureConfig} (henv : ProgEnv P �
   rw [hind] at hT
   have hT' : findDecl decls T = some (.inductInfo iv) := hT
   obtain ⟨hm, hTn⟩ := findDecl_eq_some hT'
-  have hcas : (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome := by
+  have hcas : (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn")).isSome := by
     have hTn' : iv.name = T := hTn
     simp only [EvalEnv.casesOn?, hTn', hci, hind, hT']
     rfl

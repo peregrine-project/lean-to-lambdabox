@@ -199,7 +199,7 @@ which inductive, is the same in the program: when either recognizes it, the recu
 recognize the constant), hence by `DepClosed` its block, `T` and `T`'s constructors. -/
 theorem casesOn?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
     (hc : (findDecl D c).isSome) (a a' : ConstantInfo → Bool) :
-    EvalEnv.casesOn? ⟨D, a⟩ c = EvalEnv.casesOn? ⟨P, a'⟩ c := by
+    EvalEnv.casesOn? ⟨D, a, fun _ => none⟩ c = EvalEnv.casesOn? ⟨P, a', fun _ => none⟩ c := by
   -- From `T.rec ∈ D` the recognizer reads the same in `D` and `P`, and `T ∈ D`.
   have key : ∀ T R, c = .str T "casesOn" → findDecl D (mkRecName T) = some (.recInfo R) →
       T ∈ R.all → casesInfo? D c = casesInfo? P c ∧ (findDecl D T).isSome := by
@@ -233,7 +233,7 @@ theorem casesOn?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
       | some ci =>
         obtain ⟨T, d, I, R, hT, hci, hd, hI, hR, hTR⟩ := casesInfo?_reads hP
         -- `D` does not recognize `c`, so it reads `c`'s value, whose head is `T.rec`.
-        have hσ : EvalEnv.casesOn? ⟨P, a'⟩ c = some I := by
+        have hσ : EvalEnv.casesOn? ⟨P, a', fun _ => none⟩ c = some I := by
           unfold EvalEnv.casesOn?
           rw [hP]; dsimp only; rw [hci, hI]
         obtain ⟨d', R', -, -, -, body, args, -, hd', -, hR', -, -, -, -, -, -, -, hb, hbody, -⟩ :=
@@ -271,7 +271,7 @@ variable {a a' : ConstantInfo → Bool}
 
 /-- Constructor and `casesOn` arities agree on the sub-environment's names. -/
 theorem specialArity_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : specialArity ⟨D, a⟩ c = specialArity ⟨P, a⟩ c := by
+    (hc : (findDecl D c).isSome) : specialArity ⟨D, a, fun _ => none⟩ c = specialArity ⟨P, a, fun _ => none⟩ c := by
   unfold specialArity
   rw [casesOn?_agree hsub hcl hc a a]
   dsimp only
@@ -279,7 +279,7 @@ theorem specialArity_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
 
 /-- δ agrees on the sub-environment's names. -/
 theorem unfold?_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : EvalEnv.unfold? ⟨D, a⟩ c = EvalEnv.unfold? ⟨P, a⟩ c := by
+    (hc : (findDecl D c).isSome) : EvalEnv.unfold? ⟨D, a, fun _ => none⟩ c = EvalEnv.unfold? ⟨P, a, fun _ => none⟩ c := by
   unfold EvalEnv.unfold?
   rw [casesOn?_agree hsub hcl hc a a]
   dsimp only
@@ -304,7 +304,7 @@ theorem EvidentProp_agree (hsub : SubEnv D P) (x : Expr)
 
 /-- Atoms agree on the sub-environment's names. -/
 theorem isAtom_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
-    (hc : (findDecl D c).isSome) : EvalEnv.isAtom ⟨D, a⟩ c = EvalEnv.isAtom ⟨P, a⟩ c := by
+    (hc : (findDecl D c).isSome) : EvalEnv.isAtom ⟨D, a, fun _ => none⟩ c = EvalEnv.isAtom ⟨P, a, fun _ => none⟩ c := by
   unfold EvalEnv.isAtom
   rw [casesOn?_agree hsub hcl hc a a, unfold?_agree hsub hcl hc]
   dsimp only
@@ -318,8 +318,8 @@ theorem isAtom_agree (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name}
 
 /-- Special spines of the program whose head is in the sub-environment are special there. -/
 theorem specialSpine_of_agree (hsub : SubEnv D P) (hcl : DepClosed D) {f : Expr}
-    (hf : ConstsIn (fun c => (findDecl D c).isSome) f) (h : SpecialSpine ⟨P, a⟩ f) :
-    SpecialSpine ⟨D, a⟩ f := by
+    (hf : ConstsIn (fun c => (findDecl D c).isSome) f) (h : SpecialSpine ⟨P, a, fun _ => none⟩ f) :
+    SpecialSpine ⟨D, a, fun _ => none⟩ f := by
   obtain ⟨c, us, hfn, hs⟩ := h
   have hc : (findDecl D c).isSome := by
     have := ConstsIn_getAppFn hf
@@ -331,7 +331,7 @@ theorem specialSpine_of_agree (hsub : SubEnv D P) (hcl : DepClosed D) {f : Expr}
   exact hs
 
 theorem IndIdOf_sub (hsub : SubEnv D P) {T : Name} {iid : InductiveId}
-    (h : IndIdOf ⟨D, a⟩ T = some iid) : IndIdOf ⟨P, a⟩ T = some iid := by
+    (h : IndIdOf ⟨D, a, fun _ => none⟩ T = some iid) : IndIdOf ⟨P, a, fun _ => none⟩ T = some iid := by
   unfold IndIdOf at h ⊢
   dsimp only at h ⊢
   split at h
@@ -339,7 +339,7 @@ theorem IndIdOf_sub (hsub : SubEnv D P) {T : Name} {iid : InductiveId}
   next => cases h
 
 theorem ctorFields_sub (hsub : SubEnv D P) {c : Name} {k : Nat}
-    (h : ctorFields ⟨D, a⟩ c = some k) : ctorFields ⟨P, a⟩ c = some k := by
+    (h : ctorFields ⟨D, a, fun _ => none⟩ c = some k) : ctorFields ⟨P, a, fun _ => none⟩ c = some k := by
   unfold ctorFields at h ⊢
   dsimp only at h ⊢
   split at h
@@ -359,7 +359,7 @@ theorem mapM_sub {α β : Type} {f g : α → Option β} (hfg : ∀ x y, f x = s
 
 /-- The block of a recursor read in the sub-environment is the program's. -/
 theorem recBlock?_sub (hsub : SubEnv D P) {rv : RecursorVal} {r}
-    (h : EvalEnv.recBlock? ⟨D, a⟩ rv = some r) : EvalEnv.recBlock? ⟨P, a'⟩ rv = some r := by
+    (h : EvalEnv.recBlock? ⟨D, a, fun _ => none⟩ rv = some r) : EvalEnv.recBlock? ⟨P, a', fun _ => none⟩ rv = some r := by
   unfold EvalEnv.recBlock? at h ⊢
   simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at h ⊢
   obtain ⟨ivs, hivs, cvs, hcvs, rfl⟩ := h
@@ -376,14 +376,14 @@ theorem recBlock?_sub (hsub : SubEnv D P) {rv : RecursorVal} {r}
 /-- The members of a recursor's block built in the sub-environment are the program's. -/
 theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
     ∀ {gi : Nat} {ivs : List InductiveVal} {xss : List (List Name)} {ms : List RecMember},
-      recMembers ⟨D, a⟩ minors gi ivs xss = some ms → recMembers ⟨P, a'⟩ minors gi ivs xss = some ms
+      recMembers ⟨D, a, fun _ => none⟩ minors gi ivs xss = some ms → recMembers ⟨P, a', fun _ => none⟩ minors gi ivs xss = some ms
   | _, [], _, _, h => by simpa [recMembers] using h
   | _, _ :: _, [], _, h => by simpa [recMembers] using h
   | gi, iv :: ivs, xs :: xss, ms, h => by
     simp only [recMembers, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
       Option.some.injEq] at h ⊢
     obtain ⟨indid, hid, masks, hmasks, rest, hrest, rfl⟩ := h
-    have hid' : IndIdOf ⟨P, a'⟩ iv.name = some indid := by
+    have hid' : IndIdOf ⟨P, a', fun _ => none⟩ iv.name = some indid := by
       unfold IndIdOf at hid ⊢
       dsimp only at hid ⊢
       split at hid
@@ -392,7 +392,7 @@ theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
     refine ⟨indid, hid', masks, mapM_sub (fun x y hx => ?_) hmasks, rest, recMembers_sub hsub hrest,
       rfl⟩
     obtain ⟨k, hk, rfl⟩ := Option.map_eq_some_iff.1 hx
-    have hk' : ctorFields ⟨P, a'⟩ x = some k := by
+    have hk' : ctorFields ⟨P, a', fun _ => none⟩ x = some k := by
       unfold ctorFields at hk ⊢
       dsimp only at hk ⊢
       split at hk
@@ -403,7 +403,7 @@ theorem recMembers_sub (hsub : SubEnv D P) {minors : List RecMinor} :
 /-- A recursor's fixpoint read in the sub-environment is the program's. -/
 theorem RecFixOf.sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} (hsub : SubEnv D P)
     {rv : RecursorVal} {us : List Level} {minors : List RecMinor} {F : LBTerm}
-    (h : RecFixOf E B ⟨D, a⟩ rv us minors F) : RecFixOf E B ⟨P, a'⟩ rv us minors F := by
+    (h : RecFixOf E B ⟨D, a, fun _ => none⟩ rv us minors F) : RecFixOf E B ⟨P, a', fun _ => none⟩ rv us minors F := by
   obtain ⟨ivs, cvs, motives, members, T, ivT, j, direct, hb, hs, hl, hm, hT, hiv, hj, h1, h2, h3,
     hF, hc, hx⟩ := h
   exact ⟨ivs, cvs, motives, members, T, ivT, j, direct, recBlock?_sub hsub hb, hs, hl,
@@ -412,9 +412,9 @@ theorem RecFixOf.sub {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} (
 /-- The η-expansion of a spine of the sub-environment is the program's, and its constants are in
 the sub-environment. -/
 theorem etaSpine?_sub (hsub : SubEnv D P) (hcl : DepClosed D) {c : Name} {us : List Level}
-    {as : List Expr} {e' : Expr} (h : EvalEnv.etaSpine? ⟨D, a⟩ c us as = some e')
+    {as : List Expr} {e' : Expr} (h : EvalEnv.etaSpine? ⟨D, a, fun _ => none⟩ c us as = some e')
     (hc : ConstsIn (fun c => (findDecl D c).isSome) (mkAppN (.const c us) as.toArray)) :
-    EvalEnv.etaSpine? ⟨P, a⟩ c us as = some e' ∧ ConstsIn (fun c => (findDecl D c).isSome) e' := by
+    EvalEnv.etaSpine? ⟨P, a, fun _ => none⟩ c us as = some e' ∧ ConstsIn (fun c => (findDecl D c).isSome) e' := by
   have hcD : (findDecl D c).isSome := (ConstsIn_mkAppN.1 hc).1
   refine ⟨?_, ?_⟩
   · unfold EvalEnv.etaSpine? at h ⊢

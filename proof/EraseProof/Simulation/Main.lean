@@ -25,6 +25,8 @@ namespace SimMain
 
 open SimIota
 
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
   {σ : EvalEnv} {lps : List Name} {lenv : GlobalDeclarations}
 
@@ -47,8 +49,8 @@ theorem short_head {XF a : Expr} (h : ShortSpine σ (.app XF a)) :
 /-- The simulation for every head-β-reduct of the evaluated term. -/
 theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hinj : KernameInj σ.decls) (hbinj : BlockNamesInj σ.decls) (harity : ArityTypes σ.decls)
-    {e v : Expr} (hev : SrcEval σ e v) :
-    ∀ X, HeadBeta σ e X → SrcEval σ X v ∧ ErasesSim E B lps σ lenv X v := by
+    {e v : Expr} (hev : SrcEval σ C e v) :
+    ∀ X, HeadBeta σ C e X → SrcEval σ C X v ∧ ErasesSim E B lps σ lenv X v := by
   have hsat : ∀ {ι : Metalean.IndSig} (η : Metalean.Head ζ (.inductive ι)) (s : Fin ι.nsorts)
       {us : List Level} {as₁ as₂ : List (Metalean.Expr ζ lps.length 0)}
       {t₁ t T : Metalean.Expr ζ lps.length 0},
@@ -64,7 +66,7 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
       E[.nil] ⊢ t : T → ∃ T₁, E[.nil] ⊢ t₁ : T₁ :=
     fun η _ _ _ _ _ _ h₁ h ht => SatTr.typed (b := .quot η .type) hE SrcDefeq.nil_ok
       (fun _ _ _ _ h => nomatch h) (fun _ _ _ h => nomatch h) h₁ h ht
-  have spine : ∀ {c us} {as : List Expr} {X}, HeadBeta σ (mkAppN (.const c us) as.toArray) X →
+  have spine : ∀ {c us} {as : List Expr} {X}, HeadBeta σ C (mkAppN (.const c us) as.toArray) X →
       X = mkAppN (.const c us) as.toArray := fun hX => hX.eq_of_head fun _ _ _ n A b bi h => by
     rw [SrcDefeq.getAppFn_mkAppN_const] at h; cases h
   induction hev with
@@ -88,7 +90,7 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
           obtain ⟨_, _, _, _, hlam⟩ := SimInd.etaSpine?_lam he'
           have hvv : v = b.instantiate1' a' := fixed_atom (by rw [hlam]; trivial) _ hb
           subst hvv
-          exact ⟨.eta he', erases_correct_eta henv hE hsub he'⟩
+          exact ⟨.eta he', erases_correct_eta (C := C) henv hE hsub he'⟩
         · rw [← hstep2 heq]
           exact ihb _ .refl
       · exact ⟨.beta hsh hXFe ha hb, erases_correct_beta henv hE hsub hsh hXFe ha hb hXFs
@@ -114,7 +116,7 @@ theorem sim (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
   | eta he =>
     intro X hX
     obtain rfl := spine hX
-    exact ⟨.eta he, erases_correct_eta henv hE hsub he⟩
+    exact ⟨.eta he, erases_correct_eta (C := C) henv hE hsub he⟩
   | ctor hc hlen hlen' hev ih =>
     intro X hX
     obtain rfl := spine hX

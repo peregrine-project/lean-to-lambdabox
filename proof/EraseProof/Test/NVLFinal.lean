@@ -43,12 +43,12 @@ theorem hfrag : collectDeps view cfg e = .ok D := hcollect
 /-- A field-less constructor evaluates to itself (`eval_construct` with no argument). -/
 theorem ev_ctor0 {c : Name} {cv : ConstructorVal}
     (hc : findDecl P c = some (.ctorInfo cv)) (hn : cv.numParams + cv.numFields = 0) :
-    SrcEval (evalEnvOf view cfg P) (.const c []) (.const c []) :=
+    SrcEval (evalEnvOf view cfg P) C (.const c []) (.const c []) :=
   SrcEval.ctor (as := []) (vs := []) hc hn.symm rfl (fun _ _ _ h => nomatch h)
 
 /-- The minor premises evaluate to themselves: `B.t` is a constructor, `fun n ih => ih` a λ. -/
 theorem ev_mins : ∀ (i : Nat) m mv, [cT, minS][i]? = some m → [cT, minS][i]? = some mv →
-    SrcEval (evalEnvOf view cfg P) m mv := by
+    SrcEval (evalEnvOf view cfg P) C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact ev_ctor0 rfl rfl
@@ -63,12 +63,12 @@ theorem minors_shape : ∀ mi ∈ minorsN, mi.ihs.map (fun h => (h.field, h.bind
   rcases h with rfl | rfl <;> rfl
 
 /-- A literal major evaluates to itself. -/
-theorem ev_lit (k : Nat) : SrcEval (evalEnvOf view cfg P) (.lit (.natVal k)) (.lit (.natVal k)) :=
+theorem ev_lit (k : Nat) : SrcEval (evalEnvOf view cfg P) C (.lit (.natVal k)) (.lit (.natVal k)) :=
   SrcEval.lit
 
 /-- `@Nat.rec (fun _ => B) B.t (fun n ih => ih) 0` evaluates to `B.t`: the recursor ι on `0`,
 read as `Nat.zero`, whose minor `B.t` has no field and no induction hypothesis. -/
-theorem ev_ih0 : SrcEval (evalEnvOf view cfg P)
+theorem ev_ih0 : SrcEval (evalEnvOf view cfg P) C
     (mkAppN (.const `Nat.rec [.succ .zero]) ([] ++ [motB] ++ [cT, minS] ++
       [Expr.lit (.natVal 0)]).toArray) cT :=
   SrcEval.recIota (ps := []) (ms := [motB]) (mins := [cT, minS]) (mvs := [cT, minS]) (fs := [])
@@ -79,9 +79,9 @@ theorem ev_ih0 : SrcEval (evalEnvOf view cfg P)
 
 /-- `(fun n ih => ih) k B.t` evaluates to `B.t`. -/
 theorem ev_minS (k : Nat) :
-    SrcEval (evalEnvOf view cfg P) (mkAppN minS ([Expr.lit (.natVal k)] ++ [cT]).toArray) cT := by
-  have hT : SrcEval (evalEnvOf view cfg P) cT cT := ev_ctor0 rfl rfl
-  have h1 : SrcEval (evalEnvOf view cfg P) (.app minS (.lit (.natVal k)))
+    SrcEval (evalEnvOf view cfg P) C (mkAppN minS ([Expr.lit (.natVal k)] ++ [cT]).toArray) cT := by
+  have hT : SrcEval (evalEnvOf view cfg P) C cT cT := ev_ctor0 rfl rfl
+  have h1 : SrcEval (evalEnvOf view cfg P) C (.app minS (.lit (.natVal k)))
       (.lam `ih tB (.bvar 0) .default) :=
     SrcEval.beta (by rintro ⟨c, us, ar, h, -⟩; cases h) (SrcEval.atom trivial) (ev_lit k)
       (SrcEval.atom trivial)
@@ -89,10 +89,10 @@ theorem ev_minS (k : Nat) :
 
 /-- The recursor on `k + 1` evaluates to `B.t` when it does on `k`: the ι on `k + 1`, read as
 `Nat.succ` applied to `k`, with the induction hypothesis the recursor on `k`. -/
-theorem ev_succ {k : Nat} (ih : SrcEval (evalEnvOf view cfg P)
+theorem ev_succ {k : Nat} (ih : SrcEval (evalEnvOf view cfg P) C
       (mkAppN (.const `Nat.rec [.succ .zero]) ([] ++ [motB] ++ [cT, minS] ++
         [Expr.lit (.natVal k)]).toArray) cT) :
-    SrcEval (evalEnvOf view cfg P)
+    SrcEval (evalEnvOf view cfg P) C
       (mkAppN (.const `Nat.rec [.succ .zero]) ([] ++ [motB] ++ [cT, minS] ++
         [Expr.lit (.natVal (k + 1))]).toArray) cT :=
   SrcEval.recIota (ps := []) (ms := [motB]) (mins := [cT, minS]) (mvs := [cT, minS])
@@ -107,7 +107,7 @@ theorem ev_succ {k : Nat} (ih : SrcEval (evalEnvOf view cfg P)
     (ev_minS k)
 
 /-- `hev`: `e` evaluates to `B.t`. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e cT := ev_succ (ev_succ ev_ih0)
+theorem hev : SrcEval (evalEnvOf view cfg P) C e cT := ev_succ (ev_succ ev_ih0)
 
 /-- The final theorem on NV-L: the program `#erase` emits for
 `@Nat.rec (fun _ => B) B.t (fun _ (ih : B) => ih) 2` under `nat := .peano` is an untyped λ□

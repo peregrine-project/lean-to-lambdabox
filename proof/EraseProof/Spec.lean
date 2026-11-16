@@ -390,6 +390,15 @@ inductive TrM {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : L
       TrM E B lps Γ Δ e e' → TypedExt E Γ e' (.ind η s ls ps is) →
       TrM E B lps Γ Δ (.proj S i e) (projProofTerm E η s c ls hi ps i e')
 
+/-- `a` and `b` are the Lean forms of definitionally equal closed Metalean terms: every typed
+translation of `a` is definitionally equal, at its type, to a translation of `b`. The conversion
+premise of the source semantics in the statements. Reference: the conclusion of
+`subject_reduction_eval` (`MR P/PCUICWcbvEval.v`). -/
+def SrcConv {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps : List Name)
+    (a b : Expr) : Prop :=
+  ∀ {t T : Metalean.Expr ζ lps.length 0}, TrM E B lps .nil [] a t → E[.nil] ⊢ t : T →
+    ∃ t', TrM E B lps .nil [] b t' ∧ E[.nil] ⊢ t ≡ t' : T
+
 /-! ## 6. Declarations: `ProgEnv` -/
 
 /-- First declaration named `c`. Reference: `lookup_env` (`MR common/theories/Environment.v:483`). -/
@@ -610,6 +619,8 @@ remapping. Reference: the environment of `MR P/PCUICWcbvEval.v:231 eval`, DV-12.
 structure EvalEnv where
   decls : List ConstantInfo
   axiomatized : ConstantInfo → Bool
+  /-- The compiled pre-definition through which a declaration is erased. -/
+  recPre? : ConstantInfo → Option Expr
 
 /-- The inductive of a recognized `casesOn` constant (the shipping recognizer `Erasure.casesInfo?`).
 Reference: none (`tCase` is syntax in PCUIC; DV-25). -/
@@ -855,42 +866,42 @@ major premise, then continues with the minor of the major's constructor (a Nat l
 ``Nat.zero`` or ``Nat.succ``, `natLitCtor`) applied to the fields and to the induction hypotheses
 (`recIota`, the recursor ι; DV-30). Reference:
 `MR P/PCUICWcbvEval.v:231 eval`; MC §5.6. -/
-inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
+inductive SrcEval (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr → Prop
   /-- `eval_beta` (`MR P/PCUICWcbvEval.v:234`). -/
-  | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ f (.lam n A b bi) → SrcEval σ a a' →
-      SrcEval σ (b.instantiate1' a') v → SrcEval σ (.app f a) v
+  | beta : ¬ ShortSpine σ (.app f a) → SrcEval σ C f (.lam n A b bi) → SrcEval σ C a a' →
+      SrcEval σ C (b.instantiate1' a') v → SrcEval σ C (.app f a) v
   /-- `eval_zeta` (`:241`). -/
-  | zeta : SrcEval σ val val' → SrcEval σ (b.instantiate1' val') v →
-      SrcEval σ (.letE n T val b nd) v
+  | zeta : SrcEval σ C val val' → SrcEval σ C (b.instantiate1' val') v →
+      SrcEval σ C (.letE n T val b nd) v
   /-- `eval_delta` (`:247`). -/
   | delta : σ.unfold? c = some (ci, body) →
-      SrcEval σ (Pure.instLevels ci.levelParams us body) v → SrcEval σ (.const c us) v
+      SrcEval σ C (Pure.instLevels ci.levelParams us body) v → SrcEval σ C (.const c us) v
   /-- `eval_atom` on `tInd`/propositional constants (`:331`, DV-11). -/
-  | constAtom : σ.isAtom c = true → SrcEval σ (.const c us) (.const c us)
+  | constAtom : σ.isAtom c = true → SrcEval σ C (.const c us) (.const c us)
   /-- A spine with an arity (`specialArity`) and missing arguments is its η-expansion, a λ
   (DV-23). -/
   | eta {as : List Expr} : σ.etaSpine? c us as = some e' →
-      SrcEval σ (mkAppN (.const c us) as.toArray) e'
+      SrcEval σ C (mkAppN (.const c us) as.toArray) e'
   /-- `eval_construct` (`:303`): a saturated constructor spine evaluates its arguments. -/
   | ctor {as vs : List Expr} : findDecl σ.decls c = some (.ctorInfo cv) →
       as.length = cv.numParams + cv.numFields → as.length = vs.length →
-      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v) →
-      SrcEval σ (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray)
+      (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray)
   /-- `eval_iota` (`:253`): a saturated recognized `casesOn`; the major evaluates to a constructor
   value; the alternative of its constructor is applied to its fields. -/
   | casesIota {as : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
-      as[casesMajor iv]? = some m → SrcEval σ m mv → CtorValue σ iv.name mv i fs →
-      as[casesMajor iv + 1 + i]? = some alt → SrcEval σ (mkAppN alt fs.toArray) v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      as[casesMajor iv]? = some m → SrcEval σ C m mv → CtorValue σ iv.name mv i fs →
+      as[casesMajor iv + 1 + i]? = some alt → SrcEval σ C (mkAppN alt fs.toArray) v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a Nat literal major (`casesOnLit`): `0` and `k+1`. -/
   | casesLitZero {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval σ m (.lit (.natVal 0)) → as[casesMajor iv + 1]? = some alt → SrcEval σ alt v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      SrcEval σ C m (.lit (.natVal 0)) → as[casesMajor iv + 1]? = some alt → SrcEval σ C alt v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   | casesLitSucc {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval σ m (.lit (.natVal (k + 1))) → as[casesMajor iv + 2]? = some alt →
-      SrcEval σ (.app alt (.lit (.natVal k))) v → SrcEval σ (mkAppN (.const c us) as.toArray) v
+      SrcEval σ C m (.lit (.natVal (k + 1))) → as[casesMajor iv + 2]? = some alt →
+      SrcEval σ C (.app alt (.lit (.natVal k))) v → SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a proof that is not a constructor (as λ□ `eval_iota_sing`,
   `MR E/EWcbvEval.v:162`, which the eraser applies at erasure time, `Erases.casesReduced`): a
   saturated recognized `casesOn` whose discriminant's sort is zero at its levels and whose inductive's
@@ -899,25 +910,25 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
   with the alternative. Metalean: proof irrelevance at the statement makes the major `cn ps`, then
   ι. -/
   | casesProof {as ps : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
-      as[casesMajor iv]? = some m → SrcEval σ m mv → AtomSpine σ mv →
+      as[casesMajor iv]? = some m → SrcEval σ C m mv → AtomSpine σ mv →
       casesSortLevel iv us = some l → EvidentZero l = true → iv.ctors = [cn] → findDecl σ.decls cn = some (.ctorInfo cv) → cv.numFields = 0 →
       σ.spineType? mv = some st → ps.length = cv.numParams →
       piInst ps (Pure.instLevels cv.levelParams vs cv.type) = some st →
-      as[casesMajor iv + 1]? = some alt → SrcEval σ alt v →
-      SrcEval σ (mkAppN (.const c us) as.toArray) v
+      as[casesMajor iv + 1]? = some alt → SrcEval σ C alt v →
+      SrcEval σ C (mkAppN (.const c us) as.toArray) v
   /-- `Quot.mk α r a` evaluates its element, the type and the relation unevaluated (as
   `eval_construct` on the quotient's constructor; DV-29). -/
-  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcEval σ a a' →
-      SrcEval σ (mkAppN (.const c us) [α, r, a].toArray) (mkAppN (.const c us) [α, r, a'].toArray)
+  | quotMk : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .ctor → SrcEval σ C a a' →
+      SrcEval σ C (mkAppN (.const c us) [α, r, a].toArray) (mkAppN (.const c us) [α, r, a'].toArray)
   /-- The quotient ι (`quotIota`, `ML Syntax/Reduction.lean:74`: `Quot.lift f h (Quot.mk r a) ⤳ f
   a`) as `eval_beta`: `f` evaluates to a λ and `q` to `Quot.mk α' r' a`; the λ's body continues at
   the element `a`. The type, the relation, the result type and the compatibility proof are not
   evaluated (DV-29). -/
   | quotLift : findDecl σ.decls c = some (.quotInfo qv) → qv.kind = .lift →
-      SrcEval σ f (.lam x A b bi) → SrcEval σ q (mkAppN (.const c' us') [α', r', a].toArray) →
+      SrcEval σ C f (.lam x A b bi) → SrcEval σ C q (mkAppN (.const c' us') [α', r', a].toArray) →
       findDecl σ.decls c' = some (.quotInfo qv') → qv'.kind = .ctor →
-      SrcEval σ (b.instantiate1' a) v →
-      SrcEval σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
+      SrcEval σ C (b.instantiate1' a) v →
+      SrcEval σ C (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
   /-- The recursor ι (`WHRed.iota`, `ML Syntax/Reduction.lean:60`) under call by value, as the
   eraser's fixpoint computes it: a saturated recursor `T.rec` of a single inductive `T` without
   indices, whose recursive fields take no arguments and come after the other fields of their
@@ -936,29 +947,29 @@ inductive SrcEval (σ : EvalEnv) : Expr → Expr → Prop
         (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, [])) →
       ps.length = rv.numParams → ms.length = rv.numMotives → mins.length = rv.numMinors →
       mins.length = mvs.length →
-      (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ m mv) →
-      SrcEval σ maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
+      (∀ (i : Nat) m mv, mins[i]? = some m → mvs[i]? = some mv → SrcEval σ C m mv) →
+      SrcEval σ C maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
       mvs[k]? = some mk →
       (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
       (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
-        SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
-      SrcEval σ (mkAppN mk (fs ++ ihvs).toArray) v →
-      SrcEval σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
+        SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
+      SrcEval σ C (mkAppN mk (fs ++ ihvs).toArray) v →
+      SrcEval σ C (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
   /-- `eval_proj` (`:264`). -/
-  | proj : SrcEval σ e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ (.proj S i e) a
+  | proj : SrcEval σ C e m → CtorValue σ S m 0 fs → fs[i]? = some a → SrcEval σ C (.proj S i e) a
   /-- `eval_proj` on a proof that is not a constructor (λ□ `eval_proj_prop`, `MR E/EWcbvEval.v:238`):
   the projection of a `Prop` inductive out of a neutral proof is a neutral proof (`PropProj`). -/
-  | projProp : σ.propInd S = true → SrcEval σ e m → (AtomSpine σ m ∨ PropProj σ m) →
-      SrcEval σ (.proj S i e) (.proj S i m)
+  | projProp : σ.propInd S = true → SrcEval σ C e m → (AtomSpine σ m ∨ PropProj σ m) →
+      SrcEval σ C (.proj S i e) (.proj S i m)
   /-- Nat literals are values (`eval_atom` on primitive values). -/
-  | lit : SrcEval σ (.lit (.natVal k)) (.lit (.natVal k))
+  | lit : SrcEval σ C (.lit (.natVal k)) (.lit (.natVal k))
   /-- `eval_app_cong` (`:311`). -/
-  | appCong : ¬ ShortSpine σ (.app f a) → SrcEval σ f f' → ¬ BlocksCong σ f' → SrcEval σ a a' →
-      SrcEval σ (.app f a) (.app f' a')
+  | appCong : ¬ ShortSpine σ (.app f a) → SrcEval σ C f f' → ¬ BlocksCong σ f' → SrcEval σ C a a' →
+      SrcEval σ C (.app f a) (.app f' a')
   /-- Metadata is transparent. -/
-  | mdata : SrcEval σ e v → SrcEval σ (.mdata d e) v
+  | mdata : SrcEval σ C e v → SrcEval σ C (.mdata d e) v
   /-- `eval_atom` (`:331`) on λ, sort, Π. -/
-  | atom : SrcAtom e → SrcEval σ e e
+  | atom : SrcAtom e → SrcEval σ C e e
 
 /-! ## 8. Erasability -/
 
@@ -987,7 +998,7 @@ which are erased as proofs; not of recognized `casesOn` constants, which the tra
 `case`). -/
 def ReadExpr (decls : List ConstantInfo) (ci : ConstantInfo) (x : Expr) : Prop :=
   x = ci.type ∨
-    (∃ d, ci = .defnInfo d ∧ x = d.value ∧ (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ d.name).isNone) ∨
+    (∃ d, ci = .defnInfo d ∧ x = d.value ∧ (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ d.name).isNone) ∨
     ∃ o, ci = .opaqueInfo o ∧ x = o.value
 
 /-- Kernames of the program's constants are distinct. Reference: none (DV-14). -/
@@ -1014,7 +1025,7 @@ def DepClosed (decls : List ConstantInfo) : Prop :=
 
 /-- The evaluation environment of `P` under the configuration's remapping (DV-12). -/
 def evalEnvOf (view : EnvView) (cfg : ErasureConfig) (P : List ConstantInfo) : EvalEnv :=
-  ⟨P, axiomatized view cfg⟩
+  ⟨P, axiomatized view cfg, fun _ => none⟩
 
 /-- The view `#erase` reads agrees with `P` on `P`'s names. Reference: `Σ ∼_ext X`
 (`abstract_env_ext_rel`, hypothesis of `MR E/ErasureFunctionProperties.v:657 erase_correct`). -/
@@ -1066,14 +1077,14 @@ def ReadClosed (decls : List ConstantInfo) (e : Expr) : Prop :=
   ∀ ci ∈ decls, (∀ x, ReadExpr decls ci x → ConstsIn inD x ∧ (HasNatLit x → inD ``Nat)) ∧
     (∀ n ∈ ci.all, inD n) ∧ (∀ iv, ci = .inductInfo iv → ∀ n ∈ iv.ctors, inD n) ∧
     (∀ cv, ci = .ctorInfo cv → inD cv.induct) ∧
-    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false⟩ ci.name = some iv →
+    (∀ iv, EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ ci.name = some iv →
       inD iv.name ∧ inD (mkRecName iv.name)) ∧
     (∀ iv, ci = .inductInfo iv → iv.ctors.length = 1 → inD (mkRecName iv.name))
 
 /-- An inductive of `decls` that the traversal may eliminate: its `casesOn` is recognized, or it has
 one constructor with a field (so it may be projected). -/
 def Eliminated (decls : List ConstantInfo) (iv : InductiveVal) : Prop :=
-  (EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome ∨
+  (EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn")).isSome ∨
     ∃ cn cv, iv.ctors = [cn] ∧ findDecl decls cn = some (.ctorInfo cv) ∧ 0 < cv.numFields
 
 /-- A recursor in the shape of the recursors the source semantics evaluates (`SrcEval.recIota`),
@@ -1083,7 +1094,7 @@ about the last fields of their constructor (`Erasure.recShapeInFragment`), and o
 `Erasure.recStaysConstant`, over the block that `visitRec` reads from `decls`. -/
 def RecInFragment (cfg : ErasureConfig) (decls : List ConstantInfo) (r : RecursorVal) : Prop :=
   ∃ T iv cvs, r.name = mkRecName T ∧ r.all = [T] ∧
-    EvalEnv.recBlock? ⟨decls, fun _ => false⟩ r = some ([iv], cvs) ∧
+    EvalEnv.recBlock? ⟨decls, fun _ => false, fun _ => none⟩ r = some ([iv], cvs) ∧
     recShapeInFragment r [iv] cvs = true ∧ recStaysConstant cfg.nat r [iv] cvs = false
 
 /-- `x` mentions recursors of `decls` only in the shape that the fragment admits
@@ -1105,7 +1116,7 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
     ConstantInfo → Prop
   | .quotInfo _ => True
   | .recInfo r => (∃ T iv, r.name = mkRecName T ∧
-      EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str T "casesOn") = some iv ∧
+      EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str T "casesOn") = some iv ∧
       (findDecl decls (.str T "casesOn")).isSome) ∨
     (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
       iv.ctors.length = 1) ∨
@@ -1120,7 +1131,7 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
   | .inductInfo iv => iv.isUnsafe = false ∧ iv.numNested = 0 ∧
       (∃ n u, arityShape iv.type = some (n, u) ∧ (u = .zero ∨ u.isNeverZero = true ∨
         (mayBeNonZero iv.levelParams u = true ∧ ¬ Eliminated decls iv))) ∧
-      ((EvalEnv.casesOn? ⟨decls, fun _ => false⟩ (.str iv.name "casesOn")).isSome →
+      ((EvalEnv.casesOn? ⟨decls, fun _ => false, fun _ => none⟩ (.str iv.name "casesOn")).isSome →
         ∀ cn ∈ iv.ctors, ∀ cv, findDecl decls cn = some (.ctorInfo cv) →
           (indexFields cv.numParams cv.type).all (·.isNone) = true)
   | .ctorInfo cv => cv.isUnsafe = false ∧ (cfg.1 = .preferAxiom → view.isExtern cv.name = false)
