@@ -61,9 +61,10 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   (C7), so C7 checks reachability from the final theorem `erase_correct`, the statements and those
   roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
-  instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP and
-  NV-A (`finalInstances`: `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`, `NV2.final`,
-  `NVQ.final`, `NVR.final`, `NVS.final`, `NVL.final`, `NVQP.final`, `NVA.final`),
+  instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP,
+  NV-A and NV-U (`finalInstances`: `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`,
+  `NV2.final`, `NVQ.final`, `NVR.final`, `NVS.final`, `NVL.final`, `NVQP.final`, `NVA.final`,
+  `NVU.final`),
   each of which applies `erase_correct` to its program's nine hypothesis terms, theorems within
   the same three axioms; each corollary of `corollaries` (`erase_correct_firstorder`) has the same
   footprint, and its instances (`NV1.firstorder`, `NV2.firstorder`, `NVR.firstorder`,
@@ -162,7 +163,8 @@ hypotheses that it passes to the final theorem (C12). -/
 def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2,
     `EraseProof.Test.NVQ, `EraseProof.Test.NVR, `EraseProof.Test.NVS,
-    `EraseProof.Test.NVL, `EraseProof.Test.NVQP, `EraseProof.Test.NVA].map fun ns =>
+    `EraseProof.Test.NVL, `EraseProof.Test.NVQP, `EraseProof.Test.NVA, `EraseProof.Test.NVU].map
+    fun ns =>
     (ns ++ `final, #[`henv, `hwf, `hview, `hpre, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
 /-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
