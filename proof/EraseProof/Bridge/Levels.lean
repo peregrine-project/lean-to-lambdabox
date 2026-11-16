@@ -226,6 +226,7 @@ variable {ζ : Metalean.Sigs} {ℓ ℓ' : Nat}
 def MLDecl.instL (ls : Fin ℓ → Metalean.Level ℓ') {n : Nat} : MLDecl ζ ℓ n → MLDecl ζ ℓ' n
   | .vlam v => .vlam v
   | .vlet e => .vlet e{ls}
+  | .vfix e => .vfix e{ls}
 
 /-- Universe instantiation of the locals. -/
 def MLCtx.instL (ls : Fin ℓ → Metalean.Level ℓ') {n : Nat} (Δ : MLCtx ζ ℓ n) : MLCtx ζ ℓ' n :=
@@ -250,6 +251,19 @@ theorem MLCtx.findF_instL (ls : Fin ℓ → Metalean.Level ℓ') {n : Nat} (Δ :
     obtain ⟨_ | y, d⟩ := p
     · simpa [MLCtx.instL, MLCtx.findF] using ih
     · simp only [MLCtx.instL, List.map_cons, MLCtx.findF]
+      split
+      · cases d <;> rfl
+      · simpa [MLCtx.instL] using ih
+
+/-- `findFix` after universe instantiation of the locals. -/
+theorem MLCtx.findFix_instL (ls : Fin ℓ → Metalean.Level ℓ') {n : Nat} (Δ : MLCtx ζ ℓ n)
+    (x : FVarId) : (Δ.instL ls).findFix x = (Δ.findFix x).map (·{ls}) := by
+  induction Δ with
+  | nil => rfl
+  | cons p Δ ih =>
+    obtain ⟨_ | y, d⟩ := p
+    · simpa [MLCtx.instL, MLCtx.findFix] using ih
+    · simp only [MLCtx.instL, List.map_cons, MLCtx.findFix]
       split
       · cases d <;> rfl
       · simpa [MLCtx.instL] using ih

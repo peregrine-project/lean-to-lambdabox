@@ -316,11 +316,12 @@ end
 section
 variable {ζ : Metalean.Sigs} {ℓ n : Nat}
 
-/-- The locals `Δ₀` answer every lookup of `Δ` but those of the free variable `x`: `Δ₀` is `Δ`
-without `x`. -/
+/-- The locals `Δ₀` answer every lookup of `Δ` but those of the free variable `x`, fix variables
+included: `Δ₀` is `Δ` without `x`. -/
 def MLCtx.Drop (x : FVarId) (Δ Δ₀ : MLCtx ζ ℓ n) : Prop :=
   (∀ i t, Δ.findB i = some t → Δ₀.findB i = some t) ∧
-  ∀ y t, y ≠ x → Δ.findF y = some t → Δ₀.findF y = some t
+  (∀ y t, y ≠ x → Δ.findF y = some t → Δ₀.findF y = some t) ∧
+  ∀ y t, y ≠ x → Δ.findFix y = some t → Δ₀.findFix y = some t
 
 /-- `MLCtx.Drop` is preserved by entering a binder. -/
 theorem MLCtx.Drop.pushLam {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.Drop x Δ Δ₀) :
@@ -333,10 +334,13 @@ theorem MLCtx.Drop.pushLam {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.D
       simp only [MLCtx.pushLam, MLCtx.findB, MLCtx.findB_map_wk, Option.map_eq_some_iff] at ht ⊢
       obtain ⟨u, hu, rfl⟩ := ht
       exact ⟨u, h.1 i u hu, rfl⟩
-  · intro y t hy ht
-    simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht ⊢
+  refine ⟨fun y t hy ht => ?_, fun y t hy ht => ?_⟩
+  · simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht ⊢
     obtain ⟨u, hu, rfl⟩ := ht
-    exact ⟨u, h.2 y u hy hu, rfl⟩
+    exact ⟨u, h.2.1 y u hy hu, rfl⟩
+  · simp only [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, Option.map_eq_some_iff] at ht ⊢
+    obtain ⟨u, hu, rfl⟩ := ht
+    exact ⟨u, h.2.2 y u hy hu, rfl⟩
 
 /-- `MLCtx.Drop` is preserved by pushing a bound local. -/
 theorem MLCtx.Drop.cons {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.Drop x Δ Δ₀)
@@ -346,8 +350,10 @@ theorem MLCtx.Drop.cons {x : FVarId} {Δ Δ₀ : MLCtx ζ ℓ n} (h : MLCtx.Drop
     cases i with
     | zero => simpa [MLCtx.findB] using ht
     | succ i => simpa [MLCtx.findB] using h.1 i t (by simpa [MLCtx.findB] using ht)
-  · intro y t hy ht
-    simpa [MLCtx.findF] using h.2 y t hy (by simpa [MLCtx.findF] using ht)
+  exact ⟨fun y t hy ht => by
+      simpa [MLCtx.findF] using h.2.1 y t hy (by simpa [MLCtx.findF] using ht),
+    fun y t hy ht => by
+      simpa [MLCtx.findFix] using h.2.2 y t hy (by simpa [MLCtx.findFix] using ht)⟩
 
 end
 
@@ -362,7 +368,7 @@ theorem TrM.dropF {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ Δ₀ : ML
     (W : MLCtx.Drop x Δ Δ₀) (he : FVarsIn (· ≠ x) e) : TrM E B lps Γ Δ₀ e t := by
   induction h with
   | bvar hb => exact .bvar (W.1 _ _ hb)
-  | fvar hf => exact .fvar (W.2 _ _ he hf)
+  | fvar hf => exact .fvar (W.2.1 _ _ he hf)
   | sort hl => exact .sort hl
   | const h₁ h₂ => exact .const h₁ h₂
   | special hb hs hlen _ hsat ih =>

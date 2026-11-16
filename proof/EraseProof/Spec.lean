@@ -12,10 +12,10 @@ The definitions the statements of `EraseProof/Statements.lean` are about: the br
 terms and declarations and Metalean terms and environments (`MBinding`, `Binds`, `TrLevel`,
 `MLCtx`, `SatTr`, `TrM`, `SrcConv`, `ProgEnv`), the source semantics (`EvalEnv`, atoms,
 `SrcEval`), erasability (`IsArity`, `IsErasable`, `ErasableS`), the closure predicates (`ConstsIn`,
-`KernameInj`, `SubEnv`, `evalEnvOf`, `PreDefsOK`, `ViewAgrees`), the sufficient condition for the
-fragment (`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecShaped`, `PreRead`, `BlockNamesInj`,
-`ArityTypes`), and the erasure relation
-(`Erases`, `ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps`). λ□ evaluation is
+`ConstAt`, `KernameInj`, `SubEnv`, `evalEnvOf`, `PreDefsOK`, `ViewAgrees`), the sufficient
+condition for the fragment (`ReadClosed`, `PhaseIDecl`, `PlainExpr`, `RecShaped`, `PreRead`,
+`BlockNamesInj`, `ArityTypes`), and the erasure relation (`Erases`, `ErasesAlt`, `ErasesInd`,
+`ErasesDecl`, `ErasesDeps`). λ□ evaluation is
 `EraseProof/Target.lean`.
 
 The η-terms of the saturating rules are the translator's own total term builders
@@ -95,20 +95,30 @@ def TrLevels (lps : List Name) (us : List Lean.Level) (k : Nat) :
 
 /-- What a Lean local denotes: a Metalean variable (λ/Π binder) or, for a `let`, its translated
 value (the translator inlines lets, `ML Frontend/Translate.lean:339-342`; `Ctx` has no let
-entries, `ML Syntax/Ctx.lean:20`). Reference: lean4lean `VLocalDecl` (`L4 Typing/Basic.lean:19`). -/
+entries, `ML Syntax/Ctx.lean:20`), or, for the fix variable of a fixpoint body
+(`Erases.fixVar`), the translation of the constant it stands for. Reference: lean4lean
+`VLocalDecl` (`L4 Typing/Basic.lean:19`); DV-7 for the fix variable. -/
 inductive MLDecl (ζ : Metalean.Sigs) (ℓ n : Nat) where
   | vlam (v : Fin n)
   | vlet (val : Metalean.Expr ζ ℓ n)
+  | vfix (val : Metalean.Expr ζ ℓ n)
 
 /-- The Metalean term a local denotes. -/
 def MLDecl.denote {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → Metalean.Expr ζ ℓ n
   | .vlam v => .var v
   | .vlet e => e
+  | .vfix e => e
 
 /-- Weakening by one new (last) Metalean variable. -/
 def MLDecl.wk {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → MLDecl ζ ℓ (n + 1)
   | .vlam v => .vlam v.castSucc
   | .vlet e => .vlet e.wk
+  | .vfix e => .vfix e.wk
+
+/-- The constant translation a fix-variable local stands for. -/
+def MLDecl.fixVal? {ζ : Metalean.Sigs} {ℓ n : Nat} : MLDecl ζ ℓ n → Option (Metalean.Expr ζ ℓ n)
+  | .vfix e => some e
+  | _ => none
 
 /-- The locals of a Lean term, innermost first: bound variables (`none`) and the traversal's free
 variables (`some x`). Reference: lean4lean `VLCtx` (`L4 Typing/Basic.lean`), DV-13. -/
@@ -131,6 +141,14 @@ def MLCtx.findF {ζ : Metalean.Sigs} {ℓ n : Nat} : MLCtx ζ ℓ n → FVarId �
   | [], _ => none
   | (some y, d) :: Δ, x => if y == x then some d.denote else findF Δ x
   | (none, _) :: Δ, x => findF Δ x
+
+/-- The constant translation that the free variable `x` stands for, if its local is a fix
+variable (`MLDecl.vfix`). -/
+def MLCtx.findFix {ζ : Metalean.Sigs} {ℓ n : Nat} :
+    MLCtx ζ ℓ n → FVarId → Option (Metalean.Expr ζ ℓ n)
+  | [], _ => none
+  | (some y, d) :: Δ, x => if y == x then d.fixVal? else findFix Δ x
+  | (none, _) :: Δ, x => findFix Δ x
 
 /-! ## 4. Nat literals (own copy of Metalean's) -/
 
@@ -554,6 +572,15 @@ def ConstsIn (p : Name → Prop) : Expr → Prop
   | .proj S _ e => p S ∧ ConstsIn p e
   | _ => True
 
+/-- Every occurrence of the constant `c` in the term is at the universe levels `us`. -/
+def ConstAt (c : Name) (us : List Level) : Expr → Prop
+  | .const c' us' => c' = c → us' = us
+  | .app f a => ConstAt c us f ∧ ConstAt c us a
+  | .lam _ t b _ | .forallE _ t b _ => ConstAt c us t ∧ ConstAt c us b
+  | .letE _ t v b _ => ConstAt c us t ∧ ConstAt c us v ∧ ConstAt c us b
+  | .mdata _ e | .proj _ _ e => ConstAt c us e
+  | _ => True
+
 /-- `ProgEnv P ζ E B`: the newest-first list of Lean declarations `P` is the Lean form of the
 Metalean environment `E` with name table `B`, one entry per declaration (block), after Metalean's
 loader (`ML Checker/Slow/Loader.lean:55-130`): safe axioms, definitions (`all = [name]`: no
@@ -888,15 +915,16 @@ inductive SrcEval (σ : EvalEnv) (C : Expr → Expr → Prop) : Expr → Expr �
   /-- `eval_delta` (`:247`). -/
   | delta : σ.unfold? c = some (ci, body) →
       SrcEval σ C (Pure.instLevels ci.levelParams us body) v → SrcEval σ C (.const c us) v
-  /-- A definition by structural recursion that the configuration erases through its compiled
-  pre-definition `pre` (`EvalEnv.recPre?`), applied to as many arguments as `pre` has leading λs
+  /-- A definition by structural recursion, not a recognized `casesOn`, that the configuration
+  erases through its compiled pre-definition `pre` (`EvalEnv.recPre?`), applied to as many
+  arguments as `pre` has leading λs
   (at least one): the arguments evaluate to `vs`, the application of the constant to `vs` is
   convertible to that of `pre` (`C`; `SrcConv` in the statements), and the latter evaluates to
   `v`. Lean's code generator runs the definition so (`addAndCompilePartialRec`,
   `Lean/Elab/PreDefinition/Basic.lean:280`), and λ□ unfolds the emitted fixpoint at the first
   argument (`eval_fix`, `MR P/PCUICWcbvEval.v:273`; DV-7). -/
   | deltaRec {as vs : List Expr} : findDecl σ.decls c = some ci → ci.isDefinition = true →
-      σ.axiomatized ci = false → σ.recPre? ci = some pre → 0 < lamArity pre →
+      σ.casesOn? c = none → σ.axiomatized ci = false → σ.recPre? ci = some pre → 0 < lamArity pre →
       as.length = lamArity pre → as.length = vs.length →
       (∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ C a v) →
       C (mkAppN (.const c us) vs.toArray)
@@ -1058,13 +1086,16 @@ def evalEnvOf (view : EnvView) (cfg : ErasureConfig) (P : List ConstantInfo) : E
 
 /-- The compiled pre-definitions of `P` are well formed: the pre-definition `pre` of a declaration
 `ci` of `P` mentions only `ci` and declarations older than `ci` (after it in the newest-first `P`),
-and it is the Lean form of a closed Metalean term of `ci`'s type. Lean's kernel checks the
-`_unsafe_rec` companion against that type (`add_mutual`), in the environment of its elaboration
-(`addAndCompilePartialRec`, `Lean/Elab/PreDefinition/Basic.lean:280`). Reference: none (DV-31). -/
+mentions `ci` only at `ci`'s own level parameters (Lean's structural recursion is
+universe-monomorphic), and it is the Lean form of a closed Metalean term of `ci`'s type. Lean's
+kernel checks the `_unsafe_rec` companion against that type (`add_mutual`), in the environment of
+its elaboration (`addAndCompilePartialRec`, `Lean/Elab/PreDefinition/Basic.lean:280`). Reference:
+none (DV-31). -/
 def PreDefsOK {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView)
     (cfg : ErasureConfig) (P : List ConstantInfo) : Prop :=
   ∀ P₁ ci P₀ pre, P = P₁ ++ ci :: P₀ → preDef? view cfg ci = some pre →
     ConstsIn (fun c => c = ci.name ∨ (findDecl P₀ c).isSome) pre ∧
+    ConstAt ci.name (ci.levelParams.map .param) pre ∧
     ∃ p T : Metalean.Expr ζ ci.levelParams.length 0,
       TrM E B ci.levelParams .nil [] pre p ∧ TrM E B ci.levelParams .nil [] ci.type T ∧
       E[.nil] ⊢ p : T
@@ -1368,23 +1399,24 @@ inductive Erases {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (lps 
       Erases E B lps σ Γ Δ (.const c us) (.const (toKername c))
   /-- Inside the fixpoint body of a constant erased through its compiled pre-definition, a
   recursive call: the constant erases to the fix variable `x` (`visitConst`,
-  `LeanToLambdaBox/Erasure.lean:940`), a let-local of `Δ` whose value is the constant's
-  translation, at any levels; `mkDef` abstracts it (DV-7). -/
-  | fixVar {kind : Metalean.ConstKind} {nl : Nat} {η : Metalean.Head ζ (.const kind nl)}
-      {ls : Fin nl → Metalean.Level lps.length} :
-      σ.isAtom c = false → B c = some (.const η) → Δ.findF x = some (.const η ls) →
+  `LeanToLambdaBox/Erasure.lean:940`), a fix-variable local of `Δ` (`MLDecl.vfix`) that stands
+  for the constant's translation at the call's levels; `mkDef` abstracts it (DV-7). -/
+  | fixVar {t : Metalean.Expr ζ lps.length n} :
+      σ.isAtom c = false → TrM E B lps Γ Δ (.const c us) t → Δ.findFix x = some t →
       Erases E B lps σ Γ Δ (.const c us) (.fvar x)
-  /-- A definition erased through its compiled pre-definition `pre`, as its λ□ fixpoint (the form
-  the unfolding of `tFix` substitutes for the recursive calls): one definition named after `c`,
-  recursive-argument index 0, whose body abstracts the fix variable `x` from an erasure of `pre`,
-  at every level instance; closed, without free variables. Reference: `erases_tFix`
-  (`MR E/Extract.v:122`); DV-7. -/
-  | constFix {x : FVarId} {b : LBTerm} :
-      findDecl σ.decls c = some ci → ci.isDefinition = true → σ.isAtom c = false →
-      σ.axiomatized ci = false → σ.recPre? ci = some pre →
-      (∀ (us' : List Level) (t : Metalean.Expr ζ lps.length 0),
-        TrM E B lps .nil [] (.const c us') t →
-        Erases E B lps σ .nil [(some x, .vlet t)] (Pure.instLevels ci.levelParams us' pre) b) →
+  /-- A definition, not a recognized `casesOn`, erased through its compiled pre-definition `pre`,
+  as its λ□ fixpoint (the form the unfolding of `tFix` substitutes for the recursive calls): one
+  definition named after `c`, recursive-argument index 0, whose body abstracts the fix variable
+  `x` from an erasure of `pre` at levels `us₀` at which the constant has the same translation `t`
+  as at its levels `us` (Metalean levels are up to equivalence), in which `x` stands for `t`;
+  `pre` translates at the definition's level parameters; the body is closed, without free
+  variables. Reference: `erases_tFix` (`MR E/Extract.v:122`); DV-7. -/
+  | constFix {x : FVarId} {b : LBTerm} {t : Metalean.Expr ζ lps.length 0} {us₀ : List Level} :
+      findDecl σ.decls c = some ci → ci.isDefinition = true → σ.casesOn? c = none →
+      σ.isAtom c = false → σ.axiomatized ci = false → σ.recPre? ci = some pre →
+      (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) →
+      TrM E B lps .nil [] (.const c us₀) t → TrM E B lps .nil [] (.const c us) t →
+      Erases E B lps σ .nil [(some x, .vfix t)] (Pure.instLevels ci.levelParams us₀ pre) b →
       closedn 1 (toBvar x 0 b) = true → (∀ y, hasFVar y (toBvar x 0 b) = false) →
       Erases E B lps σ Γ Δ (.const c us) (.fix [⟨fixDefName c, toBvar x 0 b, 0⟩] 0)
   /-- `erases_tConstruct` (`:106`, `~~ isPropositional`) under applications, parameters kept
@@ -1531,10 +1563,11 @@ def ErasesInd {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : Ev
 /-- A constant's λ□ body erases its Lean value: none for declarations without value and for
 remapped externs (DV-12); for a definition erased through its compiled pre-definition `pre`
 (`EvalEnv.recPre?`), the λ□ fixpoint of one definition named after it, recursive-argument index 0,
-whose body abstracts the fix variable `x` from an erasure of `pre` in which `x` is a let-local
-whose value is the constant's translation at its own level parameters, closed and without free
-variables (`visitMutual`, `LeanToLambdaBox/Erasure.lean:1269`; DV-7); an erasure of the value
-otherwise. Reference: `MR E/Extract.v:264 erases_constant_body`. -/
+whose body abstracts the fix variable `x` from an erasure of `pre` in which `x` is a fix-variable
+local (`MLDecl.vfix`) standing for the constant's translation at its own level parameters, `pre`
+translating at them, closed and without free variables (`visitMutual`,
+`LeanToLambdaBox/Erasure.lean:1269`; DV-7); an erasure of the value otherwise. Reference:
+`MR E/Extract.v:264 erases_constant_body`. -/
 def ErasesDecl {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : EvalEnv)
     (ci : ConstantInfo) (cb : ConstantBody) : Prop :=
   match ci.value? (allowOpaque := true) with
@@ -1545,8 +1578,9 @@ def ErasesDecl {ζ : Metalean.Sigs} (E : Metalean.Env ζ) (B : Binds ζ) (σ : E
     (σ.axiomatized ci = false ∧ ∃ (pre : Expr) (x : FVarId) (b : LBTerm)
       (t : Metalean.Expr ζ ci.levelParams.length 0), σ.recPre? ci = some pre ∧
       cb.cst_body = some (.fix [⟨fixDefName ci.name, toBvar x 0 b, 0⟩] 0) ∧
+      (∃ p : Metalean.Expr ζ ci.levelParams.length 0, TrM E B ci.levelParams .nil [] pre p) ∧
       TrM E B ci.levelParams .nil [] (.const ci.name (ci.levelParams.map .param)) t ∧
-      Erases E B ci.levelParams σ .nil [(some x, .vlet t)] pre b ∧
+      Erases E B ci.levelParams σ .nil [(some x, .vfix t)] pre b ∧
       closedn 1 (toBvar x 0 b) = true ∧ ∀ y, hasFVar y (toBvar x 0 b) = false)
 
 /-- The λ□ environment contains erasures of the erased term's dependencies, transitively, incl.

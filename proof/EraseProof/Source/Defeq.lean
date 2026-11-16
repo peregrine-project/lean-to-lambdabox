@@ -1948,7 +1948,7 @@ theorem sound_of (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decl
   | beta hns hf _ _ ihf iha ihb => exact case_beta henv hE hsub hns hf ihf iha.1 ihb.1
   | zeta _ _ ihv ihb => exact case_zeta henv hE ihv.1 ihb.1
   | delta hu _ ih => exact case_delta henv hE hsub hu ih.1
-  | deltaRec hc hdef _ _ _ _ hlen _ hconv _ ih ihb =>
+  | deltaRec hc hdef _ _ _ _ _ hlen _ hconv _ ih ihb =>
     exact case_deltaRec henv hE hsub hc hdef hlen (fun i a v h₁ h₂ => (ih i a v h₁ h₂).1) hconv
       ihb.1
   | constAtom ha => exact case_constAtom henv hsub ha

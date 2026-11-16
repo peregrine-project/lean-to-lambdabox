@@ -156,8 +156,8 @@ theorem preDef_P : (List.range P.length).all (fun k =>
     k == 5 || !((P[k]?).bind (Erasure.preDef? view cfgU)).isSome) = true := by krfl
 
 /-- `hpre`: the compiled pre-definition of `Nat.add`, the only one of `P` (`preDef_P`), names only
-`Nat.add` and declarations after it in `P`, and it is the Lean form of `preValM`, typed at the
-translation of `Nat.add`'s type. Reference: none (DV-31). -/
+`Nat.add` and declarations after it in `P`, names `Nat.add` at its own (empty) level parameters,
+and it is the Lean form of `preValM`, typed at the translation of `Nat.add`'s type. Reference: none (DV-31). -/
 theorem hpre : PreDefsOK E B view cfgU P := by
   intro P₁ ci P₀ pre hP hpd
   have hk : P₁.length < P.length := by rw [hP]; simp
@@ -170,10 +170,14 @@ theorem hpre : PreDefsOK E B view cfgU P := by
   obtain rfl : ci = .defnInfo add_def := Option.some.inj (hci.symm.trans rfl)
   subst hP₀
   obtain rfl : pre = preVal := Option.some.inj (hpd.symm.trans preDef_add)
-  refine ⟨?_, preValM, addTyM n13, tr_preVal, tr_addTy, preValM_typed⟩
-  simp only [ConstsIn, preVal, motPre, altPre1, altPre2, EraseProof.Test.NVL.tN,
-    EraseProof.Test.NVL.cS, and_true]
-  and_intros
-  all_goals first | exact .inl rfl | exact .inr (by krfl)
+  refine ⟨?_, ?_, preValM, addTyM n13, tr_preVal, tr_addTy, preValM_typed⟩
+  · simp only [ConstsIn, preVal, motPre, altPre1, altPre2, EraseProof.Test.NVL.tN,
+      EraseProof.Test.NVL.cS, and_true]
+    and_intros
+    all_goals first | exact .inl rfl | exact .inr (by krfl)
+  · simp only [ConstAt, preVal, motPre, altPre1, altPre2, EraseProof.Test.NVL.tN,
+      EraseProof.Test.NVL.cS, and_true]
+    and_intros
+    all_goals intro h; first | rfl | exact absurd h (by decide)
 
 end EraseProof.Test.NVU

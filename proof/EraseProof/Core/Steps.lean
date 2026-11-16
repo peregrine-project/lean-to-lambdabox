@@ -208,22 +208,22 @@ section
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {σ : EvalEnv} {lps : List Name}
 
 /-- The free variables of an erasure are free variables of the parts of the source it keeps, or
-free variables of the locals (the fix variable of `Erases.fixVar`). Reference: none (`LBTerm.fvar`
-has no MetaRocq counterpart, DV-13). -/
+fix variables of the locals (`Erases.fixVar`). Reference: none (`LBTerm.fvar` has no MetaRocq
+counterpart, DV-13). -/
 theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     {Δ : MLCtx ζ lps.length n} {e : Expr} {tb : LBTerm} (h : Erases E B lps σ Γ Δ e tb) :
-    ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) → KFV p e →
+    ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) → KFV p e →
       ∀ x, hasFVar x tb = true → p x := by
   have push : ∀ {n : Nat} {Δ : MLCtx ζ lps.length n} {p : FVarId → Prop},
-      (∀ y t, Δ.findF y = some t → p y) → ∀ y t, (Δ.pushLam none).findF y = some t → p y := by
+      (∀ y t, Δ.findFix y = some t → p y) → ∀ y t, (Δ.pushLam none).findFix y = some t → p y := by
     intro _ _ _ hΔ y t ht
-    simp only [MLCtx.pushLam, MLCtx.findF, MLCtx.findF_map_wk, Option.map_eq_some_iff] at ht
+    simp only [MLCtx.pushLam, MLCtx.findFix, MLCtx.findFix_map_wk, Option.map_eq_some_iff] at ht
     obtain ⟨u, hu, -⟩ := ht
     exact hΔ y u hu
   refine Erases.rec
-    (motive_1 := fun _ Δ e tb _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) →
+    (motive_1 := fun _ Δ e tb _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) →
       KFV p e → ∀ x, hasFVar x tb = true → p x)
-    (motive_2 := fun _ Δ _ e br _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findF y = some t → p y) →
+    (motive_2 := fun _ Δ _ e br _ => ∀ (p : FVarId → Prop), (∀ y t, Δ.findFix y = some t → p y) →
       KFV p e → ∀ x, hasFVar x br.2 = true → p x)
     ?bvar ?fvar ?lam ?letE ?app ?const ?fixVar ?constFix ?ctor ?cases ?casesReduced ?eta ?proj
     ?litZero ?litSucc ?quotMk ?quotLift ?recLet ?recFix ?mdata ?box ?done ?alam ?intro h
@@ -233,11 +233,11 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     simp only [hasFVar] at hx
     rw [(fvarId_beq_iff x y).mp hx]; exact hk
   case fixVar =>
-    intro _ _ _ _ _ y _ _ _ _ _ _ hF p hΔ _ x hx
+    intro _ _ _ _ _ y _ _ _ hF p hΔ _ x hx
     simp only [hasFVar] at hx
     rw [(fvarId_beq_iff x y).mp hx]; exact hΔ y _ hF
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
+    intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hfv _ p _ _ x hx
     simp only [hasFVar, hasFVarD, Bool.or_false, hfv x] at hx
     cases hx
   case lam => intro _ _ _ _ _ _ _ _ _ _ _ _ ih p hΔ hk x hx; exact ih p (push hΔ) hk x hx
@@ -245,7 +245,7 @@ theorem Erases.hasFVar_of {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n}
     intro _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ihv ihb p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
     exact hx.elim (ihv p hΔ hk.1 x)
-      (ihb p (fun y t ht => hΔ y t (by simpa [MLCtx.findF] using ht)) hk.2 x)
+      (ihb p (fun y t ht => hΔ y t (by simpa [MLCtx.findFix] using ht)) hk.2 x)
   case app =>
     intro _ _ _ _ _ _ _ _ _ _ ihf iha p hΔ hk x hx
     simp only [hasFVar, Bool.or_eq_true] at hx
@@ -417,13 +417,14 @@ theorem InstFV.zeroLet {ℓ n : Nat} {x : FVarId} {Δ : MLCtx ζ ℓ n} (hx : Δ
     rw [MLCtx.findF_ne hx ht]
     exact ht
 
-/-- Closing a `let` that the traversal opened with a fresh free variable (`mkLetIn`): the
-`let`-body counterpart of `Erases.abstract`. Reference: `Erases.uninstantiateN`
-(`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
+/-- Closing a `let` that the traversal opened with a fresh free variable (`mkLetIn`), whose local
+is no fix variable: the `let`-body counterpart of `Erases.abstract`. Reference:
+`Erases.uninstantiateN` (`L4 Relation/Abstract.lean:170`); none in MetaRocq (DV-13). -/
 theorem Erases.abstract_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
     {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n} {x : FVarId} {b : Expr}
     {tb : LBTerm} {d : MLDecl ζ lps.length n} (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
-    (_hx : Δ.findF x = none) (hfv : FVarsIn (· ≠ x) b) (hcl : closedn 0 tb = true)
+    (_hx : Δ.findF x = none) (hd : d.fixVal? = none) (hfv : FVarsIn (· ≠ x) b)
+    (hcl : closedn 0 tb = true)
     (h : Erases E B lps σ Γ ((some x, d) :: Δ) (b.instantiate1' (.fvar x)) tb) :
     Erases E B lps σ Γ ((none, d) :: Δ) b (_root_.abstract x tb) := by
   have hrel : AbsFV.Rel x 0 ((some x, d) :: Δ) ((none, d) :: Δ) := by
@@ -446,7 +447,8 @@ theorem Erases.abstract_let {P : List ConstantInfo} {σ : EvalEnv} {n : Nat}
         simp only [hxy, Bool.false_eq_true, ↓reduceIte] at ht
         simp only [hy, Bool.false_eq_true, ↓reduceIte, MLCtx.findF]
         exact ht
-  have := AbsFV.Erases.absN x (AbsFV.closed_types henv hsub) h 0 _ hrel hcl
+  have := AbsFV.Erases.absN x (AbsFV.closed_types henv hsub) h 0 _ hrel
+    (AbsFV.FixRel.close x hd Δ) hcl
   rwa [AbsFV.absFV_inst hfv] at this
 
 variable {σ : EvalEnv} {lenv : GlobalDeclarations}
@@ -1068,7 +1070,7 @@ theorem visitExpr_letE_step (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     have := Erases.closed hbody' herb
     rwa [countP_none hctx'.nobv] at this
   have hfb : FVarsIn (· ≠ pureFVar ps.next) b := hfx (by simpa [MLCtx.findF] using hfv.2.2)
-  exact ⟨.letE hv ⟨_, hvT⟩ herv (Erases.abstract_let hG.prog hG.sub hxΔ hfb hcl herb),
+  exact ⟨.letE hv ⟨_, hvT⟩ herv (Erases.abstract_let hG.prog hG.sub hxΔ rfl hfb hcl herb),
     .letIn (ErasesDeps.ext hgrb.ext hdepsv) (ErasesDeps.toBvar hdepsb 0),
     Grows.trans ⟨hgrv.inv, hgrv.ext, Nat.le_trans (Nat.le_succ _) hgrv.next, hgrv.scope⟩ hgrb⟩
 

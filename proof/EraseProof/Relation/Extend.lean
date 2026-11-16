@@ -482,13 +482,14 @@ theorem Erases.extend {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} 
     · exact (specialArity_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hsa
     · exact (findDecl_agree hsub hC).trans hrv
   case fixVar =>
-    intro c _ _ _ _ _ _ _ _ _ hat hB hF hC
-    exact .fixVar ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hB hF
+    intro c _ _ _ _ _ _ hat hTr hF hC
+    exact .fixVar ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hTr hF
   case constFix =>
-    intro c ci pre _ _ _ _ _ _ hci hdef hat hax hpre _ hcl' hfv ih hC
+    intro c ci pre _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht _ hcl' hfv ih hC
     refine .constFix (findDecl_sub hsub hci) hdef
-      ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hax hpre
-      (fun us' t ht => ih us' t ht (ConstsIn_instLevels ?_)) hcl' hfv
+      ((casesOn?_agree hsub hcl hC _ _).symm.trans hcas)
+      ((isAtom_agree (a := axiomatized view cfg) hsub hcl hC).symm.trans hat) hax hpre hp ht₀
+      ht (ih (ConstsIn_instLevels ?_)) hcl' hfv
     exact hpcl ci (findDecl_eq_some hci).1 pre hpre
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih hC
