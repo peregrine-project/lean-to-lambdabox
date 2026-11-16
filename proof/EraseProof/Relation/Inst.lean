@@ -874,9 +874,9 @@ theorem Erases.rename
     intro _ _ _ _ _ _ _ hat hT hF m Γ₂ Δ₂ c j ρ _ _ _ WF _
     exact .fixVar hat (TrM.const_subst hT _) (WF _ _ hF)
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ m Γ₂ Δ₂ c j ρ
+    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv _ m Γ₂ Δ₂ c j ρ
       _ _ _ _ _
-    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih m Γ₂ Δ₂ c j ρ hΓ₂ hth W WF hcl
     rw [AbsFV.closedn_mkApps] at hcl
@@ -1236,11 +1236,11 @@ theorem Erases.instG (hE : EnvWF E)
     rw [hN] at hF
     cases hF
   case constFix =>
-    intro _ _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv _ _ _ _ d
+    intro _ _ _ _ _ _ _ _ _ _ hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv _ _ _ _ d
       _ _ _ _ _ _ _
     rw [TargetSubst.csubst_closedn a' _ 0 d
       (by simpa [closedn, closednD] using hcl') (Nat.zero_le _)]
-    exact .constFix hci hdef hcas hat hax hpre hp ht₀ ht hb hcl' hfv
+    exact .constFix hci hdef hcas hat hax hpre hca hp ht hb hcl' hfv
   case ctor =>
     intro _ _ _ _ _ _ _ as _ hcv hnp hid hle hlen _ ih n₂ Γ₂ Δ₂ d ς hN hΓ₂ hς W Ea hi
     rw [inst_spine, csubst_mkApps]
