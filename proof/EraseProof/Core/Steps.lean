@@ -1123,23 +1123,6 @@ theorem ConstsIn_inst_fvar {p : Name → Prop} {x : FVarId} :
   | .const .., _, h => h
   | .sort _, _, _ | .fvar _, _, _ | .mvar _, _, _ | .lit _, _, _ => trivial
 
-/-- Opening a binder with a free variable keeps the constants that occur. -/
-theorem nameOccurs_inst_fvar {c : Name} {x : FVarId} :
-    ∀ (b : Expr) (k : Nat), nameOccurs c (b.instantiate1' (.fvar x) k) = nameOccurs c b
-  | .bvar i, k => by
-    simp only [Expr.instantiate1']
-    split
-    · rfl
-    · split <;> rfl
-  | .app f a, k => by
-    simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar f, nameOccurs_inst_fvar a]
-  | .lam _ _ b _, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar b]
-  | .letE _ _ v b _, k => by
-    simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar v, nameOccurs_inst_fvar b]
-  | .mdata _ e, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar e]
-  | .proj _ _ e, k => by simp only [Expr.instantiate1', nameOccurs, nameOccurs_inst_fvar e]
-  | .forallE .., _ | .const .., _ | .sort _, _ | .fvar _, _ | .mvar _, _ | .lit _, _ => rfl
-
 /-! ## The steps of `visitExpr` without constants -/
 
 section

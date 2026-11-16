@@ -6,18 +6,18 @@ import EraseProof.Test.NVLRun
 # NV-L end to end
 
 The remaining hypotheses of the final theorem on NV-L (`Test/NVLData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `B.t` (`hev`: the recursor ι, `SrcEval.recIota`, evaluates the minor premises
-`B.t` and `fun n ih => ih` and the major, the literal `2`, a value whose constructor form
-(`natLitCtor`) is `Nat.succ` applied to the literal `1`, a constructor value of `Nat`; the induction
-hypothesis about the field `1` is the recursor's ι on `1`, read as `Nat.succ` applied to `0`, whose
-hypothesis is the ι on `0`, read as `Nat.zero`, whose minor `B.t` has no field; each minor of
-`Nat.succ` applied to a literal and to the hypothesis's value `B.t` gives `B.t` by two β-steps).
-`final` applies the final theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`,
-`hty` from `Test/NVLModel.lean`, `hrun` from `Test/NVLRun.lean`): the program `p0` that `#erase`
-emits is an untyped λ□ program whose main term evaluates to an erasure of `B.t`. `firstorder`
-applies `erase_correct_firstorder` to the same hypotheses: that erasure is `B.t`'s structural
-erasure, the λ□ constructor `1` of `B`'s block.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to `B.t`
+(`hev`: the recursor ι, `SrcEval.recIota`, evaluates the minor premises `B.t` and `fun n ih => ih`
+and the major, the literal `2`, a value whose constructor form (`natLitCtor`) is `Nat.succ` applied
+to the literal `1`, a constructor value of `Nat`; the induction hypothesis about the field `1` is
+the recursor's ι on `1`, read as `Nat.succ` applied to `0`, whose hypothesis is the ι on `0`, read
+as `Nat.zero`, whose minor `B.t` has no field; each minor of `Nat.succ` applied to a literal and to
+the hypothesis's value `B.t` gives `B.t` by two β-steps). `final` applies the final theorem
+`erase_correct` to all nine hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVLModel.lean`, `hrun`
+from `Test/NVLRun.lean`): the program `p0` that `#erase` emits is an untyped λ□ program whose main
+term evaluates to an erasure of `B.t`. `firstorder` applies `erase_correct_firstorder` to the same
+hypotheses: that erasure is `B.t`'s structural erasure, the λ□ constructor `1` of `B`'s block.
 -/
 
 open Lean Erasure Metalean
@@ -109,6 +109,14 @@ theorem ev_succ {k : Nat} (ih : SrcEval (evalEnvOf view cfg P) C
 /-- `hev`: `e` evaluates to `B.t`. -/
 theorem hev : SrcEval (evalEnvOf view cfg P) C e cT := ev_succ (ev_succ ev_ih0)
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-L: the program `#erase` emits for
 `@Nat.rec (fun _ => B) B.t (fun _ (ih : B) => ih) 2` under `nat := .peano` is an untyped λ□
 program whose main term evaluates to an erasure of `B.t`, and `B.t` translates to a term
@@ -117,7 +125,7 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] cT t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 /-- `B.t` is a first-order value: a constructor of `B : Type` with no parameter and no field. -/
 theorem fo_cT : FirstOrderValue (evalEnvOf view cfg P) cT :=
@@ -128,6 +136,6 @@ theorem fo_cT : FirstOrderValue (evalEnvOf view cfg P) cT :=
 evaluates in λ□ to `B.t`'s structural erasure, the constructor `1` of `B`'s block. -/
 theorem firstorder :
     ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb (.construct iidB 1 []) :=
-  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_cT
+  erase_correct_firstorder henv hwf hview hpre he hty hfrag hrun hev fo_cT
 
 end EraseProof.Test.NVL

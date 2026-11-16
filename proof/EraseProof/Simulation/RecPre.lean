@@ -337,16 +337,18 @@ theorem eval_box_spine {lenv : GlobalDeclarations} :
 
 /-- An erasure of a term headed by no constant, applied to erasures of arguments, erases the
 application. -/
-theorem erases_apps {σ : EvalEnv} :
-    ∀ {ws : List Expr} {avs : List LBTerm}, List.Forall₂ (Erases E B lps σ .nil []) ws avs →
-      ∀ {f : Expr} {f' : LBTerm}, (∀ c us, f.getAppFn ≠ .const c us) →
-        Erases E B lps σ .nil [] f f' →
-        Erases E B lps σ .nil [] (mkAppN f ws.toArray) (mkApps f' avs)
-  | [], [], .nil, _, _, _, h => h
-  | w :: ws, a :: avs, .cons hw hall, f, f', hfn, h => by
+theorem erases_apps {σ : EvalEnv} {ws : List Expr} {avs : List LBTerm}
+    (hall : List.Forall₂ (Erases E B lps σ .nil []) ws avs) :
+    ∀ {f : Expr} {f' : LBTerm}, (∀ c us, f.getAppFn ≠ .const c us) →
+      Erases E B lps σ .nil [] f f' →
+      Erases E B lps σ .nil [] (mkAppN f ws.toArray) (mkApps f' avs) := by
+  induction hall with
+  | nil => intro _ _ _ h; exact h
+  | @cons w a ws avs hw _ ih =>
+    intro f f' hfn h
     rw [mkAppN_cons']
-    exact erases_apps hall (f := .app f w) (fun c us h' => hfn c us (by simpa [Expr.getAppFn] using h'))
-      (.app (fun ⟨c, us, h', _⟩ => hfn c us h') h hw)
+    exact ih (f := .app f w) (fun c us h' => hfn c us (by simpa [Expr.getAppFn] using h'))
+      (.app (by rintro ⟨c, us, h', -⟩; exact hfn c us h') h hw)
 
 /-- A term with leading λs is a λ. -/
 theorem lam_of_lamArity {e : Expr} (h : 0 < lamArity e) : ∃ n A b bi, e = .lam n A b bi := by

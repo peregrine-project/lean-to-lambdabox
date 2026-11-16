@@ -6,13 +6,13 @@ import EraseProof.Test.NVQRun
 # NV-Q end to end
 
 The remaining hypotheses of the final theorem on NV-Q (`Test/NVQData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `B.t` (`hev`: the quotient ι, `SrcEval.quotLift`, on `Quot.mk R (fun y => y)`,
-whose element is a value, continues with the body of `fun x => x` at the element, `fun y => y`;
-then a β-step on the argument `B.t`). `final` applies the final theorem `erase_correct` to all
-eight hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVQModel.lean`, `hrun` from
-`Test/NVQRun.lean`): the program `p0` that `#erase` emits is an untyped λ□ program whose main term
-evaluates to an erasure of `B.t`.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to `B.t`
+(`hev`: the quotient ι, `SrcEval.quotLift`, on `Quot.mk R (fun y => y)`, whose element is a value,
+continues with the body of `fun x => x` at the element, `fun y => y`; then a β-step on the argument
+`B.t`). `final` applies the final theorem `erase_correct` to all nine hypotheses (`henv`, `hwf`,
+`he`, `hty` from `Test/NVQModel.lean`, `hrun` from `Test/NVQRun.lean`): the program `p0` that
+`#erase` emits is an untyped λ□ program whose main term evaluates to an erasure of `B.t`.
 -/
 
 open Lean Erasure Metalean
@@ -170,6 +170,14 @@ theorem ev_eT : SrcEval (evalEnvOf view cfg P) C eT cT := by
   revert hle
   decide
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK EH BH view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-Q: the program `#erase` emits for
 `@Quot.lift (B → B) R (B → B) (fun x => x) hR (Quot.mk R (fun y => y)) B.t` is an untyped λ□
 program whose main term evaluates to an erasure of `B.t`, and `B.t` translates to a term
@@ -178,6 +186,6 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases EH BH [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, EH[.nil] ⊢ tE : T → ∃ t', TrM EH BH [] .nil [] cT t' ∧ EH[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 end EraseProof.Test.NVQ

@@ -7,10 +7,11 @@ import EraseProof.Test.NVQPFinal
 The premises of `collectDeps_ok_of` on NV-QP (`Test/NVQPData.lean`) with the closure `D`
 (`Test/NVQPRun.lean`), proved from the declarations, not from a run of the fragment test, as for
 NV-1 (`Test/NV1Collect.lean`). The closure holds the definitions the term reaches, the theorem
-`orU._proof_1` (in Phase I as a theorem, whose value is not read), the quotient constants
-`Quot.mk`, `Quot.lift` and `Quot`, and the blocks of `B`, `Prod` and `Eq`: `B.rec` is in Phase I
-through the recognized `B.casesOn`, `Prod.rec` and `Eq.rec` through their single constructor. No
-read expression names a recursor. `ok_of` applies `collectDeps_ok_of` to them.
+`orU._proof_1` (in Phase I as a theorem, whose value is not read), the quotient constants `Quot.mk`,
+`Quot.lift` and `Quot`, and the blocks of `B`, `Prod` and `Eq`: `B.rec` is in Phase I through the
+recognized `B.casesOn`, `Prod.rec` and `Eq.rec` through their single constructor. No read expression
+names a recursor. No declaration of `D` has a compiled pre-definition (`preD`). `ok_of` applies
+`collectDeps_ok_of` to them.
 -/
 
 open Lean Erasure
@@ -115,6 +116,14 @@ theorem recShapedD :
     RecShaped cfg D e ∧ ∀ ci ∈ D, ∀ x, ReadExpr D ci x → RecShaped cfg D x :=
   ⟨recShapedOf (by krfl), fun ci hci x hx => recShapedOf (readAll_of (by krfl) ci hci x hx)⟩
 
+/-- No declaration of `D` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `D` reads them vacuously. -/
+theorem preD : PreRead view cfg D := by
+  intro ci hci _ h
+  have hn : D.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci hci)] at h
+  cases h
+
 /-- The kernames of `D` are distinct. -/
 theorem kernD : KernameInj D := kernameInj_of (by krfl)
 
@@ -133,7 +142,7 @@ theorem blockD : BlockNamesInj D := by
 
 /-- The fragment test accepts NV-QP's term, by `collectDeps_ok_of` from the premises above. -/
 theorem ok_of : ∃ decls', collectDeps view cfg e = .ok decls' :=
-  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD kernD blockD
+  collectDeps_ok_of henv hview he hty rfl subD readD phaseD plainD recShapedD preD kernD blockD
     (by decide)
 
 end EraseProof.Test.NVQP
