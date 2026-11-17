@@ -136,3 +136,9 @@ import EraseProof.Test.NVURun
 import EraseProof.Test.NVUModel
 import EraseProof.Test.NVUEval
 import EraseProof.Test.NVUFinal
+import EraseProof.Test.NVSUData
+import EraseProof.Test.NVSUCollect
+import EraseProof.Test.NVSURun
+import EraseProof.Test.NVSUModel
+import EraseProof.Test.NVSUEval
+import EraseProof.Test.NVSUFinal
