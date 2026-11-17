@@ -9,8 +9,9 @@ as a fixpoint, and the fragment test admits the definition and reads the constan
 pre-definition. The test checks:
 - `preDef?` on `Nat.add`: the renamed value of `Nat.add._unsafe_rec`, which mentions `Nat.add` and
   not the companion; `none` under `structural := .kernel`, on the well-founded `log2`, on the
-  non-recursive `Nat.pred` and on the constructor `Nat.succ`; `PureM.declInfo?` gives `Nat.add`
-  with its name, levels, type and block, and that value;
+  non-recursive `Nat.pred`, on the constructor `Nat.succ`, and on `Nat.add` in a view whose
+  `Nat.add._unsafe_rec` is not `partial`; `PureM.declInfo?` gives `Nat.add` with its name, levels,
+  type and block, and that value;
 - under `{extern := .preferLogical, nat := .peano}`, `Nat.add 2 3`, `Nat.beq 2 3` and
   `[true, false, true].length` are in the fragment and take the pure path, whose output differs
   from the `Meta` path's (a matcher stays a constant); `erasePure` declares `Nat.add` as the
@@ -21,7 +22,10 @@ pre-definition. The test checks:
   fragment (which excludes every inductive type under that option) and takes the `Meta` path,
   which erases `Nat.add` through `Nat.add._unsafe_rec` as a fixpoint: `metaAdd.ast`, which
   peregrine validates and evaluates to 5;
-- the well-founded `log2 8` is outside the fragment.
+- the well-founded `log2 8` is outside the fragment;
+- under the default configuration, the `partial` `spin true` is outside the fragment and takes the
+  `Meta` path, which erases `spin` through `PUR.spin._unsafe_rec`: `partial.ast`, which peregrine
+  validates and evaluates to `true`.
 -/
 
 -- peregrine: validate add.ast
@@ -32,6 +36,8 @@ pre-definition. The test checks:
 -- peregrine: eval length.ast
 -- peregrine: validate metaAdd.ast
 -- peregrine: eval metaAdd.ast
+-- peregrine: validate partial.ast
+-- peregrine: eval partial.ast
 
 open Lean Elab Command Erasure
 
@@ -39,6 +45,10 @@ namespace PUR
 def log2 (n : Nat) : Nat := if n < 2 then 0 else 1 + log2 (n / 2)
 termination_by n
 decreasing_by omega
+
+partial def spin : Bool → Bool
+  | true => spin false
+  | false => true
 end PUR
 
 /-- The configuration of the programs on the pure path. -/
@@ -65,6 +75,15 @@ def preDefOf (cfg : ErasureConfig) (n : Name) : CoreM (Option Expr) := do
   return [(← preDefOf { cfgL with structural := .kernel } ``Nat.add).isSome,
     (← preDefOf cfgL ``PUR.log2).isSome, (← preDefOf cfgL ``Nat.pred).isSome,
     (← preDefOf cfgL ``Nat.succ).isSome]
+
+/-- info: false -/
+#guard_msgs in
+#eval show CoreM _ from do
+  let view := EnvView.ofEnvironment (← getEnv)
+  let safe : EnvView := { view with find? := fun n => match view.find? n with
+    | some (.defnInfo u) => some (.defnInfo { u with safety := .safe })
+    | ci => ci }
+  return (preDef? safe cfgL (view.find? ``Nat.add).get!).isSome
 
 /-- `Nat.add 2 3`, with the literals as `#erase` elaborates them. -/
 def add23 : Expr :=
@@ -107,14 +126,14 @@ def routeOf (cfg : ErasureConfig) (t : TermElabM Syntax) : TermElabM String := d
 /--
 info: ["pure path; equal to the Meta path: false", "pure path; equal to the Meta path: false",
   "pure path; equal to the Meta path: false", "outside the fragment: inductive OfNat under remove_irrel_constr_args",
-  "outside the fragment: recursive definition PUR.log2"]
+  "outside the fragment: recursive definition PUR.log2", "outside the fragment: partial definition PUR.spin"]
 -/
 #guard_msgs in
 #eval show TermElabM _ from do
   return [← routeOf cfgL `(Nat.add 2 3), ← routeOf cfgL `(Nat.beq 2 3),
     ← routeOf cfgL `([true, false, true].length),
     ← routeOf { cfgL with remove_irrel_constr_args := true } `(Nat.add 2 3),
-    ← routeOf cfgL `(PUR.log2 8)]
+    ← routeOf cfgL `(PUR.log2 8), ← routeOf {} `(PUR.spin true)]
 
 /-- The declarations of `Nat.add` and `Nat.add.match_1` in a program. -/
 def addShape : Program → List String
@@ -146,3 +165,5 @@ def addShape : Program → List String
 #erase Nat.add 2 3
   config {extern := .preferLogical, nat := .peano, remove_irrel_constr_args := true}
   to "metaAdd.ast"
+#guard_msgs (drop info, drop warning) in
+#erase PUR.spin true to "partial.ast"
