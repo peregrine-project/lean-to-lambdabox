@@ -458,7 +458,7 @@ def preDef? (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Option Exp
     match view.find? (Compiler.mkUnsafeRecName d.name) with
     | some (.defnInfo u) =>
       let pre := renameUnsafeRec u.value
-      if cfg.structural == .unsafeRec && u.safety matches .partial && isStructuralRecursive ci &&
+      if cfg.structural == .unsafeRec && u.safety == .partial && isStructuralRecursive ci &&
           u.name == Compiler.mkUnsafeRecName d.name && nameOccurs d.name pre then some pre
       else none
     | _ => none
