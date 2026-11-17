@@ -4,7 +4,7 @@
 \begin{itemize}
 \item \lead{Goal} Show on concrete programs that \hl{every hypothesis of the final theorem holds},
   so that it is not vacuous, and apply it to them.
-\item \lead{Main results} \code{erase\_correct} applied with all nine hypotheses to eleven
+\item \lead{Main results} \code{erase\_correct} applied with all nine hypotheses to twelve
   programs: NV-1 (a \code{casesOn} on \code{inductive B | f | t}), NV-P and NV-K (an
   \code{Eq.casesOn} on a constructor and on a lemma), NV-2 (a \code{casesOn} that binds a data
   field and a proof field), NV-Q (a \code{Quot.lift} over a \code{Quot.mk}, applied beyond
@@ -13,10 +13,12 @@
   \code{2} under \code{nat := .peano}), NV-QP (a \code{Quot.lift} over unordered pairs, a quotient
   whose relation identifies distinct values, on both representatives of a class), NV-A
   (\code{Init}'s \code{Nat.add 2 3} under \code{\{extern := .preferLogical, structural := .kernel,
-  nat := .peano\}}), NV-U (the same term under the default \code{structural := .unsafeRec},
-  \hl{\code{Nat.add} erased as a $\lambda_\Box$ fixpoint of its compiled pre-definition}); the
-  hypothesis \code{hpre} on the other ten, none of whose declarations has a compiled
-  pre-definition; the first-order corollary on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP; the lower
+  nat := .peano\}}), NV-SU (NV-S's program under \code{\{nat := .peano\}}, the frontend
+  benchmarks' setting, \hl{\code{add} erased as a $\lambda_\Box$ fixpoint of its compiled
+  pre-definition} under the default \code{structural := .unsafeRec}), NV-U (NV-A's term the same
+  way, through \code{Init}'s \code{Nat.add}); the hypothesis \code{hpre} on the other ten, none of
+  whose declarations has a compiled pre-definition; the first-order corollary on NV-1, NV-2,
+  NV-R, NV-S, NV-L, NV-QP and NV-SU; the lower
   bound \code{collectDeps\_ok\_of} on NV-1, NV-Q, NV-R, NV-S, NV-QP and NV-A; Lean's large
   elimination against Metalean's; determinism of $\lambda_\Box$ evaluation.
 \item \lead{Status} \stProved{} every node; the runs by kernel evaluation of the shipping code.
@@ -27,7 +29,7 @@
   NVQData, NVQModel, NVQRun, NVQFinal, NVRData, NVRModel, NVRRun, NVRFinal, NVSData, NVSRun, NVSBlocks, NVSDefs, NVSFuns, NVSModel, NVSFinal, NVLData, NVLRun, NVLModel,
   NVLFinal, NVQCollect, NVQPData, NVQPRun, NVQPBlocks, NVQPDefs, NVQPResp, NVQPModel, NVQPFinal,
   NVQPCollect, NVAData, NVARun, NVADefs, NVAFuns, NVAOfNat, NVAModel, NVAEval, NVAFinal,
-  NVACollect, NVUData, NVUCollect, NVURun, NVUModel, NVUEval, NVUFinal, LargeElim, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
+  NVACollect, NVSUData, NVSUCollect, NVSURun, NVSUModel, NVSUEval, NVSUFinal, NVUData, NVUCollect, NVURun, NVUModel, NVUEval, NVUFinal, LargeElim, Run, LBEval}; \leanfile{proof/tools/NVEmit.lean}.
 \item \lead{Reference} the hypotheses of MetaRocq's \code{erase\_correct}
   (\code{erasure/theories/ErasureFunctionProperties.v}).
 \end{itemize}
@@ -228,7 +230,7 @@ not evaluate; a run is evaluated one traversal call at a time, with the map acce
   \item \code{hview}: the view of the closure agrees with \code{P};
   \item \code{hpre}: vacuous, since no declaration of \code{P} has a compiled pre-definition:
         the view holds no \code{\_unsafe\_rec} companion; the same holds on every instance but
-        NV-U, on NV-S and NV-A because \code{structural := .kernel};
+        NV-SU and NV-U, on NV-S and NV-A because \code{structural := .kernel};
   \item \code{hfrag}: \code{hcollect};
   \item \code{hev}: \code{B.neg B.f} evaluates to \code{B.t}, by $\delta$ on \code{B.neg}, $\beta$,
         and $\iota$ on the saturated \code{B.casesOn} (\code{casesOn\_B}, \code{ev\_ctor0}).
@@ -2575,6 +2577,204 @@ A function by structural recursion, erased through the kernel definitions under
   \leanok
   \lead{Idea} Each syntactic premise by evaluation of a Boolean test; the fuel bound by
   \code{decide}.
+\end{proof}
+
+\section{NV-SU}\label{sec:tests-nvsu}
+
+The program of NV-S under \code{\{nat := .peano\}}, the setting of the frontend benchmarks, every
+other field at its default: \hl{\code{add}, by structural recursion in the program, is erased
+through its compiled pre-definition}, as a $\lambda_\Box$ fixpoint.
+
+\begin{definition}[NV-SU: the program and the pre-definition]
+  \label{def:EraseProof-Test-NVSU-P}
+  \lean{EraseProof.Test.NVSU.cfgSU, EraseProof.Test.NVSU.motPre, EraseProof.Test.NVSU.altPre1,
+    EraseProof.Test.NVSU.altPre2, EraseProof.Test.NVSU.preVal, EraseProof.Test.NVSU.preVal_eq,
+    EraseProof.Test.NVSU.preDef_add}
+  \leanok
+  \uses{def:EraseProof-Test-NVS-P, def:Erasure-preDef, def:Erasure-ErasureConfig}
+  \srcloc{proof/EraseProof/Test/NVSUData.lean}{36}
+  \lead{In short} NV-S's \code{P}, \code{e = add (N.s N.z) (N.s N.z)} and view under
+  \code{cfgSU = \{nat := .peano\}}, with \code{extern := .preferAxiom} and
+  \code{structural := .unsafeRec}: \hl{the companion \code{add.\_unsafe\_rec} gives \code{add}
+  the pre-definition \code{preVal}}.
+  \begin{itemize}
+  \item \code{preVal}: \code{fun n m => add.match\_1 (fun m => N) m (fun \_ => n) (fun k => N.s
+        (add n k))}, the recursive call saturated under the second alternative's $\lambda$;
+  \item \code{preVal\_eq}: \code{renameUnsafeRec} of the companion's value;
+        \code{preDef\_add}: \code{preDef? view cfgSU add = some preVal}.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[NV-SU: the fragment test and the run]
+  \label{lem:EraseProof-Test-NVSU-hrun}
+  \lean{EraseProof.Test.NVSU.hcollect, EraseProof.Test.NVSU.register_N_new,
+    EraseProof.Test.NVSU.register_PU_new, EraseProof.Test.NVSU.cZ_run,
+    EraseProof.Test.NVSU.cPU_run_of, EraseProof.Test.NVSU.fvar_run, EraseProof.Test.NVSU.sArg_run,
+    EraseProof.Test.NVSU.st1, EraseProof.Test.NVSU.st2, EraseProof.Test.NVSU.stU,
+    EraseProof.Test.NVSU.visitMutual_unit, EraseProof.Test.NVSU.kername_unit,
+    EraseProof.Test.NVSU.lsA, EraseProof.Test.NVSU.lsM, EraseProof.Test.NVSU.alt1,
+    EraseProof.Test.NVSU.alt2, EraseProof.Test.NVSU.motM, EraseProof.Test.NVSU.mB,
+    EraseProof.Test.NVSU.withApp_mB, EraseProof.Test.NVSU.withApp_alt1,
+    EraseProof.Test.NVSU.alt1L, EraseProof.Test.NVSU.unitC_run, EraseProof.Test.NVSU.alt1_run,
+    EraseProof.Test.NVSU.alt2L, EraseProof.Test.NVSU.alt2_run, EraseProof.Test.NVSU.altsM,
+    EraseProof.Test.NVSU.altsM_z, EraseProof.Test.NVSU.altsM_s, EraseProof.Test.NVSU.altsM_all,
+    EraseProof.Test.NVSU.caseM, EraseProof.Test.NVSU.visitCasesOn_run,
+    EraseProof.Test.NVSU.visitCases_run, EraseProof.Test.NVSU.mB_run,
+    EraseProof.Test.NVSU.matchVLU, EraseProof.Test.NVSU.matchV_run, EraseProof.Test.NVSU.stMt,
+    EraseProof.Test.NVSU.visitMutual_match, EraseProof.Test.NVSU.kername_match,
+    EraseProof.Test.NVSU.fixM, EraseProof.Test.NVSU.fixM_add, EraseProof.Test.NVSU.fixM_add',
+    EraseProof.Test.NVSU.fixM_match, EraseProof.Test.NVSU.lsB, EraseProof.Test.NVSU.callB,
+    EraseProof.Test.NVSU.withApp_callB, EraseProof.Test.NVSU.callBL,
+    EraseProof.Test.NVSU.callB_run, EraseProof.Test.NVSU.altQ1, EraseProof.Test.NVSU.altQ2,
+    EraseProof.Test.NVSU.preB, EraseProof.Test.NVSU.withApp_preB, EraseProof.Test.NVSU.altP1L,
+    EraseProof.Test.NVSU.altP2L, EraseProof.Test.NVSU.preBL, EraseProof.Test.NVSU.preB_run,
+    EraseProof.Test.NVSU.preVL, EraseProof.Test.NVSU.preV_run, EraseProof.Test.NVSU.addU,
+    EraseProof.Test.NVSU.addDefL, EraseProof.Test.NVSU.addFixL, EraseProof.Test.NVSU.addFixL_eq,
+    EraseProof.Test.NVSU.mkDef_run, EraseProof.Test.NVSU.stAdd,
+    EraseProof.Test.NVSU.visitMutual_add, EraseProof.Test.NVSU.kername_add,
+    EraseProof.Test.NVSU.withApp_e, EraseProof.Test.NVSU.mj_run, EraseProof.Test.NVSU.e_run,
+    EraseProof.Test.NVSU.pSU, EraseProof.Test.NVSU.hpure, EraseProof.Test.NVSU.hrun}
+  \leanok
+  \uses{def:Erasure-EraseError, def:Erasure-collectDeps, def:Erasure-PureM,
+    def:Erasure-erasePure, def:Erasure-eraseEntry, def:Erasure-erase, def:Erasure-preDef,
+    def:LBTerm, def:ASTType, def:Erasure-ErasureConfig, def:Erasure-EraseT,
+    def:EraseProof-Test-NVSU-P, lem:EraseProof-Test-NVS-hrun}
+  \srcloc{proof/EraseProof/Test/NVSUCollect.lean}{19}
+  \lead{In short} \code{\#erase} takes the pure path on NV-SU and returns \code{pSU}: NV-S's
+  program with \hl{\code{add} the $\lambda_\Box$ fixpoint \code{addFixL}}, without
+  \code{add.\_f}, \code{N.brecOn}, \code{N.brecOn.go} and \code{PProd}, and NV-S's constants to
+  inline, \code{[Unit.unit, add.match\_1]}.
+  \begin{itemize}
+  \item \code{hcollect}: the closure is NV-S's \code{D}, in the same order, by evaluation;
+  \item \code{kername\_add}: \code{declInfo?} gives \code{add} with \code{preVal} as its value,
+        so \code{visitMutual} takes its fixpoint branch: the fix variable (\code{fixM}), the body
+        erased, then abstracted (\code{mkDef\_run});
+  \item \code{callB\_run}: the recursive call \code{add n k} erases to the fix variable applied
+        to \code{n} and \code{k}; \code{kername\_match}: \code{add.match\_1}, marked for
+        inlining, whose \code{casesOn} is a \code{case} and whose first alternative erases
+        \code{Unit.unit} (\code{kername\_unit});
+  \item \code{addFixL\_eq}: the closed form of the fixpoint, recursive-argument index 0.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{def:Erasure-EnvView, lem:EraseProof-Test-bind_ok}
+  \leanok
+  \lead{Idea} One traversal call at a time, with NV-S's steps; the fresh locals numbered in the
+  order the traversal opens them, the fix variable first.
+\end{proof}
+
+\begin{lemma}[NV-SU: the pre-definition is typed]
+  \label{lem:EraseProof-Test-NVSU-hpre}
+  \lean{EraseProof.Test.NVSU.m12, EraseProof.Test.NVSU.u12, EraseProof.Test.NVSU.B12_N,
+    EraseProof.Test.NVSU.B12_match, EraseProof.Test.NVSU.B12_Unit, EraseProof.Test.NVSU.t_mt12,
+    EraseProof.Test.NVSU.t_ut12, EraseProof.Test.NVSU.alt1PM, EraseProof.Test.NVSU.alt2PM,
+    EraseProof.Test.NVSU.preValM, EraseProof.Test.NVSU.tr_preVal, EraseProof.Test.NVSU.tr_addTy,
+    EraseProof.Test.NVSU.preValM_typed, EraseProof.Test.NVSU.preDef_P, EraseProof.Test.NVSU.hpre}
+  \leanok
+  \uses{def:EraseProof-MBinding, def:EraseProof-TrM, def:EraseProof-PreDefsOK,
+    def:EraseProof-Test-NVSU-P, def:EraseProof-Test-NVS-E}
+  \srcloc{proof/EraseProof/Test/NVSUModel.lean}{28}
+  \lead{In short} \code{hpre} on NV-SU: in NV-S's model, \hl{\code{preVal} is the Lean form of
+  the closed Metalean term \code{preValM}, typed at \code{add}'s type}.
+  \begin{itemize}
+  \item \code{tr\_preVal}, \code{preValM\_typed}: the match \code{add.match\_1} at the motive
+        \code{fun m => N}, the recursive call through the constant \code{add} of \code{E};
+  \item \code{preDef\_P}: \code{add} is the only declaration of \code{P} with a pre-definition
+        under \code{cfgSU};
+  \item \code{hpre}: \code{preVal} names only \code{add} and declarations after it in \code{P}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-henv, lem:EraseProof-Test-NVS-funs}
+  \leanok
+  \lead{Idea} Metalean's typing rules on the match, as for NV-S's \code{add.match\_1}; the order
+  of the names by evaluation of a Boolean test.
+\end{proof}
+
+\begin{lemma}[NV-SU: the source evaluation]
+  \label{lem:EraseProof-Test-NVSU-hev}
+  \lean{EraseProof.Test.NVSU.σSU, EraseProof.Test.NVSU.CU, EraseProof.Test.NVSU.ev_recZ,
+    EraseProof.Test.NVSU.ev_goZ, EraseProof.Test.NVSU.ev_brecOnZ, EraseProof.Test.NVSU.ev_kernelZ,
+    EraseProof.Test.NVSU.nsU_lam, EraseProof.Test.NVSU.nsU_const, EraseProof.Test.NVSU.evU_delta,
+    EraseProof.Test.NVSU.evU_cZ, EraseProof.Test.NVSU.evU_succ, EraseProof.Test.NVSU.evU_mj,
+    EraseProof.Test.NVSU.evU_unitU, EraseProof.Test.NVSU.find_add,
+    EraseProof.Test.NVSU.casesOn_add, EraseProof.Test.NVSU.atom_add, EraseProof.Test.NVSU.ax_add,
+    EraseProof.Test.NVSU.pre_add, EraseProof.Test.NVSU.arity_pre, EraseProof.Test.NVSU.inst_pre,
+    EraseProof.Test.NVSU.mkAppN_two, EraseProof.Test.NVSU.deltaRec_add,
+    EraseProof.Test.NVSU.altM2, EraseProof.Test.NVSU.m4, EraseProof.Test.NVSU.casesArgsP,
+    EraseProof.Test.NVSU.casesOn_N, EraseProof.Test.NVSU.evU_m4, EraseProof.Test.NVSU.evU_m4Z,
+    EraseProof.Test.NVSU.evU_m4S, EraseProof.Test.NVSU.evU_pre_of, EraseProof.Test.NVSU.subU,
+    EraseProof.Test.NVSU.subS, EraseProof.Test.NVSU.conv_add, EraseProof.Test.NVSU.tr_mj,
+    EraseProof.Test.NVSU.tr_z, EraseProof.Test.NVSU.mjM_typed, EraseProof.Test.NVSU.ev_preZ,
+    EraseProof.Test.NVSU.ev_addZ, EraseProof.Test.NVSU.ev_preS, EraseProof.Test.NVSU.hev}
+  \leanok
+  \uses{def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcConv,
+    def:EraseProof-Test-NVSU-P}
+  \srcloc{proof/EraseProof/Test/NVSUEval.lean}{32}
+  \lead{In short} \code{hev}: at \code{$\sigma$SU}, under the conversion premise \code{SrcConv E B
+  []}, \code{e} \hl{evaluates through \code{deltaRec} at both calls} to \code{N.s (N.s N.z)}.
+  \begin{itemize}
+  \item \code{deltaRec\_add}: \code{add a b} evaluates \code{a} and \code{b}, then \code{preVal}
+        at their values, given the conversion;
+  \item \code{evU\_pre\_of}: the match is a \code{N.casesOn} on the second argument
+        (\code{casesIota}); on \code{N.s N.z} it calls \code{add (N.s N.z) N.z}, again by
+        \code{deltaRec};
+  \item \code{conv\_add}: the conversion at each call, by \code{SrcEval.defeq} on two evaluations
+        to one value, through the kernel definition (NV-S's \code{hev}, \code{ev\_kernelZ}) and
+        through \code{preVal}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Test-NVS-final, lem:EraseProof-Test-NVSU-hpre,
+    lem:EraseProof-SrcEval-defeq, lem:EraseProof-TrM-dcong}
+  \leanok
+  \lead{Idea} The inner call first (\code{ev\_addZ}), then the outer one (\code{ev\_preS}).
+\end{proof}
+
+\begin{lemma}[NV-SU: the final theorem]
+  \label{lem:EraseProof-Test-NVSU-final}
+  \lean{EraseProof.Test.NVSU.henv, EraseProof.Test.NVSU.hwf, EraseProof.Test.NVSU.hview,
+    EraseProof.Test.NVSU.he, EraseProof.Test.NVSU.hty, EraseProof.Test.NVSU.hfrag,
+    EraseProof.Test.NVSU.final}
+  \leanok
+  \uses{def:EraseProof-ViewAgrees, def:EraseProof-TrM, def:EraseProof-PreDefsOK,
+    def:Erasure-EraseError, def:Erasure-collectDeps, def:EraseProof-LBEval, def:EraseProof-Erases,
+    def:EraseProof-EvalEnv, def:EraseProof-SrcEval, def:EraseProof-SrcConv,
+    def:EraseProof-Test-NVSU-P, lem:EraseProof-Test-NVSU-hrun, def:EraseProof-Test-NVS-E,
+    def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NVSUFinal.lean}{24}
+  \lead{In short} \code{erase\_correct} applied to NV-SU with \hl{all nine hypotheses}: the
+  program \code{\#erase} emits under \code{\{nat := .peano\}}, \code{add} a $\lambda_\Box$
+  fixpoint, evaluates to an erasure of \code{N.s (N.s N.z)}.
+  \begin{itemize}
+  \item \code{henv}, \code{hwf}, \code{hview}, \code{he}, \code{hty}: NV-S's;
+  \item \code{hfrag}: \code{hcollect}; \code{hpre}, \code{hrun}, \code{hev}: the nodes above.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{thm:EraseProof-erase_correct, lem:EraseProof-Test-NVS-henv, lem:EraseProof-Test-NVS-final,
+    lem:EraseProof-Test-NVSU-hpre, lem:EraseProof-Test-NVSU-hev}
+  \leanok
+  \lead{Idea} The hypotheses from the nodes above and from NV-S's.
+\end{proof}
+
+\begin{lemma}[NV-SU: the first-order corollary]
+  \label{lem:EraseProof-Test-NVSU-firstorder}
+  \lean{EraseProof.Test.NVSU.firstorder, EraseProof.Test.NVSU.fo_ssz}
+  \leanok
+  \uses{def:EraseProof-FirstOrderValue, def:EraseProof-LBEval, def:EraseProof-EvalEnv,
+    def:EraseProof-Test-NVSU-P, lem:EraseProof-Test-NVSU-hrun, def:LBTerm, def:ASTType}
+  \srcloc{proof/EraseProof/Test/NVSUFinal.lean}{65}
+  \lead{In short} \code{erase\_correct\_firstorder} applied to NV-SU: the main term of
+  \code{pSU} \hl{evaluates to the structural erasure of \code{N.s (N.s N.z)}}.
+  \begin{itemize}
+  \item \code{fo\_ssz}: \code{N.s (N.s N.z)} is a first-order value.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{cor:EraseProof-erase_correct_firstorder, lem:EraseProof-Test-NVSU-final}
+  \leanok
+  \lead{Idea} The hypotheses of \code{final}, and \code{FirstOrderValue.ctor}.
 \end{proof}
 
 \section{NV-U}\label{sec:tests-nvu}

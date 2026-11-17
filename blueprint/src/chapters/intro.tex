@@ -8,7 +8,7 @@
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
   \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
   of the fragment hypothesis, the first-order corollary \code{erase\_correct\_firstorder}, and
-  every lemma they use; eleven test programs discharge all nine hypotheses of the final theorem
+  every lemma they use; twelve test programs discharge all nine hypotheses of the final theorem
   (Chapter~\ref{chap:tests}). Formalized: the four statements,
   as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stShipping{} the eraser: the pure path on the fragment of
   Phase I and the \code{Meta} path on the rest.
@@ -48,7 +48,9 @@
   compiled pre-definitions as $\lambda_\Box$ fixpoints under the default
   \code{structural := .unsafeRec}, and through their kernel definitions under
   \code{structural := .kernel}; no well-founded recursion, \code{partial} definition or mutual
-  block; \code{Nat} literals only under \code{nat := .peano} (Chapter~\ref{chap:scope}).
+  block; \code{Nat} literals only under \code{nat := .peano} (Chapter~\ref{chap:scope}). A
+  definition by structural recursion of the program is verified end to end under
+  \code{\{nat := .peano\}}, the setting of the frontend benchmarks (NV-SU).
   \code{Init}'s own \code{Nat.add} on the literals \code{2} and \code{3} is verified end to end
   under \code{\{extern := .preferLogical, nat := .peano\}}, through its pre-definition (NV-U) and,
   under \code{structural := .kernel}, through its kernel definition (NV-A); no other operation of
@@ -247,7 +249,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the final theorem applied to eleven programs \\
+\ref{chap:tests} & The tests: the final theorem applied to twelve programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule

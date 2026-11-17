@@ -12,9 +12,9 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Eleven test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Twelve test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
-  corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L and NV-QP.
+  corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L, NV-QP and NV-SU.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
   \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
@@ -170,8 +170,9 @@
   (\code{isStructuralRecursive}) with a compiled pre-definition (\code{preDef?}), \code{Nat.add}
   and \code{Nat.beq} included. The eraser emits a $\lambda_\Box$ fixpoint of the pre-definition,
   and the source evaluates a call with all the arguments the pre-definition takes through it
-  (\code{deltaRec}, DV-7); NV-U is an instance, \code{Init}'s \code{Nat.add 2 3} under
-  \code{\{extern := .preferLogical, nat := .peano\}}. Under \code{structural := .kernel} the test
+  (\code{deltaRec}, DV-7); NV-SU is an instance, a structural \code{add} of the program under
+  \code{\{nat := .peano\}}, the setting of the frontend benchmarks, and NV-U another,
+  \code{Init}'s \code{Nat.add 2 3} under \code{\{extern := .preferLogical, nat := .peano\}}. Under \code{structural := .kernel} the test
   admits it through its kernel definition, which recurses through \code{T.brecOn}, built from
   recursors, projections and \code{casesOn}, and is covered like any definition: NV-S and NV-A are
   instances. The test excludes a definition, theorem or opaque of a mutual block, such as a mutual

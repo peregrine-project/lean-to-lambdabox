@@ -58,7 +58,7 @@ Structural recursion & \stShipping{} through the compiled pre-definition as a $\
   \code{brecOn} under \code{structural := .kernel} (S-42, S-43, S-44, S-48, S-49) &
   \stProved{} by default: \code{deltaRec}, the rules \code{fixVar} and \code{constFix}, the
   substitution \code{Erases.fixSubst}, the simulation case \code{erases\_correct\_deltaRec}, the
-  fixpoint branch of \code{visitMutual}, with the hypothesis \code{hpre}; the instance NV-U.
+  fixpoint branch of \code{visitMutual}, with the hypothesis \code{hpre}; the instances NV-SU and NV-U.
   Under \code{.kernel}: the oracle's recursor $\iota$ (\code{Pure.whnf\_sound}), the traversal
   with no new step; the instances NV-S and NV-A. A mutual structural block is outside the fragment
   (S-51); the lower bound \code{collectDeps\_ok\_of} holds on NV-Q, NV-R, NV-S, NV-QP and NV-A \\

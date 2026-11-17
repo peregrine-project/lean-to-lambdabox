@@ -11,7 +11,8 @@
   \code{structural := .kernel}) and the admitted recursors; well-founded recursion,
   \code{partial} definitions and mutual blocks are out, and \code{Nat} literals are in only under
   \code{nat := .peano}; \hl{\code{Init}'s \code{Nat.add 2 3} is verified end to end} under both
-  values of \code{structural} (Section~\ref{sec:scope-nat-add}); quotients and the recursors of one
+  values of \code{structural} (Section~\ref{sec:scope-nat-add}), and a structural \code{add} of
+  the program under \code{\{nat := .peano\}} (NV-SU); quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
   the other recursors.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
@@ -89,7 +90,8 @@ structural recursion under the default \code{structural := .unsafeRec} & I & the
   a $\lambda_\Box$ fixpoint (S-56); the source evaluates a call with all the arguments the
   pre-definition takes through it (\code{deltaRec}, under the conversion premise
   \code{SrcConv}), and a partial application in an evaluated position is stuck (DV-7); the
-  pre-definitions are typed translations by the hypothesis \code{hpre} (DV-31) \\
+  pre-definitions are typed translations by the hypothesis \code{hpre} (DV-31); NV-SU is an
+  instance, under \code{\{nat := .peano\}}, the setting of the frontend benchmarks \\
 structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & the kernel
   definition (\code{T.brecOn}, \code{T.below}, \code{\_f} and the matchers, all ordinary
   definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
