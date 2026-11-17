@@ -4,9 +4,13 @@ import EraseProof.Test.NVSUCollect
 # NV-SU through the entry point of `#erase`
 
 The hypothesis `hrun` of the final theorem (`MR E/ErasureFunctionProperties.v:657
-erase_correct`) on NV-SU (`Test/NVSUData.lean`): the run of the entry point on NV-S's closure `D`
-(`hcollect`, `Test/NVSUCollect.lean`) under `cfgSU`, evaluated one traversal call at a time
-(`Test/Run.lean`), cut at every read of the traversal's maps, with NV-S's steps on any closure
+erase_correct`) on NV-SU (`Test/NVSUData.lean`) and on NV-SUD (`Test/NVSUDFinal.lean`): the run
+of the entry point on NV-S's closure `D` (`hcollect`, `Test/NVSUCollect.lean`, and
+`hcollect_default`, `Test/NVSRun.lean`) under `cfgOf nat`, for either `nat` (`hpure`). The
+traversal reads `nat` only to treat `Nat`'s constructors, `casesOn`, recursor and literals apart,
+and the program has none, so the steps on constructors (`cZ_run`, `cPU_run_of`, `sArg_run`) close
+at both values. The run is evaluated one traversal call at a time (`Test/Run.lean`), cut at every
+read of the traversal's maps, with NV-S's steps on any closure
 (`lam_run`, `appArgs_cons`, `register_found`, `kername_found`). `e` erases `add` (`kername_add`):
 `PureM.declInfo?` gives it with its compiled pre-definition `preVal` as value, which mentions
 `add`, so `visitMutual` takes its fixpoint branch: it binds `add` to a fresh local (the fix
@@ -33,7 +37,7 @@ open EraseProof.Test.NVS (P e view D pc add_def add_match_1 matchVal mMotTy Unit
   kername_found)
 open EraseProof.Test.NVR (tN cZ cS N_ind Ns_ctor iidN masksN bodyN stN mj mjL)
 
-variable {ps : PureState} {dc : Name}
+variable {ps : PureState} {dc : Name} {nat : Config.Nat}
 
 /-! ## The inductives `N` and `PUnit` -/
 
@@ -41,7 +45,7 @@ variable {ps : PureState} {dc : Name}
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
 theorem register_N_new {st : ErasureState} {L : LocalContext} {ls : List Local}
     {F : Option (Std.HashMap Name FVarId)} (h : st.inductives[`N]? = none) :
-    (register_inductive (m := PureM) N_ind).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (register_inductive (m := PureM) N_ind).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok (((iidN, masksN), stN st), ps) := by
   rw [register_inductive]
   apply bind_ok rfl
@@ -55,7 +59,7 @@ theorem register_N_new {st : ErasureState} {L : LocalContext} {ls : List Local}
 
 theorem register_PU_new {st : ErasureState} {L : LocalContext} {ls : List Local}
     {F : Option (Std.HashMap Name FVarId)} (h : st.inductives[`PUnit]? = none) :
-    (register_inductive (m := PureM) PUnit_ind).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (register_inductive (m := PureM) PUnit_ind).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok (((iidPU, masksPU), stPU st), ps) := by
   rw [register_inductive]
   apply bind_ok rfl
@@ -73,7 +77,7 @@ theorem register_PU_new {st : ErasureState} {L : LocalContext} {ls : List Local}
 (`MR E/ErasureFunction.v:1014`). -/
 theorem cZ_run {st : ErasureState} {n : Nat} {L : LocalContext} {ls : List Local}
     {F : Option (Std.HashMap Name FVarId)} (h : st.inductives[`N]? = some (iidN, masksN)) :
-    (visitExpr (m := PureM) (n + 6) cZ).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (visitExpr (m := PureM) (n + 6) cZ).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok ((.construct iidN 0 [], st), ps) := by
   rw [cZ, visitExpr]
   apply bind_ok rfl
@@ -95,15 +99,15 @@ theorem cZ_run {st : ErasureState} {n : Nat} {L : LocalContext} {ls : List Local
   apply bind_ok rfl
   apply bind_ok (register_found h)
   simp only [toArray_toSubarray]
-  krfl
+  cases nat <;> krfl
 
 /-- `visitExpr` on `PUnit.unit.{1}`, with the registration step `hreg` on `PUnit`. Reference: the
 `tConstruct` case of `erase` (`MR E/ErasureFunction.v:1014`). -/
 theorem cPU_run_of {st : ErasureState} {n : Nat} {L : LocalContext} {ls : List Local}
     {F : Option (Std.HashMap Name FVarId)} {st' : ErasureState}
-    (hreg : (register_inductive (m := PureM) PUnit_ind).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (hreg : (register_inductive (m := PureM) PUnit_ind).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok (((iidPU, masksPU), st'), ps)) :
-    (visitExpr (m := PureM) (n + 6) (cPU l1)).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (visitExpr (m := PureM) (n + 6) (cPU l1)).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok ((unitL, st'), ps) := by
   rw [cPU, visitExpr]
   apply bind_ok rfl
@@ -125,20 +129,20 @@ theorem cPU_run_of {st : ErasureState} {n : Nat} {L : LocalContext} {ls : List L
   apply bind_ok rfl
   apply bind_ok hreg
   simp only [toArray_toSubarray]
-  krfl
+  cases nat <;> krfl
 
 /-- `visitExpr` on a local of `ls` that the oracle keeps. Reference: the `tRel` case of `erase`
 (`MR E/ErasureFunction.v:997`). -/
 theorem fvar_run {st : ErasureState} {n k : Nat} {L : LocalContext} {ls : List Local}
     {F : Option (Std.HashMap Name FVarId)}
     (hE : Pure.isErasable ⟨D⟩ oracleFuel ls (xv k) = .ok false) :
-    (visitExpr (m := PureM) (n + 1) (xv k)).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (visitExpr (m := PureM) (n + 1) (xv k)).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok ((.fvar (xf k), st), ps) := by
   rw [xv, visitExpr]
   apply bind_ok rfl
   apply bind_ok rfl
   refine bind_ok (a := false) (st' := st) (ps' := ps)
-    (erasable_step (pc := pc) (tc := ⟨L, ls, F, cfgSU, dc⟩) hE) ?_
+    (erasable_step (pc := pc) (tc := ⟨L, ls, F, cfgOf nat, dc⟩) hE) ?_
   rfl
 
 /-- `visitExpr` on `N.s a`, `a` erased to `ra` with the state unchanged, `N` registered.
@@ -147,16 +151,16 @@ theorem sArg_run {st : ErasureState} {n : Nat} {a : Expr} {ra : LBTerm} {L : Loc
     {ls : List Local} {F : Option (Std.HashMap Name FVarId)}
     (hE : Pure.isErasable ⟨D⟩ oracleFuel ls (.app cS a) = .ok false)
     (hT : Pure.inferType ⟨D⟩ oracleFuel ls [] (.app cS a) = .ok tN)
-    (ha : (visitExpr (m := PureM) (n + 7) a).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (ha : (visitExpr (m := PureM) (n + 7) a).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok ((ra, st), ps))
     (h : st.inductives[`N]? = some (iidN, masksN)) :
-    (visitExpr (m := PureM) (n + 12) (.app cS a)).runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps =
+    (visitExpr (m := PureM) (n + 12) (.app cS a)).runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps =
       .ok ((.app sL ra, st), ps) := by
   rw [visitExpr]
   apply bind_ok rfl
   apply bind_ok rfl
   refine bind_ok (a := false) (st' := st) (ps' := ps)
-    (erasable_step (pc := pc) (tc := ⟨L, ls, F, cfgSU, dc⟩) hE) ?_
+    (erasable_step (pc := pc) (tc := ⟨L, ls, F, cfgOf nat, dc⟩) hE) ?_
   rw [visitApp]
   change (visitConstApp (m := PureM) (n + 10) _).runPure _ _ _ _ = _
   rw [visitConstApp, withApp_sx _ _]
@@ -167,7 +171,7 @@ theorem sArg_run {st : ErasureState} {n : Nat} {a : Expr} {ra : LBTerm} {L : Loc
   apply bind_ok rfl
   apply bind_ok rfl
   refine bind_ok (a := tN) (st' := st) (ps' := ps)
-    (infer_step (pc := pc) (tc := ⟨L, ls, F, cfgSU, dc⟩) hT) ?_
+    (infer_step (pc := pc) (tc := ⟨L, ls, F, cfgOf nat, dc⟩) hT) ?_
   rw [withApp_sx _ _, withAppEtaToMinArity.go]
   rw [visitConstructor]
   apply bind_ok rfl
@@ -182,9 +186,9 @@ theorem sArg_run {st : ErasureState} {n : Nat} {a : Expr} {ra : LBTerm} {L : Loc
   simp only [toArray_toSubarray, show Ns_ctor.numParams = 0 from rfl,
     show Ns_ctor.numFields = 1 from rfl, show Ns_ctor.cidx = 1 from rfl]
   rw [args_s]
-  refine (congrArg (fun x : EraseT PureM LBTerm => x.runPure st ⟨L, ls, F, cfgSU, dc⟩ pc ps)
+  refine (congrArg (fun x : EraseT PureM LBTerm => x.runPure st ⟨L, ls, F, cfgOf nat, dc⟩ pc ps)
     (?_ : _ = visitAppArgs (m := PureM) (n + 8) sL #[a])).trans ?_
-  · krfl
+  · cases nat <;> krfl
   exact appArgs_cons (as := []) ha appArgs_nil
 
 /-! ## `Unit.unit` and `add.match_1` -/
@@ -206,7 +210,7 @@ inlining and erased to the λ□ constructor of `PUnit`, which registers `PUnit`
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`); the marking: none. -/
 theorem visitMutual_unit {n : Nat} {L : LocalContext} {o : List Local}
     {F : Option (Std.HashMap Name FVarId)} :
-    (visitMutual (m := PureM) (n + 8) `Unit.unit).runPure st2 ⟨L, o, F, cfgSU, dc⟩ pc ps =
+    (visitMutual (m := PureM) (n + 8) `Unit.unit).runPure st2 ⟨L, o, F, cfgOf nat, dc⟩ pc ps =
       .ok (((), stU), ps) := by
   rw [visitMutual]
   iterate 10 apply bind_ok rfl
@@ -221,7 +225,7 @@ theorem visitMutual_unit {n : Nat} {L : LocalContext} {o : List Local}
 (`MR E/ErasureFunction.v:1602`). -/
 theorem kername_unit {n : Nat} {L : LocalContext} {o : List Local}
     {F : Option (Std.HashMap Name FVarId)} :
-    (get_constant_kername (m := PureM) (n + 9) `Unit.unit).runPure st2 ⟨L, o, F, cfgSU, dc⟩ pc ps =
+    (get_constant_kername (m := PureM) (n + 9) `Unit.unit).runPure st2 ⟨L, o, F, cfgOf nat, dc⟩ pc ps =
       .ok ((toKername `Unit.unit, stU), ps) := by
   rw [get_constant_kername]
   apply bind_ok rfl
@@ -260,7 +264,7 @@ def alt1L : LBTerm := .app (.fvar (xf 5)) (.const (toKername `Unit.unit))
 /-- `visitExpr` on `Unit.unit` under `add.match_1`'s binders, not yet erased: the λ□ constant.
 Reference: the `tConst` case of `erase` (`MR E/ErasureFunction.v:999`). -/
 theorem unitC_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 14) (.const `Unit.unit [])).runPure st2 ⟨L, lsM, none, cfgSU, dc⟩
+    (visitExpr (m := PureM) (n + 14) (.const `Unit.unit [])).runPure st2 ⟨L, lsM, none, cfgOf nat, dc⟩
       pc ps = .ok ((.const (toKername `Unit.unit), stU), ps) := by
   rw [visitExpr]
   apply bind_ok rfl
@@ -282,7 +286,7 @@ theorem unitC_run {n : Nat} {L : LocalContext} :
 /-- `visitAlt` on the first alternative `h_1 Unit.unit` (no field). Reference: the branches of the
 `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem alt1_run {n : Nat} {L : LocalContext} :
-    (visitAlt (m := PureM) (n + 18) 0 #[] [] alt1).runPure st2 ⟨L, lsM, none, cfgSU, dc⟩ pc ps =
+    (visitAlt (m := PureM) (n + 18) 0 #[] [] alt1).runPure st2 ⟨L, lsM, none, cfgOf nat, dc⟩ pc ps =
       .ok ((([], alt1L), stU), ps) := by
   rw [visitAlt]
   apply bind_ok rfl
@@ -310,7 +314,7 @@ def alt2L : LBTerm := .app (.fvar (xf 6)) (.bvar 0)
 /-- `visitAlt` on the second alternative `fun n => h_2 n` (one field), from the counter's eighth
 variable. Reference: the branches of the `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem alt2_run {st : ErasureState} {n : Nat} {L : LocalContext} :
-    (visitAlt (m := PureM) (n + 10) 1 #[.keep] [] alt2).runPure st ⟨L, lsM, none, cfgSU, dc⟩ pc ⟨7⟩ =
+    (visitAlt (m := PureM) (n + 10) 1 #[.keep] [] alt2).runPure st ⟨L, lsM, none, cfgOf nat, dc⟩ pc ⟨7⟩ =
       .ok ((([binderNameOf (hyg "n" 22)], alt2L), st), ⟨8⟩) := by
   krfl
 
@@ -335,7 +339,7 @@ def caseM : LBTerm :=
 Reference: the `tCase` case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitCasesOn_run {n : Nat} {L : LocalContext} :
     (visitCasesOn (m := PureM) (n + 19) N_ind altsM ∅ none (.fvar (xf 4))).runPure st1
-      ⟨L, lsM, none, cfgSU, dc⟩ pc ⟨7⟩ = .ok ((caseM, stU), ⟨8⟩) := by
+      ⟨L, lsM, none, cfgOf nat, dc⟩ pc ⟨7⟩ = .ok ((caseM, stU), ⟨8⟩) := by
   rw [visitCasesOn]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -359,7 +363,7 @@ theorem visitCasesOn_run {n : Nat} {L : LocalContext} :
 `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem visitCases_run {n : Nat} {L : LocalContext} :
     (visitCases (m := PureM) (n + 22) ciN #[motM, xv 4, alt1, alt2]).runPure st1
-      ⟨L, lsM, none, cfgSU, dc⟩ pc ⟨7⟩ = .ok ((caseM, stU), ⟨8⟩) := by
+      ⟨L, lsM, none, cfgOf nat, dc⟩ pc ⟨7⟩ = .ok ((caseM, stU), ⟨8⟩) := by
   rw [visitCases]
   apply bind_ok rfl
   apply bind_ok rfl
@@ -383,7 +387,7 @@ theorem visitCases_run {n : Nat} {L : LocalContext} :
 /-- `visitExpr` on `add.match_1`'s body: a saturated recognized `casesOn`. Reference: the `tCase`
 case of `erase` (`MR E/ErasureFunction.v:1016`). -/
 theorem mB_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 26) mB).runPure st1 ⟨L, lsM, none, cfgSU, dc⟩ pc ⟨7⟩ =
+    (visitExpr (m := PureM) (n + 26) mB).runPure st1 ⟨L, lsM, none, cfgOf nat, dc⟩ pc ⟨7⟩ =
       .ok ((caseM, stU), ⟨8⟩) := by
   rw [mB, visitExpr, ← mB]
   apply bind_ok rfl
@@ -398,7 +402,7 @@ theorem mB_run {n : Nat} {L : LocalContext} :
   apply bind_ok rfl
   apply bind_ok rfl
   refine bind_ok (a := .app motM (xv 4)) (st' := st1) (ps' := ⟨7⟩)
-    (infer_step (pc := pc) (tc := ⟨L, lsM, none, cfgSU, dc⟩) (by krfl)) ?_
+    (infer_step (pc := pc) (tc := ⟨L, lsM, none, cfgOf nat, dc⟩) (by krfl)) ?_
   rw [withApp_mB, withAppEtaToMinArity.go]
   simp only [show (#[motM, xv 4, alt1, alt2] : Array Expr).size = 4 from rfl, ge_iff_le,
     Nat.le_refl, ↓reduceIte]
@@ -413,7 +417,7 @@ def matchVLU : LBTerm :=
 /-- `visitExpr` on `add.match_1`'s value, from the counter's fourth variable. Reference: the
 `tLambda` case of `erase` (`MR E/ErasureFunction.v:1003`). -/
 theorem matchV_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 34) matchVal).runPure st1 ⟨L, lsA, none, cfgSU, dc⟩ pc ⟨3⟩ =
+    (visitExpr (m := PureM) (n + 34) matchVal).runPure st1 ⟨L, lsA, none, cfgOf nat, dc⟩ pc ⟨3⟩ =
       .ok ((matchVLU, stU), ⟨8⟩) :=
   lam_run (by krfl) fun _ => lam_run (by krfl) fun _ => lam_run (by krfl) fun _ =>
     lam_run (by krfl) fun _ => mB_run (n := n)
@@ -424,7 +428,7 @@ abbrev stMt : ErasureState := stDefI stU `add.match_1 matchVLU
 /-- `visitMutual` on `add.match_1` from the empty state: an `@[inline]` definition, marked for
 inlining and erased to a λ□ constant. Reference: as `visitMutual_unit`. -/
 theorem visitMutual_match {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
-    (visitMutual (m := PureM) (n + 35) `add.match_1).runPure {} ⟨L, lsA, F, cfgSU, dc⟩ pc ⟨3⟩ =
+    (visitMutual (m := PureM) (n + 35) `add.match_1).runPure {} ⟨L, lsA, F, cfgOf nat, dc⟩ pc ⟨3⟩ =
       .ok (((), stMt), ⟨8⟩) := by
   rw [visitMutual]
   iterate 10 apply bind_ok rfl
@@ -438,7 +442,7 @@ theorem visitMutual_match {n : Nat} {L : LocalContext} {F : Option (Std.HashMap 
 /-- `get_constant_kername` on `add.match_1` from the empty state. Reference: `erase_global_deps`
 (`MR E/ErasureFunction.v:1602`). -/
 theorem kername_match {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
-    (get_constant_kername (m := PureM) (n + 36) `add.match_1).runPure {} ⟨L, lsA, F, cfgSU, dc⟩
+    (get_constant_kername (m := PureM) (n + 36) `add.match_1).runPure {} ⟨L, lsA, F, cfgOf nat, dc⟩
       pc ⟨3⟩ = .ok ((toKername `add.match_1, stMt), ⟨8⟩) := by
   rw [get_constant_kername]
   apply bind_ok rfl
@@ -480,7 +484,7 @@ def callBL : LBTerm := .app (.app (.fvar (xf 0)) (.fvar (xf 1))) (.fvar (xf 9))
 among the fix variables. Reference: the `tRel` case of `erase` for the fixpoint's variable
 (`MR E/ErasureFunction.v:997`); DV-7. -/
 theorem callB_run {st : ErasureState} {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 5) callB).runPure st ⟨L, lsB, some fixM, cfgSU, dc⟩ pc ps =
+    (visitExpr (m := PureM) (n + 5) callB).runPure st ⟨L, lsB, some fixM, cfgOf nat, dc⟩ pc ps =
       .ok ((callBL, st), ps) := by
   rw [callB, visitExpr, ← callB]
   apply bind_ok rfl
@@ -527,7 +531,7 @@ constant of `add.match_1`, erased on the way, applied to □ and the erased argu
 call under the second alternative erased to the fix variable. Reference: the `tConst` and `tApp`
 cases of `erase` (`MR E/ErasureFunction.v:999`, `:1006`). -/
 theorem preB_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 42) preB).runPure {} ⟨L, lsA, some fixM, cfgSU, dc⟩ pc ⟨3⟩ =
+    (visitExpr (m := PureM) (n + 42) preB).runPure {} ⟨L, lsA, some fixM, cfgOf nat, dc⟩ pc ⟨3⟩ =
       .ok ((preBL, stMt), ⟨10⟩) := by
   have hN : stMt.inductives[`N]? = some (iidN, masksN) := by sufact
   rw [preB, visitExpr, ← preB]
@@ -565,11 +569,11 @@ def preVL : LBTerm :=
 /-- `visitExpr` on the pre-definition from the empty state, from the counter's second variable.
 Reference: the `tLambda` case of `erase` (`MR E/ErasureFunction.v:1003`). -/
 theorem preV_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 46) preVal).runPure {} ⟨L, [], some fixM, cfgSU, dc⟩ pc ⟨1⟩ =
+    (visitExpr (m := PureM) (n + 46) preVal).runPure {} ⟨L, [], some fixM, cfgOf nat, dc⟩ pc ⟨1⟩ =
       .ok ((preVL, stMt), ⟨10⟩) :=
   lam_run (by krfl) fun _ => lam_run (by krfl) fun _ => preB_run (n := n)
 
-/-- `add`'s declaration as `PureM.declInfo?` gives it under `cfgSU`: `add_def` with the value
+/-- `add`'s declaration as `PureM.declInfo?` gives it under `cfgOf nat`: `add_def` with the value
 `preVal` (`preDef_add`). -/
 def addU : DefinitionVal := { add_def with value := preVal }
 
@@ -591,7 +595,7 @@ theorem addFixL_eq : addFixL = .fix [⟨fixDefName `add, .lambda (binderNameOf `
 /-- `mkDef` on `add`'s erased pre-definition: the fix variable abstracted at index 0. Reference:
 the bodies of `tFix` in `erase` (`MR E/ErasureFunction.v:1022`); DV-7. -/
 theorem mkDef_run {st : ErasureState} {L : LocalContext} {ls : List Local} :
-    (mkDef (m := PureM) `add [`add] preVL).runPure st ⟨L, ls, some fixM, cfgSU, dc⟩ pc ps =
+    (mkDef (m := PureM) `add [`add] preVL).runPure st ⟨L, ls, some fixM, cfgOf nat, dc⟩ pc ps =
       .ok ((addDefL, st), ps) := by
   rw [mkDef]
   simp only [List.reverse_cons, List.reverse_nil, List.nil_append, List.zipIdx_cons,
@@ -612,7 +616,7 @@ value erased under it, `mkDef`, and `add` declared as the fixpoint. Reference: t
 `erase` (`MR E/ErasureFunction.v:1022`) and `erase_constant_body` (`MR E/ErasureFunction.v:1309`);
 DV-7. -/
 theorem visitMutual_add {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
-    (visitMutual (m := PureM) (n + 48) `add).runPure {} ⟨L, [], F, cfgSU, dc⟩ pc ⟨0⟩ =
+    (visitMutual (m := PureM) (n + 48) `add).runPure {} ⟨L, [], F, cfgOf nat, dc⟩ pc ⟨0⟩ =
       .ok (((), stAdd), ⟨10⟩) := by
   rw [visitMutual]
   apply bind_ok rfl
@@ -635,7 +639,7 @@ theorem visitMutual_add {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Na
 /-- `get_constant_kername` on `add` from the empty state. Reference: `erase_global_deps`
 (`MR E/ErasureFunction.v:1602`). -/
 theorem kername_add {n : Nat} {L : LocalContext} {F : Option (Std.HashMap Name FVarId)} :
-    (get_constant_kername (m := PureM) (n + 49) `add).runPure {} ⟨L, [], F, cfgSU, dc⟩ pc ⟨0⟩ =
+    (get_constant_kername (m := PureM) (n + 49) `add).runPure {} ⟨L, [], F, cfgOf nat, dc⟩ pc ⟨0⟩ =
       .ok ((toKername `add, stAdd), ⟨10⟩) := by
   rw [get_constant_kername]
   apply bind_ok rfl
@@ -653,7 +657,7 @@ theorem withApp_e {γ : Sort _} (k : Expr → Array Expr → γ) :
 /-- The erasure of the major `N.s N.z`, `N` registered. -/
 theorem mj_run {st : ErasureState} {n : Nat} {L : LocalContext}
     (h : st.inductives[`N]? = some (iidN, masksN)) :
-    (visitExpr (m := PureM) (n + 12) mj).runPure st ⟨L, [], none, cfgSU, .anonymous⟩ pc ps =
+    (visitExpr (m := PureM) (n + 12) mj).runPure st ⟨L, [], none, cfgOf nat, .anonymous⟩ pc ps =
       .ok ((mjL, st), ps) :=
   sArg_run (by krfl) (by krfl) (cZ_run (n := n + 1) h) h
 
@@ -662,7 +666,7 @@ fixpoint with its dependencies, applied to the erased arguments. Reference: the 
 cases of `erase` (`MR E/ErasureFunction.v:999`, `:1006`), with `erase_global_deps`
 (`MR E/ErasureFunction.v:1602`). -/
 theorem e_run {n : Nat} {L : LocalContext} :
-    (visitExpr (m := PureM) (n + 68) e).runPure {} ⟨L, [], none, cfgSU, .anonymous⟩ pc ⟨0⟩ =
+    (visitExpr (m := PureM) (n + 68) e).runPure {} ⟨L, [], none, cfgOf nat, .anonymous⟩ pc ⟨0⟩ =
       .ok ((EraseProof.Test.NVS.eL, stAdd), ⟨10⟩) := by
   have hN : stAdd.inductives[`N]? = some (iidN, masksN) := by sufact
   rw [e, visitExpr, ← e]
@@ -695,12 +699,12 @@ def pSU : Program :=
     (mutualBlockKername [`PUnit], .inductiveDecl ⟨.finite, 0, [bodyPU]⟩),
     (mutualBlockKername [`N], .inductiveDecl ⟨.finite, 0, [bodyN]⟩)] (some EraseProof.Test.NVS.eL)
 
-/-- The pure path on NV-S's closure under `cfgSU` returns `pSU` and NV-S's constants to inline,
+/-- The pure path on NV-S's closure under `cfgOf nat` returns `pSU` and NV-S's constants to inline,
 `Unit.unit` and `add.match_1`. Reference: `erase` (`MR E/ErasureFunction.v:989`) and
 `erase_global_deps` (`MR E/ErasureFunction.v:1602`). -/
-theorem hpure : erasePure view cfgSU D e = .ok (pSU, EraseProof.Test.NVS.inl0) := by
+theorem hpure : erasePure view (cfgOf nat) D e = .ok (pSU, EraseProof.Test.NVS.inl0) := by
   rw [erasePure, show travFuel = (travFuel - 68) + 68 by decide]
-  rw [show ((visitExpr (m := PureM) (travFuel - 68 + 68) e).runPure {} { «config» := cfgSU }
+  rw [show ((visitExpr (m := PureM) (travFuel - 68 + 68) e).runPure {} { «config» := cfgOf nat }
     ⟨D, view⟩ {}) = .ok ((EraseProof.Test.NVS.eL, stAdd), ⟨10⟩) from e_run]
   krfl
 
@@ -708,6 +712,6 @@ theorem hpure : erasePure view cfgSU D e = .ok (pSU, EraseProof.Test.NVS.inl0) :
 hypotheses `erase … = t'` and `erase_global_deps … = Σ'` of `erase_correct`
 (`MR E/ErasureFunctionProperties.v:657`). -/
 theorem hrun : eraseEntry view cfgSU e = pure (pSU, EraseProof.Test.NVS.inl0) := by
-  simp only [eraseEntry, route, hcollect, hpure]
+  simp only [eraseEntry, route, hcollect, show erasePure view cfgSU D e = _ from hpure]
 
 end EraseProof.Test.NVSU

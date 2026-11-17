@@ -454,7 +454,7 @@ body Erasure.peelLams.match_1 af1bc3cc0ed60ed07fd02e2f69a84bd1ca77377b3ee6ecc7ac
 body Erasure.piBinders 6e6d38f89d4c47b171546848555d746fc511f22723b4135e8554874a10dd8cba
 body Erasure.piBinders._f c8363932d3dd9fbb8d7adf191eff39ac31465a97a345cac1456be26524ea49fe
 body Erasure.piBinders.match_1 fd9f172b95405508bd05df30955b75ecb6d62dde0ff90ba97d4f14875803295d
-body Erasure.preDef? 01f4f2c92340c461dd26bfeaf07c9e4ca3e852439cfb864bd18c531c6b93feef
+body Erasure.preDef? 1655bcafb6491a9e714fa984f6723bf827eb31d91292416fcecaf9e5e33cda9b
 body Erasure.preDef?.match_1 44c6b6bf59894b6f085af2117e1af86d8c30053a74c0086a13c726603c90229a
 body Erasure.recFix 7e1ca3a39d9919985e805d2f131111a5cfb06016672f9fd032b518bfca71d010
 body Erasure.recFix._sparseCasesOn_5 9984e46d17e38b33830f35b02b5511a18fe3bf60ac6c108ecbb1cf9865dac20a
@@ -1283,6 +1283,7 @@ name Lean.Core.Context
 name Lean.Core.CoreM
 name Lean.Core.State
 name Lean.DefinitionSafety
+name Lean.DefinitionSafety.partial
 name Lean.DefinitionSafety.safe
 name Lean.DefinitionVal
 name Lean.DefinitionVal.all
@@ -1390,6 +1391,7 @@ name Lean.TheoremVal
 name Lean.TheoremVal.all
 name Lean.TheoremVal.toConstantVal
 name Lean.TheoremVal.value
+name Lean.instBEqDefinitionSafety
 name Lean.instBEqFVarId
 name Lean.instInhabitedName
 name Lean.mkAppN

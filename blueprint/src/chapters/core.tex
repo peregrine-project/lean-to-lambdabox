@@ -393,8 +393,9 @@
         every inductive \code{T} with one constructor;
   \item \code{PhaseIDecl}: a declaration outside the exclusion classes of
         Section~\ref{sec:scope-fragment}, a definition with an \code{\_unsafe\_rec} companion
-        only when \code{isStructuralRecursive} holds of it and \code{cfg.structural = .kernel}
-        or it has a compiled pre-definition (\code{preDef?}; S-44, S-56); a recursor only as
+        only when \code{isStructuralRecursive}, a syntactic test for a \code{T.brecOn} in its
+        value, holds of it and \code{cfg.structural = .kernel} or it has a compiled
+        pre-definition (\code{preDef?}; S-44, S-56, S-57); a recursor only as
         such a \code{T.rec}, or in the shape
         of \code{RecInFragment}; an inductive
         whose sort may be both zero and not (the shipping \code{mayBeNonZero}) only when not

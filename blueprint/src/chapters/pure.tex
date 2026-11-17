@@ -74,7 +74,8 @@
         inductive without indices, a universe parameter more than the inductive's, induction
         hypotheses without arguments and about the last fields; S-47), an \code{unsafe} or
         \code{partial} constant, one with an \code{\_unsafe\_rec} companion (except a
-        definition for which \code{isStructuralRecursive} holds, under
+        definition for which \code{isStructuralRecursive}, a syntactic test for a
+        \code{T.brecOn} in the value, holds, under
         \code{structural := .kernel} (S-44) or with a compiled pre-definition \code{preDef?}
         (S-56)) or an \code{implemented\_by} target, a nested inductive, an \code{@[extern]} constructor under \code{preferAxiom};
         a definition, theorem or opaque of a mutual block, whose \code{all} is not its own name
@@ -209,9 +210,10 @@
     def:Erasure-ErasureConfig}
   \srcloc{LeanToLambdaBox/Erasure/Pure.lean}{448}
   \lead{In short} \code{preDef? view cfg ci}: under \code{structural := .unsafeRec}, the value of
-  the \code{\_unsafe\_rec} companion of a definition by structural recursion, \hl{with the
-  companion's name renamed to the definition's} (\code{renameUnsafeRec}), when it mentions the
-  definition (\code{nameOccurs}); \code{none} otherwise (S-56).
+  the \code{\_unsafe\_rec} companion of a definition that \code{isStructuralRecursive}
+  recognizes, \hl{with the companion's name renamed to the definition's}
+  (\code{renameUnsafeRec}), when the companion is \code{partial}, as Lean adds it, and its value
+  mentions the definition (\code{nameOccurs}); \code{none} otherwise (S-56, S-57).
   \begin{itemize}
   \item the companion is the pre-definition that Lean's code generator compiles
         (\code{addAndCompilePartialRec}); \code{visitMutual} erases it as a $\lambda_\Box$

@@ -12,7 +12,8 @@
   \code{partial} definitions and mutual blocks are out, and \code{Nat} literals are in only under
   \code{nat := .peano}; \hl{\code{Init}'s \code{Nat.add 2 3} is verified end to end} under both
   values of \code{structural} (Section~\ref{sec:scope-nat-add}), and a structural \code{add} of
-  the program under \code{\{nat := .peano\}} (NV-SU); quotients and the recursors of one
+  the program under the default configuration (NV-SUD) and under \code{\{nat := .peano\}}
+  (NV-SU); quotients and the recursors of one
   inductive without indices (the shape of \code{RecInFragment}) are in Phase I, and Phase II adds
   the other recursors.
   The divergence entries DV-23 to DV-26 and the choices of Section~\ref{sec:scope-decisions} fix
@@ -90,13 +91,15 @@ structural recursion under the default \code{structural := .unsafeRec} & I & the
   a $\lambda_\Box$ fixpoint (S-56); the source evaluates a call with all the arguments the
   pre-definition takes through it (\code{deltaRec}, under the conversion premise
   \code{SrcConv}), and a partial application in an evaluated position is stuck (DV-7); the
-  pre-definitions are typed translations by the hypothesis \code{hpre} (DV-31); NV-SU is an
-  instance, under \code{\{nat := .peano\}}, the setting of the frontend benchmarks \\
+  pre-definitions are typed translations by the hypothesis \code{hpre} (DV-31); NV-SUD is an
+  instance under the default configuration \code{\{\}}, NV-SU under \code{\{nat := .peano\}},
+  the setting of the frontend benchmarks \\
 structural recursion (\code{brecOn}) under \code{structural := .kernel} & I & the kernel
   definition (\code{T.brecOn}, \code{T.below}, \code{\_f} and the matchers, all ordinary
   definitions over recursors, projections and \code{casesOn}) is erased as any definition (S-42);
   the fragment test admits a definition with an \code{\_unsafe\_rec} companion that
-  \code{isStructuralRecursive} recognizes (S-44, S-49), the oracle reduces the recursors it meets
+  \code{isStructuralRecursive} recognizes (S-44, S-49; a syntactic test, below), the oracle
+  reduces the recursors it meets
   (S-43, S-48); a mutual block (its \code{all} is not its own name alone) is excluded (S-51); a
   recursion on a \code{Nat} literal evaluates (DV-30) \\
 \code{Init}'s \code{Nat.add} on \code{Nat} literals under \code{\{extern := .preferLogical,
@@ -110,7 +113,9 @@ quotients & I & \code{Quot.mk} and \code{Quot.lift} erased as \code{LCNF} does (
   quotient whose relation identifies distinct values, unordered pairs of \code{B} (S-50) \\
 well-founded recursion, mutual structural blocks & -- & the fragment test rejects them (an
   \code{\_unsafe\_rec} companion, not \code{isStructuralRecursive}); well-founded recursion
-  reduces only through an opaque accessibility proof, so the source never evaluates it (DV-24) \\
+  reduces only through an opaque accessibility proof, so the source never evaluates it (DV-24); a
+  well-founded definition whose value mentions a \code{T.brecOn} passes the syntactic test, and
+  the theorem says nothing about it (DV-26) \\
 sparse \code{casesOn}, \code{T.c.elim}, matchers with literal patterns & II & their values reach
   a recursor (\code{T.rec}, \code{Eq.rec}) \\
 \code{casesOn}, projections on a \code{Sort}-polymorphic inductive whose level may be 0
@@ -147,8 +152,14 @@ it skips the values of theorems and of recognized \code{casesOn} constants.
   (\code{recShapeInFragment}: one inductive, no indices, a universe parameter more than the
   inductive's, induction hypotheses without arguments and about the last fields); a constant with an
   \code{\_unsafe\_rec} companion (well-founded recursion, a \code{partial} definition, a mutual
-  block), except a definition by structural recursion under \code{structural := .kernel} or with a
-  compiled pre-definition.
+  block), except a definition that \code{isStructuralRecursive} recognizes, under
+  \code{structural := .kernel} or with a compiled pre-definition (a \code{partial} companion,
+  S-57).
+\item \lead{Precision} \code{isStructuralRecursive} is \hl{a syntactic test for a \code{T.brecOn}
+  in the definition's value}: every definition by structural recursion passes it, and so does a
+  definition by well-founded recursion that mentions a \code{T.brecOn}, for instance in an inlined
+  proof. The theorem then says nothing about such a program: the conversion premise of its calls
+  is unprovable, so \code{hev} does not hold (DV-26).
 \item \lead{Both phases} a string literal; an \code{unsafe}, \code{partial} or
   \code{@[implemented\_by]} constant; a definition, theorem or opaque of a mutual block, whose
   \code{all} is not its own name alone (S-51); a nested or unsafe inductive; an \code{@[extern]}

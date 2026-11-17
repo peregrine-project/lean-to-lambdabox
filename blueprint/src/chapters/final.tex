@@ -12,9 +12,9 @@
   (M1), with one case lemma per rule of \code{SrcEval}; the soundness of the pure traversal
   \code{erasePure\_erases} (M2), by induction on fuel over the step lemmas of
   Section~\ref{sec:core-steps}. The statements are definitions of type \code{Prop}, pinned by
-  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Twelve test
+  \code{proof/spec.pin} (C12b); C12 checks each theorem's type against its statement. Thirteen test
   programs discharge every hypothesis (Chapter~\ref{chap:tests}). \stProved{} the first-order
-  corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L, NV-QP and NV-SU.
+  corollary, with instances on NV-1, NV-2, NV-R, NV-S, NV-L, NV-QP, NV-SU and NV-SUD.
 \item \lead{Nodes} \bpnodes{chap:final}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean},
   \leanfile{proof/EraseProof/Final.lean}, \leanfile{proof/EraseProof/FirstOrder.lean},
@@ -58,6 +58,8 @@
   \lead{Why} the \code{\_unsafe\_rec} companion is not a declaration of \code{P}, so \code{henv}
   says nothing about it; Lean's kernel checks it at the definition's type, and structural
   recursion is universe-monomorphic (DV-31).
+  \lead{What it does not say} it does not relate the companion to the kernel definition: the
+  conversion premise of \code{deltaRec} does, at each call, as part of \code{hev}.
 \end{definition}
 
 \begin{definition}[The statement of the final theorem]
@@ -144,7 +146,11 @@
   view of the whole environment that \code{\#erase} builds.
 \item \lead{\code{hpre}} the compiled pre-definitions that the view gives the declarations of
   \code{P} are typed translations, as Lean's kernel checks the \code{\_unsafe\_rec} companion
-  (DV-31); on a program none of whose declarations has a pre-definition it holds trivially.
+  (DV-31); on a program none of whose declarations has a pre-definition it holds trivially. It
+  does not relate the companion to the kernel definition: \hl{the conversion premise does, per
+  call}, inside \code{hev}, so a typed companion that computes something else makes \code{hev}
+  unprovable, not the conclusion false. Its cost: the instances prove each conversion from a
+  second evaluation, through the kernel definition, to the same value (DV-7).
 \item \lead{\code{he}, \code{hty}} the input \code{e} is the Lean form of a closed, well-typed
   Metalean term \code{t}.
 \item \lead{\code{hfrag}} the shipping fragment test accepts \code{e} and returns its closure
@@ -167,11 +173,14 @@
   \code{hev} never holds for it.
 \item \lead{Structural recursion} \hl{in the fragment under the default
   \code{structural := .unsafeRec}}: the test admits a definition by structural recursion
-  (\code{isStructuralRecursive}) with a compiled pre-definition (\code{preDef?}), \code{Nat.add}
+  (\code{isStructuralRecursive}, a syntactic test for a \code{T.brecOn} in its value; a
+  well-founded definition that passes it is left without \code{hev}) with a compiled
+  pre-definition (\code{preDef?}), \code{Nat.add}
   and \code{Nat.beq} included. The eraser emits a $\lambda_\Box$ fixpoint of the pre-definition,
   and the source evaluates a call with all the arguments the pre-definition takes through it
-  (\code{deltaRec}, DV-7); NV-SU is an instance, a structural \code{add} of the program under
-  \code{\{nat := .peano\}}, the setting of the frontend benchmarks, and NV-U another,
+  (\code{deltaRec}, DV-7); NV-SUD is an instance, a structural \code{add} of the program under
+  the default configuration \code{\{\}}, NV-SU the same under \code{\{nat := .peano\}}, the
+  setting of the frontend benchmarks, and NV-U another,
   \code{Init}'s \code{Nat.add 2 3} under \code{\{extern := .preferLogical, nat := .peano\}}. Under \code{structural := .kernel} the test
   admits it through its kernel definition, which recurses through \code{T.brecOn}, built from
   recursors, projections and \code{casesOn}, and is covered like any definition: NV-S and NV-A are
@@ -860,7 +869,8 @@ Hypothesis & MetaRocq & Why it is there \\
 \code{hview} & \code{Sigma} $\sim$\code{\_ext X} & the environment \code{\#erase} reads is \code{P}
   on \code{P}'s names \\
 \code{hpre} & none & the compiled pre-definitions, which \code{P} does not declare, are typed
-  translations (DV-31) \\
+  translations (DV-31); \code{hev}'s conversion premises relate them to the kernel
+  definitions \\
 \code{he}, \code{hty} & \code{welltyped Sigma [] t} & typing lives on Metalean terms; \code{TrM}
   names the Lean term \code{\#erase} sees \\
 \code{hfrag} & none & \hl{the router's own decidable test}; it names syntactic classes

@@ -105,10 +105,10 @@ have the shape `recShapeInFragment` admits (a mutual or indexed block, eliminati
 `Prop`, an induction hypothesis with arguments or before a non-recursive field); this is checked
 only for a recursor the closure reads, not for one it adds as a companion; an `unsafe` or
 `partial` definition, or a definition or an opaque with an `_unsafe_rec` companion (a `partial def` is an opaque whose value is a dummy, compiled through its
-companion), except a definition by structural recursion (`isStructuralRecursive`) under
-`structural := .kernel`, which both paths erase through its kernel definition, and one under
-`structural := .unsafeRec` that has a compiled pre-definition (`preDef?`), which both paths erase
-through that pre-definition; a definition,
+companion), except a definition whose value mentions a `brecOn` (`isStructuralRecursive`, which
+every definition by structural recursion passes) under `structural := .kernel`, which both paths
+erase through its kernel definition, and one under `structural := .unsafeRec` that has a compiled
+pre-definition (`preDef?`), which both paths erase through that pre-definition; a definition,
 theorem or opaque of a mutual block (whose `all` is not the list of its own name alone); an
 `unsafe` opaque, axiom, inductive or constructor; an `implemented_by` target of a definition, an
 opaque or an axiom; a nested inductive, or one whose sort is excluded by `sortDecided`; an
@@ -291,9 +291,9 @@ the traversal keeps as a constant (`recStaysConstant`: a nested block, `Nat` or 
 of the constructor's type) or whose shape `recShapeInFragment` does not admit (a mutual or indexed
 block, elimination only into `Prop`, an induction hypothesis that takes arguments or precedes a
 field); a string literal; an
-`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except a definition by
-structural recursion, under `structural := .kernel`, or under `structural := .unsafeRec` if it has
-a compiled pre-definition) or an `implemented_by` target; a
+`unsafe`/`partial` constant, or one with an `_unsafe_rec` companion (except a definition whose
+value mentions a `brecOn` (`isStructuralRecursive`) under `structural := .kernel`, or under
+`structural := .unsafeRec` if it has a compiled pre-definition) or an `implemented_by` target; a
 definition, theorem or opaque of a mutual block; a nested or unsafe inductive; an `@[extern]` constructor under `extern := .preferAxiom`; under
 `nat := .machine` a Nat literal, `Nat.zero`, `Nat.succ`, `Int.ofNat`, `Int.negSucc`, `Nat.casesOn`
 or `Int.casesOn`; a recognized `casesOn` on an inductive with a constructor field that is an index

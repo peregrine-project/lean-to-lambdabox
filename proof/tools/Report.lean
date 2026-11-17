@@ -62,13 +62,13 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   roots (tests are roots by themselves); `unproved` is empty. `erase_correct` is a theorem whose
   footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, as is that of each of its
   instances on the non-vacuity programs NV-1, NV-P, NV-K, NV-2, NV-Q, NV-R, NV-S, NV-L, NV-QP,
-  NV-A, NV-U and NV-SU (`finalInstances`: `EraseProof.Test.NV1.final`, `NVP.final`, `NVK.final`,
-  `NV2.final`, `NVQ.final`, `NVR.final`, `NVS.final`, `NVL.final`, `NVQP.final`, `NVA.final`,
-  `NVU.final`, `NVSU.final`),
+  NV-A, NV-U, NV-SU and NV-SUD (`finalInstances`: `EraseProof.Test.NV1.final`, `NVP.final`,
+  `NVK.final`, `NV2.final`, `NVQ.final`, `NVR.final`, `NVS.final`, `NVL.final`, `NVQP.final`,
+  `NVA.final`, `NVU.final`, `NVSU.final`, `NVSUD.final`),
   each of which applies `erase_correct` to its program's nine hypothesis terms, theorems within
   the same three axioms; each corollary of `corollaries` (`erase_correct_firstorder`) has the same
   footprint, and its instances (`NV1.firstorder`, `NV2.firstorder`, `NVR.firstorder`,
-  `NVS.firstorder`, `NVL.firstorder`, `NVQP.firstorder`, `NVSU.firstorder`) are
+  `NVS.firstorder`, `NVL.firstorder`, `NVQP.firstorder`, `NVSU.firstorder`, `NVSUD.firstorder`) are
   theorems within those axioms that mention it. Skipped with `--no-final`.
 * C12b `pin`, always: the statement definitions and the definitions they are about are those of
   `spec.pin`. The pin of the statement definitions `pinRoots` is computed (`specPin`): for each
@@ -164,7 +164,7 @@ def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV1, `EraseProof.Test.NVP, `EraseProof.Test.NVK, `EraseProof.Test.NV2,
     `EraseProof.Test.NVQ, `EraseProof.Test.NVR, `EraseProof.Test.NVS,
     `EraseProof.Test.NVL, `EraseProof.Test.NVQP, `EraseProof.Test.NVA, `EraseProof.Test.NVU,
-    `EraseProof.Test.NVSU].map
+    `EraseProof.Test.NVSU, `EraseProof.Test.NVSUD].map
     fun ns =>
     (ns ++ `final, #[`henv, `hwf, `hview, `hpre, `he, `hty, `hfrag, `hrun, `hev].map (ns ++ ·))
 
@@ -178,7 +178,7 @@ def corollaries : Array (Name × Array Name) := #[
     #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder,
       `EraseProof.Test.NVR.firstorder, `EraseProof.Test.NVS.firstorder,
       `EraseProof.Test.NVL.firstorder, `EraseProof.Test.NVQP.firstorder,
-      `EraseProof.Test.NVSU.firstorder])]
+      `EraseProof.Test.NVSU.firstorder, `EraseProof.Test.NVSUD.firstorder])]
 
 structure Config where
   imports : Array Name := #[]

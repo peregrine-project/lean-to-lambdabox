@@ -89,8 +89,8 @@ What the statements and the checks rely on without proof:
   `LBTerm.inlinedSize` and `LBTerm.stripLambdas`, which compute only the inlining hints, not the
   program. `Lean.Expr.eqv` and `Lean.Expr.replaceImpl` are reached only in the index-field branches
   of `Erasure.visitCases`, which no input that the fragment test accepts reaches (DV-26). The non-vacuity instances
-  are kernel-checked on the logical definitions; the compiled code is exercised on ten of them
-  (NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP, NV-L, NV-A, NV-U and NV-SU) by `proof/tools/NVEmit.lean` and on the regression corpus.
+  are kernel-checked on the logical definitions; the compiled code is exercised on eleven of them
+  (NV-1, NV-2, NV-Q, NV-R, NV-S, NV-QP, NV-L, NV-A, NV-U, NV-SU and NV-SUD) by `proof/tools/NVEmit.lean` and on the regression corpus.
 - What `#erase` does around `Erasure.eraseEntry`, which the theorems do not cover: the
   elaboration of the input and of the `config` term (`Erasure.eraseElab`,
   `LeanToLambdaBox/Erasure/Command.lean`, which evaluates the configuration with `unsafe`
@@ -232,7 +232,12 @@ What the statements and the checks rely on without proof:
   application of such a definition in an evaluated position has no rule, so the source evaluation
   is stuck there. The rule needs a definition that is not a recognized `casesOn` and not an atom,
   and the recursive calls of the pre-definition are at the definition's own level parameters
-  (`EraseProof.ConstAt`). Elsewhere the source has no fixpoint either: a recursor is evaluated by
+  (`EraseProof.ConstAt`). The conversion is a premise of `hev` at each call, not a lemma: no
+  theorem of the library proves it for a class of programs. The instances prove it at each call from
+  two evaluations to one value, of the constant's application through its kernel definition
+  (`T.brecOn`, `T.below`) and of the pre-definition's application, by `EraseProof.SrcEval.defeq`;
+  a program whose kernel definition is outside what the source evaluates (`EraseProof.RecInFragment`)
+  needs the conversion proved otherwise. Elsewhere the source has no fixpoint either: a recursor is evaluated by
   `EraseProof.SrcEval.recIota` and erased to a fixpoint of its own (DV-30), a structural
   definition under `structural := .kernel` recurses through `T.brecOn` and does not mention
   itself, and a definition of a mutual block is outside the fragment (DV-26).
@@ -481,8 +486,11 @@ What the statements and the checks rely on without proof:
   indices that eliminates into every sort and whose induction hypotheses take no arguments and are
   about the last fields (`EraseProof.RecInFragment`; `Erasure.recShapeInFragment`), and those the
   eraser keeps as constants (`Erasure.recStaysConstant`), recursive definitions (every definition
-  with a compiled `_unsafe_rec` companion except a definition by structural recursion,
-  `Erasure.isStructuralRecursive`, which the test admits under `structural := .kernel` and, under
+  with a compiled `_unsafe_rec` companion except one that `Erasure.isStructuralRecursive`
+  recognizes, a syntactic test for a `T.brecOn` in its value that every definition by structural
+  recursion passes, and that a definition by well-founded recursion mentioning a `T.brecOn`, for
+  instance in an inlined proof, would pass too, the theorem then saying nothing about it since the
+  conversion premise of its calls is unprovable; the test admits it under `structural := .kernel` and, under
   the default `structural := .unsafeRec`, when it has a compiled pre-definition, DV-7; definitions
   by well-founded recursion and `partial` definitions are out), definitions, theorems and opaques of
   mutual blocks (whose `all` is not their own name alone, as in a mutual structural block),
@@ -674,7 +682,12 @@ What the statements and the checks rely on without proof:
 - **What differs:** the theorem assumes that the compiled pre-definition of every declaration of
   the program (`Erasure.preDef?`) is the Lean form of a closed Metalean term typed at the
   declaration's type, translates by `EraseProof.TrM`, mentions only the declaration itself and
-  older declarations, and mentions the declaration only at its own level parameters.
+  older declarations, and mentions the declaration only at its own level parameters. The premise
+  does not relate the companion to the kernel definition: that relation is the conversion premise
+  of `EraseProof.SrcEval.deltaRec` at each call, which `hev` supplies (DV-7). A companion that is
+  typed but computes something else makes `hev` unprovable; it does not make the conclusion false.
+  The instances discharge the premise as they discharge `hwf` and `hty`, by a typing derivation in
+  their model.
 - **Why it is forced:** the `_unsafe_rec` companion is not a declaration of `P`, so
   `EraseProof.ProgEnv` and the hypotheses `henv` and `hwf` say nothing about it, while
   `EraseProof.SrcEval.deltaRec` and the erasure of the fixpoint (DV-7) evaluate and erase it. Lean's kernel type-checks the companion, a `partial`

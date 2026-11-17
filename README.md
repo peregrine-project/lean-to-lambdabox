@@ -38,7 +38,9 @@ The full syntax is:
 ### Routing
 
 `#erase` checks whether the program's dependency closure lies in the verified fragment
-(`Erasure.collectDeps`, [`Erasure/Entry.lean`](LeanToLambdaBox/Erasure/Entry.lean)):
+(`Erasure.collectDeps`, [`Erasure/Entry.lean`](LeanToLambdaBox/Erasure/Entry.lean)). The check
+admits some programs outside it: its test for structural recursion is syntactic and admits every
+definition whose value mentions a `brecOn`, including one by well-founded recursion.
 
 | Program | Path |
 |---|---|
