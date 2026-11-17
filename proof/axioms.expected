@@ -1799,6 +1799,17 @@ EraseProof.Test.NVSU.withApp_callB propext
 EraseProof.Test.NVSU.withApp_e propext
 EraseProof.Test.NVSU.withApp_mB propext
 EraseProof.Test.NVSU.withApp_preB propext
+EraseProof.Test.NVSUD.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.he propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.henv propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hev propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hfrag propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hpre propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hrun propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hty propext,Classical.choice,Quot.sound
+EraseProof.Test.NVSUD.hview propext
+EraseProof.Test.NVSUD.hwf propext,Classical.choice,Quot.sound
 EraseProof.Test.NVU.B13_match propext,Quot.sound
 EraseProof.Test.NVU.addFixL_eq propext,Classical.choice,Quot.sound
 EraseProof.Test.NVU.alt1_run propext,Classical.choice,Quot.sound

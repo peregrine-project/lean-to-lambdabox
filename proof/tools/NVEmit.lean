@@ -12,10 +12,10 @@ import EraseProof.Test.NVURun
 import EraseProof.Test.NVSURun
 
 /-!
-# NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's, NV-A's, NV-U's and NV-SU's emitted programs, for check C11
+# NV-1's, NV-2's, NV-Q's, NV-R's, NV-S's, NV-QP's, NV-L's, NV-A's, NV-U's, NV-SU's and NV-SUD's emitted programs, for check C11
 
 Run from `proof/` as `lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6
-FILE7 FILE8 FILE9 FILE10 FILE11`. For each of the non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`,
+FILE7 FILE8 FILE9 FILE10 FILE11 FILE12`. For each of the non-vacuity instances NV-1 (`inductive B | f | t` and `B.neg`,
 `EraseProof.Test.NV1`), NV-2 (`B`, `inductive T : Prop | i`, `inductive W | n | s (b : B) (h : T)`,
 `EraseProof.Test.NV2`), NV-Q (`B`, the axioms `R` and `hR`, and `Init`'s quotients,
 `EraseProof.Test.NVQ`), NV-R (`B` and `inductive N | z | s (n : N)`, `EraseProof.Test.NVR`), NV-S
@@ -25,21 +25,22 @@ NV-L (`B` and `Init`'s `Nat`, `Nat.rec` on the literal `2` under `nat := .peano`
 `EraseProof.Test.NVL`) and NV-A (`Init`'s `Nat.add 2 3` under `extern := .preferLogical,
 structural := .kernel, nat := .peano`, `EraseProof.Test.NVA`, whose declarations are all `Init`'s)
 NV-U (NV-A's program under `extern := .preferLogical, nat := .peano`, `Nat.add` erased through
-its compiled pre-definition as a λ□ fixpoint, `EraseProof.Test.NVU`) and NV-SU (NV-S's program
+its compiled pre-definition as a λ□ fixpoint, `EraseProof.Test.NVU`), NV-SU (NV-S's program
 under `nat := .peano`, `add` erased through its compiled pre-definition as a λ□ fixpoint,
-`EraseProof.Test.NVSU`),
+`EraseProof.Test.NVSU`) and NV-SUD (NV-S's program under the default configuration `{}`, which
+emits NV-SU's program, `EraseProof.Test.NVSUD`),
 it declares the program as the `inductive` command does (the kernel's inductive declaration, then
 `mkCasesOn`; NV-S's and NV-QP's sources are elaborated as a file is), checks that the environment's
-declarations are the written-out `P` (for NV-S and NV-SU, `P` and the compiled companion `add._unsafe_rec` of
+declarations are the written-out `P` (for NV-S, NV-SU and NV-SUD, `P` and the compiled companion `add._unsafe_rec` of
 its view, for NV-A and NV-U `P` and `Nat.add._unsafe_rec`; every field; a definition's or theorem's value
 up to binder names), runs `#erase`'s entry
 point `Erasure.eraseEntry` on the term `e` over that environment, with the instance's
-configuration, and writes the program to `FILE1` (resp. `FILE2`, …, `FILE11`) and its attributes to
+configuration, and writes the program to `FILE1` (resp. `FILE2`, …, `FILE12`) and its attributes to
 `FILE1.inlinings`, printed as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It
 fails unless the printed program is byte-identical to the printing of the instance's `p0`, the
-program that its `hrun` computes (NV-U's `pU`, NV-SU's `pSU`; for `useFT`, `pFT`: NV-QP's `p0` with `useFT` for `useTF`), and
-the list of constants to inline is the one `hrun` states (empty, NV-S's, NV-SU's and NV-QP's `inl0`). `proof/scripts/c11.sh` then runs
-`peregrine validate` and `peregrine eval` on the eleven files. It also checks NV-P's declarations
+program that its `hrun` computes (NV-U's `pU`, NV-SU's and NV-SUD's `pSU`; for `useFT`, `pFT`: NV-QP's `p0` with `useFT` for `useTF`), and
+the list of constants to inline is the one `hrun` states (empty, NV-S's, NV-SU's, NV-SUD's and NV-QP's `inl0`). `proof/scripts/c11.sh` then runs
+`peregrine validate` and `peregrine eval` on the twelve files. It also checks NV-P's declarations
 (`EraseProof.Test.NVP.P`, shared by NV-K up to its lemma `hEq`) against the kernel's: `Eq` and its
 `Eq.rec`, `Eq.casesOn` from `Init`, and `B` as declared above.
 -/
@@ -202,9 +203,10 @@ def checkNVP : IO UInt32 := do
   | .error err => IO.eprintln s!"NV-P: {← err.toMessageData.toString}"; return 1
 
 def main (args : List String) : IO UInt32 := do
-  let [file1, file2, file3, file4, file5, file6, file7, file8, file9, file10, file11] := args
+  let [file1, file2, file3, file4, file5, file6, file7, file8, file9, file10, file11, file12] :=
+      args
     | IO.eprintln
-        "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6 FILE7 FILE8 FILE9 FILE10 FILE11"
+        "usage: lake env lean --run tools/NVEmit.lean FILE1 FILE2 FILE3 FILE4 FILE5 FILE6 FILE7 FILE8 FILE9 FILE10 FILE11 FILE12"
       return 2
   initSearchPath (← findSysroot)
   -- NV-1: `B` (the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the `inductive`
@@ -251,8 +253,10 @@ def main (args : List String) : IO UInt32 := do
   -- NV-SU: NV-S's source and view under `nat := .peano`, `structural := .unsafeRec`.
   let r12 ← emit "NV-SU" file11 (elabSource "NV-S" srcNVS) NVS.PV NVS.e NVSU.pSU NVSU.cfgSU
     NVS.inl0
+  -- NV-SUD: NV-S's source and view under the default configuration `{}`.
+  let r13 ← emit "NV-SUD" file12 (elabSource "NV-S" srcNVS) NVS.PV NVS.e NVSU.pSU {} NVS.inl0
   return max (max (max (max r1 r2) (max r3 r4)) (max r5 r6))
-    (max (max (max r7 r8) (max r9 r10)) (max r11 r12))
+    (max (max (max r7 r8) (max r9 r10)) (max (max r11 r12) r13))
 
 end EraseProofNVEmit
 
