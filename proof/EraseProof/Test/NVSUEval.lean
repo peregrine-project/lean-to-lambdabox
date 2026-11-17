@@ -125,7 +125,7 @@ theorem find_add : findDecl σSU.decls `add = some (.defnInfo add_def) := by krf
 theorem casesOn_add : σSU.casesOn? `add = none := by krfl
 theorem atom_add : σSU.isAtom `add = false := by krfl
 theorem ax_add : σSU.axiomatized (.defnInfo add_def) = false := by krfl
-theorem pre_add : σSU.recPre? (.defnInfo add_def) = some preVal := preDef_add
+theorem pre_add : σSU.recPre? (.defnInfo add_def) = some preVal := preDef_add (nat := .peano)
 theorem arity_pre : lamArity preVal = 2 := by krfl
 theorem inst_pre : Pure.instLevels [] [] preVal = preVal := by krfl
 

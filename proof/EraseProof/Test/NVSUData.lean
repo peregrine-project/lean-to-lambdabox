@@ -36,6 +36,10 @@ open EraseProof.Test.NVR (tN cS)
 /-- The configuration `{nat := .peano}`. -/
 def cfgSU : ErasureConfig := { nat := .peano }
 
+/-- The configuration `{nat := nat}`, the other fields at their defaults: `cfgSU` at `.peano`, the
+default configuration `{}` at `.machine`. -/
+def cfgOf (nat : Config.Nat) : ErasureConfig := { nat := nat }
+
 /-- The motive `fun m => N` of the pre-definition's match. -/
 def motPre : Expr := .lam (hyg "m" 8) tN tN .default
 
@@ -53,7 +57,10 @@ def preVal : Expr :=
 /-- `preVal` is the companion's value with `add` for `add._unsafe_rec`. -/
 theorem preVal_eq : renameUnsafeRec addUnsafeRecVal = preVal := by krfl
 
-/-- Under `cfgSU` the pure path erases `add` through `preVal`. Reference: none (DV-7). -/
-theorem preDef_add : preDef? view cfgSU (.defnInfo add_def) = some preVal := by krfl
+/-- Under `cfgOf nat`, for either `nat`, the pure path erases `add` through `preVal`. Reference:
+none (DV-7). -/
+theorem preDef_add {nat : Config.Nat} :
+    preDef? view (cfgOf nat) (.defnInfo add_def) = some preVal := by
+  krfl
 
 end EraseProof.Test.NVSU
