@@ -445,20 +445,20 @@ def renameUnsafeRec : Expr → Expr
   | .proj S i e => .proj S i (renameUnsafeRec e)
   | e => e
 
-/-- The compiled pre-definition through which `structural := .unsafeRec` erases a definition by
-structural recursion (`isStructuralRecursive`): the value of its `_unsafe_rec` companion in the
-view, with `renameUnsafeRec` applied, when the companion is a definition of that name and the
-renamed value mentions the definition (otherwise `visitMutual` would not erase it as a fixpoint).
-`none` for every other declaration and under `structural := .kernel`. Reference: the companion
-that `addAndCompilePartialRec` (`Lean/Elab/PreDefinition/Basic.lean:280`) adds, the
-pre-definition with the block's names renamed, which `Compiler.LCNF.getDeclInfo?` gives the code
-generator. -/
+/-- The compiled pre-definition through which `structural := .unsafeRec` erases a definition whose
+value mentions a `brecOn` (`isStructuralRecursive`, which every definition by structural recursion
+passes): the value of its `_unsafe_rec` companion in the view, with `renameUnsafeRec` applied, when
+the companion is a `partial` definition of that name and the renamed value mentions the definition
+(otherwise `visitMutual` would not erase it as a fixpoint). `none` for every other declaration and
+under `structural := .kernel`. Reference: the companion that `addAndCompilePartialRec`
+(`Lean/Elab/PreDefinition/Basic.lean:280`) adds with safety `partial`, the pre-definition with the
+block's names renamed, which `Compiler.LCNF.getDeclInfo?` gives the code generator. -/
 def preDef? (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Option Expr
   | ci@(.defnInfo d) =>
     match view.find? (Compiler.mkUnsafeRecName d.name) with
     | some (.defnInfo u) =>
       let pre := renameUnsafeRec u.value
-      if cfg.structural == .unsafeRec && isStructuralRecursive ci &&
+      if cfg.structural == .unsafeRec && u.safety matches .partial && isStructuralRecursive ci &&
           u.name == Compiler.mkUnsafeRecName d.name && nameOccurs d.name pre then some pre
       else none
     | _ => none

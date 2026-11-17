@@ -3908,6 +3908,50 @@ the calls at which the two oracles answer differently. It must equal
   path, and the `#guard_msgs` fail (no instance marked; the pure path's error texts).
   `scripts/regress.sh` passes (32 tests) with `PEREGRINE`.
 
+## S-57: The compiled pre-definition is read only from a `partial` companion, and the docstrings say that the test for structural recursion is syntactic
+
+- **Commit:** the commit whose subject starts with `S-57:` (`git log --grep='^S-57:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `preDef?` also requires the companion's safety to be
+    `partial` (`u.safety matches .partial`, tested after `cfg.structural` and before
+    `isStructuralRecursive`); its docstring.
+  - `LeanToLambdaBox/Erasure.lean`: the docstrings of `isStructuralRecursive`,
+    `Config.Structural` and `declInfoCore`.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: the docstrings of `declExclusion` and `collectDeps`.
+  - `README.md`: the paragraph of "Routing".
+  - `tests/regress/pure_unsafe_rec.lean`: the `partial def PUR.spin`, the check of `preDef?` in a
+    view whose `Nat.add._unsafe_rec` is `safe`, the route of `PUR.spin true` under the default
+    configuration, the `#erase` of `partial.ast`, and the docstring; new goldens `partial.ast` and
+    `partial.ast.inlinings`, with `partial.ast.validate` and `partial.ast.eval`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** `isStructuralRecursive` tests whether a definition's value mentions some
+  `brecOn` anywhere, proof subterms included, so a definition by well-founded recursion whose
+  value mentions some `T.brecOn` passes it as well. Its docstring said that it decides whether a
+  declaration is a definition by structural recursion, and the docstrings of `preDef?`,
+  `declExclusion`, `declInfoCore` and `collectDeps` (which lists exactly when the fragment test
+  reports `outOfFragment`) named the exception "a definition by structural recursion"; the
+  README said that the fragment test checks whether the closure lies in the verified fragment.
+  `preDef?` read the value of any definition named `n._unsafe_rec`, while the companion that
+  `addAndCompilePartialRec` (`Lean/Elab/PreDefinition/Basic.lean:280`) adds, whose value the code
+  generator compiles, has safety `partial`. The only test that the fragment test excludes a
+  `partial def` (`ST.loop` in `tests/regress/structural.lean`) runs under `structural := .kernel`.
+- **Behaviour before:** `preDef?` gives the renamed value of a companion of any safety. The
+  docstrings and the README describe the test for structural recursion as exact.
+- **Behaviour after:** `preDef?` is `none` when the companion is not `partial`, so under
+  `structural := .unsafeRec` the fragment test excludes such a definition (`recursive definition
+  n`). Every `_unsafe_rec` definition of the environment of the regression tests (Init, Lean,
+  Std and this package: 3118) is `partial`, so no program changes route. The docstrings say that
+  `isStructuralRecursive` admits every definition whose value mentions a `brecOn`, every
+  definition by structural recursion among them; its behaviour is unchanged.
+- **Effect on emitted .ast (corpus):** byte-identical for all 708 files (`scripts/corpus.sh
+  --check` passes). `scripts/pure-harness.sh` passes with its expected summary unchanged.
+- **Regression test:** `pure_unsafe_rec`: `preDef?` of `Nat.add` is `none` in a view whose
+  `Nat.add._unsafe_rec` has safety `safe` (before this commit it is the renamed value); under the
+  default configuration the fragment test excludes `PUR.spin true` (`outside the fragment:
+  partial definition PUR.spin`), and `#erase` takes the `Meta` path, which erases `PUR.spin`
+  through `PUR.spin._unsafe_rec` as a fixpoint: `partial.ast`, which peregrine validates and
+  evaluates to `true`. `scripts/regress.sh` passes (32 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
