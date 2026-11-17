@@ -108,9 +108,11 @@ Scope.
   accessibility proof, and proofs are opaque in Metalean (theorems have no δ, DV-24), so the source
   does not evaluate them and `hev` never holds.
 * Structural recursion is in the fragment. Under the default `structural := .unsafeRec` the
-  fragment test admits a definition by structural recursion (`Erasure.isStructuralRecursive`) with
-  a compiled pre-definition (`Erasure.preDef?`: the value of its `_unsafe_rec` companion, with the
-  companion's name renamed to the definition's), `Nat.add` and `Nat.beq` of `Init` included. The
+  fragment test admits a definition that `Erasure.isStructuralRecursive` recognizes (a syntactic
+  test for a `T.brecOn` in its value, which every definition by structural recursion passes) with a
+  compiled pre-definition (`Erasure.preDef?`: the value of its `_unsafe_rec` companion, with the
+  companion's name renamed to the definition's); `Nat.add` and `Nat.beq` of `Init` are among them,
+  and under the default `extern := .preferAxiom` they are axioms (`@[extern]`, DV-12). The
   eraser emits a λ□ fixpoint of the pre-definition, and the source evaluates a call with all the
   arguments the pre-definition takes through the pre-definition (`SrcEval.deltaRec`; DV-7). Under
   `structural := .kernel` the test admits a definition by structural recursion through its kernel
