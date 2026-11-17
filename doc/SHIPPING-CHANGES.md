@@ -3913,7 +3913,7 @@ the calls at which the two oracles answer differently. It must equal
 - **Commit:** the commit whose subject starts with `S-57:` (`git log --grep='^S-57:'`).
 - **Files and functions:**
   - `LeanToLambdaBox/Erasure/Pure.lean`: `preDef?` also requires the companion's safety to be
-    `partial` (`u.safety matches .partial`, tested after `cfg.structural` and before
+    `partial` (`u.safety == .partial`, tested after `cfg.structural` and before
     `isStructuralRecursive`); its docstring.
   - `LeanToLambdaBox/Erasure.lean`: the docstrings of `isStructuralRecursive`,
     `Config.Structural` and `declInfoCore`.
