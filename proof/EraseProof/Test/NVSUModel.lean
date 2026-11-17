@@ -10,7 +10,8 @@ closed Metalean term `preValM` (`tr_preVal`), typed at `add`'s type (`preValM_ty
 `add.match_1` at the motive `fun m => N`, whose alternatives are typed at the motive applied, by a
 β-step (`motNL_beta`), the recursive call `add n k` through the constant `add` of `E`. `preVal`
 names only `add` and the declarations after it in the newest-first `P`, `add` at its own (empty)
-level parameters, and `add` is the only declaration of `P` with a pre-definition under `cfgSU`.
+level parameters, and `add` is the only declaration of `P` with a pre-definition under `cfgOf nat`,
+for either `nat` (`preDef?` reads only `structural`).
 -/
 
 open Lean Metalean
@@ -122,19 +123,19 @@ theorem preValM_typed : E12[.nil] ⊢ preValM : addTyM n12 := by
 
 /-! ## The premise -/
 
-/-- Under `cfgSU` the declaration of `P` with a compiled pre-definition is `add`, its first. -/
-theorem preDef_P : (List.range P.length).all (fun k =>
-    k == 0 || !((P[k]?).bind (Erasure.preDef? view cfgSU)).isSome) = true := by krfl
+/-- Under `cfgOf nat` the declaration of `P` with a compiled pre-definition is `add`, its first. -/
+theorem preDef_P {nat : Erasure.Config.Nat} : (List.range P.length).all (fun k =>
+    k == 0 || !((P[k]?).bind (Erasure.preDef? view (cfgOf nat))).isSome) = true := by krfl
 
 /-- `hpre`: the compiled pre-definition of `add`, the only one of `P` (`preDef_P`), names only
 `add` and declarations after it in `P`, names `add` at its own (empty) level parameters, and it is
 the Lean form of `preValM`, typed at the translation of `add`'s type. Reference: none (DV-31). -/
-theorem hpre : PreDefsOK E B view cfgSU P := by
+theorem hpre {nat : Erasure.Config.Nat} : PreDefsOK E B view (cfgOf nat) P := by
   intro P₁ ci P₀ pre hP hpd
   have hk : P₁.length < P.length := by rw [hP]; simp
   have hci : P[P₁.length]? = some ci := by rw [hP]; simp
   have hP₀ : P.drop (P₁.length + 1) = P₀ := by rw [hP]; simp
-  have h0 := List.all_eq_true.mp preDef_P _ (List.mem_range.mpr hk)
+  have h0 := List.all_eq_true.mp (preDef_P (nat := nat)) _ (List.mem_range.mpr hk)
   rw [hci, Option.bind_some, hpd] at h0
   have h0' : P₁.length = 0 := by simpa using h0
   rw [h0'] at hci hP₀
