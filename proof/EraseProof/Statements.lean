@@ -74,8 +74,9 @@ def erasePure_erases_statement : Prop :=
       ErasesDeps noCert (evalEnvOf view cfg decls) lenv tb ∧ LenvClosed lenv
 
 /-- The statement of `srcEval_sound`: the marked source evaluation preserves meaning in every
-con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it and
-`ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
+con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it that
+con-leche types (`CLTypedAt`: the run-time certificates grade the marked reading, which keeps the
+η-expansions the marks stand for) and `ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
 that is not the proof point (`Sound`). Proved from con-leche's model (`checkDeclsPure_sound_of`,
 the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Reference: none
 (subject reduction, `MR P/PCUICSR.v`, has no con-leche counterpart; DV-34). -/
@@ -83,7 +84,7 @@ def srcEval_sound_statement.{w} : Prop :=
   ∀ {P decls : List ConstantInfo} {env : ConLeche.Env} {view : EnvView} {cfg : ErasureConfig}
     {e ê v : Expr},
     ConLecheAccepts P env → CLTyped env e → NoMarkKeys e = true → MarkOf decls cfg [] e ê →
-    SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
+    CLTypedAt env ê → SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
 
 /-- The statement of `erase_correct`, the final theorem: partial correctness of `#erase` on the
 fragment, against con-leche. If con-leche's pure fold accepts the program `P` with environment
@@ -180,6 +181,7 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hnopre : NoPreDefs view cfg decls) →
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
+    (htyM   : CLTypedAt env ê) →
     (hev    : SrcEval env (evalEnvOf view cfg P) ê v) →
     (hfo    : FirstOrderValue (evalEnvOf view cfg P) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧

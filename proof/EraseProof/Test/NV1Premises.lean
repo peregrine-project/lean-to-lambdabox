@@ -80,7 +80,7 @@ theorem decls : DeclsOf? P = some nv1full := by krfl
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv1full = .ok envNV1) : ConLecheAccepts P envNV1 :=
-  ⟨nv1full, decls, hfold⟩
+  ⟨nv1full, decls, hfold, by krfl⟩
 
 /-! ## `hty`: con-leche infers a type for `e` at `envNV1` -/
 
