@@ -66,7 +66,8 @@ inductive Nat
   -/
   | machine
 
-/-- Which declaration erases a definition by structural recursion (`isStructuralRecursive`). -/
+/-- Which declaration erases a definition whose value mentions a `brecOn` (`isStructuralRecursive`,
+which every definition by structural recursion passes). -/
 inductive Structural where
   /-- The `_unsafe_rec` definition that the code generator compiles (`Compiler.LCNF.getDeclInfo?`):
   a fixpoint that calls the function itself. -/
@@ -470,10 +471,12 @@ def usesConst (p : Name → Bool) : Expr → Bool
   | _ => false
 
 /--
-Whether a declaration is a definition by structural recursion: a definition whose value refers to
-a `brecOn` (`brecOnInduct?`), which is how Lean's structural recursion (`Lean.Elab.Structural`)
-writes it. A definition by well-founded recursion refers to `WellFounded.fix` instead, and a
-`partial` definition is an opaque.
+A syntactic test for definitions by structural recursion: whether a declaration is a definition
+whose value refers to a `brecOn` (`brecOnInduct?`) anywhere, proof subterms included. Every
+definition by structural recursion passes it, since Lean's structural recursion
+(`Lean.Elab.Structural`) writes the value with a `brecOn`, but so does a definition by well-founded
+recursion whose value mentions some `T.brecOn`. A `partial` definition is an opaque and does not
+pass it.
 -/
 def isStructuralRecursive : ConstantInfo → Bool
   | .defnInfo d => usesConst (brecOnInduct? · |>.isSome) d.value
@@ -1329,7 +1332,10 @@ mutual
       let fixvarnames := names.map (remove_unsafe_rec (m := m))
       withReader (fun env => { env with fixvars := fixvarnames |>.zip ids |> Std.HashMap.ofList |> .some }) do
         let defs: List FixDef ← names.mapM (fun n => do
-          let ci ← getConst n -- here n is directly from the above ci.all, possibly _unsafe_rec
+          -- n is directly from the above ci.all, possibly _unsafe_rec. For its own name, the
+          -- declaration `declInfo?` returned: on the `Meta` path the one `getConst` returns, on
+          -- the pure path the one with the compiled pre-definition as value.
+          let ci ← if n == ci.name then pure ci else getConst n
           let e: Expr := ci.value! (allowOpaque := true)
           -- TODO: eta-expand fixpoints? (I think this must be done, unsure how far)
           let t: LBTerm ← withReader (fun env => { env with decl := remove_unsafe_rec (m := m) n }) do
@@ -1349,9 +1355,10 @@ end Traversal
 /--
 The declaration that erases a constant on the `Meta` path: the one the code generator uses
 (`Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` version), except that under
-`structural := .kernel` a definition by structural recursion (`isStructuralRecursive`) is erased
-through its kernel definition when `visitRec` erases the recursor `T.rec` of each `T.brecOn` it
-refers to (not `recStaysConstant`: a nested inductive, `Nat` under `nat := .machine`). A
+`structural := .kernel` a definition whose value mentions a `brecOn` (`isStructuralRecursive`,
+which every definition by structural recursion passes) is erased through its kernel definition
+when `visitRec` erases the recursor `T.rec` of each `T.brecOn` it refers to (not
+`recStaysConstant`: a nested inductive, `Nat` under `nat := .machine`). A
 definition that replaces another by a `@[csimp]` theorem keeps the code generator's declaration
 under `csimp`: it is the compiled implementation of a kernel definition, and its kernel definition
 may lead back to the constant it replaces (`Nat.recCompiled` goes through `Nat.brecOn`, whose value

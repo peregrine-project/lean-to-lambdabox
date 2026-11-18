@@ -12,8 +12,11 @@ of declarations, by infer-only retyping and weak-head reduction with the kernel'
 `Erasure.PureM` is the monad of the backend without `Meta`, whose environment is the program's
 closure (`collectDeps`), and `Erasure.PureM.*` are the backend operations that read it; with them,
 `PureM` is an instance of `Erasure.Backend`. `Erasure.erasePure` runs the traversal of `#erase`
-(`Erasure.visitExpr`) with this backend. `nameOccurs`, `isRecursiveDecl` and `axiomatized` are the
-traversal's recursion and `@[extern]` tests as this backend runs them.
+(`Erasure.visitExpr`) with this backend. `Erasure.preDef?` is the compiled pre-definition (the
+value of the `_unsafe_rec` companion, renamed by `renameUnsafeRec`) through which the backend
+erases a definition by structural recursion under `structural := .unsafeRec`. `nameOccurs`,
+`isRecursiveDecl` and `axiomatized` are the traversal's recursion and `@[extern]` tests as this
+backend runs them.
 -/
 
 open Lean
@@ -419,6 +422,48 @@ end Pure
 /-- Fuel of one oracle call on the pure path. Reference: none (DV-17). -/
 def oracleFuel : Nat := 2 ^ 20
 
+/-! ## Structural recursion through the compiled pre-definition -/
+
+/-- `name_occurs` as the pure backend runs it: exact names, no `_unsafe_rec` stripping.
+Reference: none (Lean's environment-level recursion, DV-7). -/
+def nameOccurs (name : Name) : Expr → Bool
+  | .const n' _ => name == n'
+  | .lam _ _ e _ | .mdata _ e | .proj _ _ e => nameOccurs name e
+  | .app a b | .letE _ _ a b _ => nameOccurs name a || nameOccurs name b
+  | _ => false
+
+/-- `e` with every constant `n._unsafe_rec` replaced by `n`, by a structural walk. Reference:
+`replaceUnsafeRecNames` (`LeanToLambdaBox/Erasure.lean`), which `prepareErasure` applies on the
+`Meta` path. -/
+def renameUnsafeRec : Expr → Expr
+  | .const c us => .const ((Compiler.isUnsafeRecName? c).getD c) us
+  | .app f a => .app (renameUnsafeRec f) (renameUnsafeRec a)
+  | .lam n t b bi => .lam n (renameUnsafeRec t) (renameUnsafeRec b) bi
+  | .forallE n t b bi => .forallE n (renameUnsafeRec t) (renameUnsafeRec b) bi
+  | .letE n t v b nd => .letE n (renameUnsafeRec t) (renameUnsafeRec v) (renameUnsafeRec b) nd
+  | .mdata d e => .mdata d (renameUnsafeRec e)
+  | .proj S i e => .proj S i (renameUnsafeRec e)
+  | e => e
+
+/-- The compiled pre-definition through which `structural := .unsafeRec` erases a definition whose
+value mentions a `brecOn` (`isStructuralRecursive`, which every definition by structural recursion
+passes): the value of its `_unsafe_rec` companion in the view, with `renameUnsafeRec` applied, when
+the companion is a `partial` definition of that name and the renamed value mentions the definition
+(otherwise `visitMutual` would not erase it as a fixpoint). `none` for every other declaration and
+under `structural := .kernel`. Reference: the companion that `addAndCompilePartialRec`
+(`Lean/Elab/PreDefinition/Basic.lean:280`) adds with safety `partial`, the pre-definition with the
+block's names renamed, which `Compiler.LCNF.getDeclInfo?` gives the code generator. -/
+def preDef? (view : EnvView) (cfg : ErasureConfig) : ConstantInfo → Option Expr
+  | ci@(.defnInfo d) =>
+    match view.find? (Compiler.mkUnsafeRecName d.name) with
+    | some (.defnInfo u) =>
+      let pre := renameUnsafeRec u.value
+      if cfg.structural == .unsafeRec && u.safety == .partial && isStructuralRecursive ci &&
+          u.name == Compiler.mkUnsafeRecName d.name && nameOccurs d.name pre then some pre
+      else none
+    | _ => none
+  | _ => none
+
 /-! ## The pure backend -/
 
 /-- What the pure backend reads: the program's closure and the trusted view. Reference: the
@@ -493,9 +538,17 @@ def casesInfo? (n : Name) : PureM (Option Lean.CasesInfo) :=
 def ctorArity? (n : Name) : PureM (Option Nat) :=
   return _root_.Erasure.ctorArity? (← read).decls n
 
-/-- `declInfo? := findConst?` (no `LCNF.getDeclInfo?` redirect to `_unsafe_rec`). Reference:
-the kernel term, as `MR E/ErasureFunction.v:1309 erase_constant_body` erases `cst_body`. -/
-def declInfo? (c : Name) : PureM (Option ConstantInfo) := findConst? c
+/-- `declInfo?`: the declaration of the program's declarations; a definition that the
+configuration erases through its compiled pre-definition (`preDef?`, read through the view) has the
+pre-definition as its value, and keeps its name, levels, type and block. Reference: the kernel
+term, as `MR E/ErasureFunction.v:1309 erase_constant_body` erases `cst_body`; for the
+pre-definition, `Compiler.LCNF.getDeclInfo?`, which prefers the `_unsafe_rec` companion on the
+`Meta` path. -/
+def declInfo? (cfg : ErasureConfig) (c : Name) : PureM (Option ConstantInfo) := do
+  let pc ← read
+  return (findConst pc.decls c).map fun ci => match ci, preDef? pc.view cfg ci with
+    | .defnInfo d, some pre => .defnInfo { d with value := pre }
+    | ci, _ => ci
 
 /-- No `_unsafe_rec` redirect. Reference: none. -/
 def unsafeRecBase? (_ : Name) : PureM (Option Name) := pure none
@@ -506,7 +559,9 @@ def prepare (e : Expr) : PureM Expr := pure e
 
 end PureM
 
-/-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`;
+/-- The pure backend: the operations of `PureM`, with `unsafeRecBase?` always `none`; `declInfo?`
+gives a definition that the configuration erases through its compiled pre-definition (`preDef?`)
+with that value;
 type inference and weak head normalization are the oracle's `Pure.inferType` and `Pure.whnf` at
 `oracleFuel` on the traversal's locals, and `isPropFormerType` and `typeLevel` are the oracle's
 `Pure.isPropFormerType` and `Pure.typeLevel` at `oracleFuel`; `casesInfo?` and `ctorArity?` are `Erasure.casesInfo?` and `Erasure.ctorArity?` over
@@ -517,7 +572,7 @@ exhaustion is the error `fuel`, and `error` and `fail` are the error `failed`. R
 instance : Backend PureM where
   findConst? := PureM.findConst?
   unknownConstant n := throw (.outOfFragment s!"unknown constant {n}")
-  declInfo? _ := PureM.declInfo?
+  declInfo? := PureM.declInfo?
   unsafeRecBase? _ := none
   freshFVarId := PureM.freshFVarId
   instantiate1 := PureM.instantiate1
@@ -551,14 +606,6 @@ def erasePure (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
   pure (.untyped s.gdecls (some t), s.inlinings)
 
 /-! ## The recursion and `@[extern]` tests of the pure backend -/
-
-/-- `name_occurs` as the pure backend runs it: exact names, no `_unsafe_rec` stripping.
-Reference: none (Lean's environment-level recursion, DV-7). -/
-def nameOccurs (name : Name) : Expr → Bool
-  | .const n' _ => name == n'
-  | .lam _ _ e _ | .mdata _ e | .proj _ _ e => nameOccurs name e
-  | .app a b | .letE _ _ a b _ => nameOccurs name a || nameOccurs name b
-  | _ => false
 
 /-- The eraser's recursion test (`visitMutual`: `nonrecursive := single_decl && !name_occurs`),
 at the pure backend. Reference: none (DV-7); pinned to `EraseProof.RecursiveDecl` by
