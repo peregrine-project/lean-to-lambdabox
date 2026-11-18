@@ -50,12 +50,12 @@ def lamA : Expr := .lam `a (markErase tT) (.bvar 0) .default
 def beta2 : Expr := .app lamA idT
 
 
-/-! ## `hacc`: con-leche's pure fold accepts `P`, both conjuncts by the kernel -/
+/-! ## `hacc`: con-leche's pure fold accepts `P`, all three conjuncts by the kernel -/
 
 theorem decls : DeclsOf? P = some nv0ds := by krfl
 theorem fold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) []
     nv0ds = .ok envNV0 := by krfl
-theorem hacc : ConLecheAccepts P envNV0 := ⟨nv0ds, decls, fold⟩
+theorem hacc : ConLecheAccepts P envNV0 := ⟨nv0ds, decls, fold, by krfl⟩
 
 /-! ## `hty`: con-leche infers a type for `e` -/
 

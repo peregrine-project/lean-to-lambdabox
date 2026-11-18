@@ -265,16 +265,91 @@ def DeclsOf? (P : List Lean.ConstantInfo) : Option (List ConLeche.Declaration) :
   if (P.map (·.name)).Nodup ∧ P.all (fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys) then
     (P.reverse.mapM (declOf? P)).map List.flatten else none
 
+/-- The head and the arguments, in order, of an application spine. -/
+def clSpine : ConLeche.Expr → ConLeche.Expr × List ConLeche.Expr
+  | e => go e []
+where
+  go : ConLeche.Expr → List ConLeche.Expr → ConLeche.Expr × List ConLeche.Expr
+    | .app f a, acc => go f (a :: acc)
+    | e, acc => (e, acc)
+
+/-- The leading `λ`s of a term: their number and the body. -/
+def clLams : ConLeche.Expr → Nat × ConLeche.Expr
+  | .lam _ b => let r := clLams b; (r.1 + 1, r.2)
+  | e => (0, e)
+
+/-- The number of leading `Π`s of a term. -/
+def clPis : ConLeche.Expr → Nat
+  | .forallE _ b => clPis b + 1
+  | _ => 0
+
+/-- The index of a bound variable. -/
+def clBvar? : ConLeche.Expr → Option Nat
+  | .bvar i => some i
+  | _ => none
+
+/-- `ih` has the shape of an inductive hypothesis of a stored rule with `nF` fields and prefix
+length `rP`: `λ xs, rec_t p⃗ idx⃗ (f xs)`, that is `k` leading `λ`s over a recursor of the
+environment applied to the `rP` prefix variables, the index arguments and the field `f` applied to
+the `k` bound variables. -/
+def IHShape (env : ConLeche.Env) (rP nF : Nat) (ih : ConLeche.Expr) : Bool :=
+  let r := clLams ih
+  let k := r.1
+  let s := clSpine r.2
+  (match s.1 with
+   | .const n _ => env.consts.any fun
+       | .recInfo v .. => v.name == n
+       | _ => false
+   | _ => false) &&
+  s.2.length > rP &&
+  (s.2.take rP).map clBvar? == (List.range rP).map (fun i => some (k + nF + rP - 1 - i)) &&
+  (match s.2.getLast? with
+   | none => false
+   | some l =>
+     let t := clSpine l
+     (match clBvar? t.1 with
+      | some j => k ≤ j && j < k + nF
+      | none => false) &&
+     t.2.map clBvar? == (List.range k).map (fun i => some (k - 1 - i)))
+
+/-- The stored rule `r` of a recursor with prefix length `rP` has the generated shape: `rP + nfields`
+leading `λ`s over a bound variable of the prefix (the constructor's minor premise) applied to the
+`nfields` field variables, in order, and then to inductive hypotheses (`IHShape`). -/
+def RuleShape (env : ConLeche.Env) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
+  let l := clLams r.rhs
+  let s := clSpine l.2
+  l.1 == rP + r.nfields &&
+  (match clBvar? s.1 with
+   | some h => r.nfields ≤ h && h < rP + r.nfields
+   | none => false) &&
+  (s.2.take r.nfields).map clBvar? == (List.range r.nfields).map (fun i => some (r.nfields - 1 - i)) &&
+  (s.2.drop r.nfields).all (IHShape env rP r.nfields)
+
+/-- Every recursor stored in `env` has `majorIdx + 1` leading `Π`s in its type, and every one of its
+stored rules has the generated shape (`RuleShape`). It is decidable, and the kernel evaluates it on
+an environment literal. con-leche stores the rules its generator writes
+(`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`, stored by `classRuleOk`, `:444`) and
+proves their syntax only at install (`CL ConLeche/Model/Inductives/GenRuleSyn.lean:292
+classGenRule_spec`); the facts it states of the accepted environment's rules are their scoping and
+the number of their leading `λ`s (`CL ConLeche/Verify/EnvWF.lean:217`), so the shape the ι step
+reads is part of `ConLecheAccepts`. Reference: none (DV-38). -/
+def RulesCanonical (env : ConLeche.Env) : Bool :=
+  env.consts.all fun
+    | .recInfo v mI rP _ rules => clPis v.type == mI + 1 && rules.all (RuleShape env rP)
+    | _ => true
+
 /-- con-leche's pure fold accepts `P` with environment `env`, at the standard fuel
 (`CL ConLeche/Kernel/CheckerBase.lean:44 pureOps`) and the empty `Nat.div`/`Nat.mod` pin list
 (`CL ConLeche/MainTheorem.lean:70`); the form of `CL ConLeche/Model/Fold.lean:373
 checkDeclsPure_sound_of`, which gives a model `EnvModelM V env` in every `[SetTheory V]`. No
 prelude: the fold starts from the empty environment (`CL ConLeche/Kernel/CheckDecl.lean:180`), so
 `P` contains, in dependency order, everything its records use; basis declarations in `P` are
-checked against their pins. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3. -/
+checked against their pins. The third conjunct is `RulesCanonical`, which con-leche's generator makes
+true of every environment it accepts. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3, DV-38. -/
 def ConLecheAccepts (P : List Lean.ConstantInfo) (env : ConLeche.Env) : Prop :=
   ∃ ds, DeclsOf? P = some ds ∧
-    ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) [] ds = .ok env
+    ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) [] ds = .ok env ∧
+    RulesCanonical env = true
 
 /-! ## 2. The con-leche checks -/
 
