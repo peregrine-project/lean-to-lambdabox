@@ -1,8 +1,10 @@
 import LeanToLambdaBox
 import EraseProof.Test.NV1Run
+import EraseProof.Test.NV0Premises
+import EraseProof.Test.NV2Premises
 
 /-!
-# NV-1's emitted program, for check C11
+# NV-0's, NV-1's and NV-2's emitted programs, for check C11
 
 Run from `proof/` as `lake env lean --run tools/NVEmit.lean DIR`. For the non-vacuity instance NV-1
 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`) it declares the program as the
@@ -120,7 +122,14 @@ def main (args : List String) : IO UInt32 := do
   IO.FS.createDirAll dir
   -- NV-1: `B` (the kernel adds `B`, `B.f`, `B.t`, `B.rec`; `B.casesOn` as the `inductive`
   -- command builds it), then `B.neg`.
-  emit "NV-1" s!"{dir}/NV1.ast" (do declB; addDecl (.defnDecl NV1.neg_def)) NV1.P NV1.e NV1.p0
+  let r1 ← emit "NV-1" s!"{dir}/NV1.ast" (do declB; addDecl (.defnDecl NV1.neg_def)) NV1.P NV1.e NV1.p0
+  let r0 ← emit "NV-0" s!"{dir}/NV0.ast"
+    (do addDecl (.defnDecl NV0.id_def); addDecl (.defnDecl NV0.main_def)) NV0.P NV0.e NV0.p0
+  let r2 ← emit "NV-2" s!"{dir}/NV2.ast"
+    (do declB
+        addDecl (.inductDecl [] 1 [⟨`Box, NV2.Box_ind.type, [⟨`Box.mk, NV2.mkTy⟩]⟩] false))
+    NV2.P NV2.e NV2.p0
+  return r1 ||| r0 ||| r2
 
 end EraseProofNVEmit
 
