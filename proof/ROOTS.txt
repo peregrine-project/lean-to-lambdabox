@@ -6,18 +6,22 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
-EraseProof.Erases.inst EraseProof.erases_correct
-EraseProof.Erases.inst_let EraseProof.erases_correct
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
-EraseProof.Erases.instLevels EraseProof.erases_correct
-EraseProof.Erases.app_inv EraseProof.erases_correct
 EraseProof.Erases.ctor_inv EraseProof.erases_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
-EraseProof.AbsFV.LBV_of_toCL? EraseProof.erases_correct
 EraseProof.unmark_instantiate1' EraseProof.srcEval_sound
 EraseProof.unmark_instLevels EraseProof.srcEval_sound
 EraseProof.toCL?_instantiate1'_closed EraseProof.srcEval_sound
 EraseProof.toCL?_instLevels EraseProof.srcEval_sound
-EraseProof.CLTyped.closed EraseProof.CLOk.wellDenoted
 EraseProof.toCL?_hasFvar EraseProof.CLOk.wellDenoted
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
+EraseProof.SimCases.erases_correct_beta EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_etaBeta EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_zeta EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_delta EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_constAtom EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_appCong EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_atom EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_etaLam EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_frozen EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_frozenApp EraseProof.erases_correct
