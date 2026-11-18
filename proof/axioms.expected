@@ -229,3 +229,7 @@ EraseProof.Test.NV2.withApp_alt1 propext
 EraseProof.Test.NV2.withApp_alt2 propext
 EraseProof.Test.NV2.withApp_bodyK propext
 EraseProof.Test.NV2.withApp_e propext
+EraseProof.Test.DeclOf.inBlock_accepted propext
+EraseProof.Test.DeclOf.nv1_head_accepted propext
+EraseProof.Test.DeclOf.stray_rejected propext
+EraseProof.Test.DeclOf.unsafe_rejected propext
