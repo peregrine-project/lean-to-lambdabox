@@ -1,0 +1,148 @@
+# Configuration of blueprint/scripts/audit.py.
+
+# The directory whose `lake env` resolves every module of `imports` (the proof package sees the
+# root package, Metalean and itself).
+env_dir = "proof"
+
+# Modules imported to check the blueprint: every \lean{} name of a node that is not planned must
+# be a declaration of this environment. `X.*` stands for the module X and all its submodules (read
+# from the source trees of the root package, of the proof package and of the packages under
+# .lake/packages). Metalean's modules come in through these imports; Metalean.SetSemantics and
+# Metalean.SetTheory, which hold its axiom Cardinal.exists_inaccessibles, are not imported.
+imports = ["LeanToLambdaBox", "LeanToLambdaBox.Metalean", "EraseProof.*"]
+
+# Axioms a node may depend on and still carry \leanok. No sorry is allowed: audit.toml lists no
+# [[inherited_sorry]], so a node that reaches sorryAx (or any other axiom) has no \leanok.
+standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+# Module prefix of the inherited development (Metalean). The census of the trust chapter lists its
+# sorry sources (declarations whose own type or value uses sorryAx) and axioms in the environment.
+inherited_prefix = "Metalean"
+
+# The final theorem. scripts/kinds.py gives the node that cites it the kind final, planned until
+# it lands. proof/ROOTS.txt marks it FINAL then; a stand-alone result has the same mark.
+final_theorem = "EraseProof.erase_correct"
+
+# Module prefix of the shipping code, whose partial and monadic declarations the trust chapter
+# tabulates.
+shipping_prefix = "LeanToLambdaBox"
+
+# Module prefix of the verification library: every declaration a user wrote in these modules is
+# cited by a node that is not planned.
+cover_prefix = "EraseProof"
+
+# The no-leaves register of the proof package, rendered as a table (relative to the repository
+# root).
+roots_file = "proof/ROOTS.txt"
+
+# Name prefix of the tests. A node whose declarations all have this prefix is a test node.
+test_prefix = "EraseProof.Test."
+
+# Lake builds run before the audit: `lake build <targets>` in each directory (relative to the
+# repository root). The root package holds the eraser and pins Metalean; the proof package
+# `proof/` holds the verification library and requires the root package by path.
+[[build]]
+dir = "."
+targets = ["LeanToLambdaBox", "LeanToLambdaBox.Metalean"]
+
+[[build]]
+dir = "proof"
+targets = ["EraseProof"]
+
+# The Metalean modules whose declarations the proof library (outside its tests) or the shipping
+# code uses directly, with what each provides (TeX, ASCII). scripts/audit.py --update writes one
+# node per module (generated/metalean-imports.tex, in the trust chapter): its declarations used
+# directly, its axioms as measured, and the nodes that use it. The audit checks that every such
+# module, and no other, has an entry here.
+[metalean_modules]
+"Metalean.Syntax.Sig" = 'Signatures: the shape of an environment (\code{Sigs}, \code{Sig}, \code{IndSig}) and the heads that index its entries (\code{Head}).'
+"Metalean.Syntax.Expr" = 'Expressions (\code{Expr}): intrinsically scoped terms with sorts, $\Pi$, $\lambda$, \code{let}, constants, saturated inductive types, constructors, recursors and quotient constants.'
+"Metalean.Syntax.Ctx" = 'Typing contexts (\code{Ctx}) and their extension (\code{Ctx.snoc}).'
+"Metalean.Syntax.Env" = 'Environments (\code{Env}) and their entries (\code{Entry}): axioms, definitions, opaques, inductive blocks, quotients; lookup \code{Env.get}.'
+"Metalean.Syntax.Inductive.Basic" = 'Inductive blocks: parameters, indices, constructors and their types (\code{Inductive.paramType}).'
+"Metalean.Level.Quot.Basic" = 'Universe levels as a quotient of raw levels (\code{Level}).'
+"Metalean.Level.Inst" = 'Instantiation of universe levels (\code{InstLevel}).'
+"Metalean.Typing.Defs" = 'The typing judgment: definitional equality with regularity (\code{Defeq}), well-formed contexts (\code{CtxWF}) and inductive blocks (\code{InductiveWF}).'
+"Metalean.Typing.TypeEq" = 'Equality of types (\code{TypeEq}), with its two sides as types (\code{TypeEq.left}, \code{TypeEq.right}).'
+"Metalean.Typing.Env.Defs" = 'Well-formed environments (\code{EnvWF}).'
+"Metalean.Typing.Env" = 'Lemmas about well-formed environments: each entry is well formed (\code{EnvWF.entryWF}), and the block of an inductive entry (\code{EntryWF.block}).'
+"Metalean.Typing.Inductive" = 'Typing of inductive blocks: the types of constructors (\code{Inductive.ctorTypeFn}).'
+"Metalean.Typing.Inversion" = 'Inversion of the typing judgment, such as for $\Pi$-types (\code{Defeq.forallE\_inv}).'
+"Metalean.Semantics.Inversion" = 'Injectivity of type formers through the domain model; a type equality equates the interpretations of both sides (\code{TypeEq.rawInterpret\_eq}).'
+"Metalean.Semantics.Interpretation" = 'The interpretation of typed terms in the domain model (\code{rawInterpret}), and its equations for $\Pi$-types and inductive types.'
+"Metalean.Semantics.Interpretation.Binder.Pi" = 'The interpretation of $\Pi$-types: membership of the $\Pi$ atom.'
+"Metalean.Semantics.Interpretation.Family.Basic" = 'Families of values of the domain model (\code{RawFamily}), and the family of a sort.'
+"Metalean.Semantics.Interpretation.Inductive" = 'The interpretation of inductive types (\code{IndTyping}), obtained from a typing derivation.'
+"Metalean.Semantics.Interpretation.Quotient.Basic" = 'The interpretation of quotient types (\code{QuotTyping}), obtained from a typing derivation.'
+"Metalean.Semantics.Basis.Shape" = 'Shapes of the domain model and constructor heads (\code{CtorHead}).'
+"Metalean.Semantics.Basis.Order" = 'The order on shapes (\code{Basis.Le}) and its bottom (\code{Basis.IsBottom}).'
+"Metalean.Semantics.Basis.Coherence" = 'Coherent shapes (\code{CoherentShape}) and the atom of a $\Pi$-type (\code{piAtom}).'
+"Metalean.Semantics.Basis.Join" = 'Values of the domain model (\code{RawValue}), its pointed order and principal ideals.'
+"Metalean.Semantics.Domain.Constructors" = 'The atoms of sorts and inductive types (\code{sortAtom}, \code{indAtom}) and inductive values.'
+"Metalean.Semantics.Domain.Decoder.Stages" = 'The stages of the decoder of the domain model (\code{CodeAssignment.piLimit}).'
+"Metalean.Semantics.Domain.Quotient.Basic" = 'The atom of quotient types (\code{quotAtom}).'
+"Metalean.TypeTheory.Syntactic.Category" = 'The category of well-formed contexts (\code{CtxCat}).'
+"Metalean.TypeTheory.Syntactic.Comprehension" = 'Context comprehension in the category of contexts.'
+"Metalean.TypeTheory.Syntactic.Pi.Type" = 'Pairs of a domain and a codomain type for $\Pi$-types (\code{Ty.Pair}).'
+"Metalean.TypeTheory.Syntactic.Universe" = 'Terms of the syntactic model (\code{Tm}) and their labels.'
+"Metalean.Order.Presheaf.Lower" = 'Lower sets over presheaves, directed and with a bottom.'
+"Metalean.Order.Presheaf.Ideal" = 'Ideals over presheaves and their membership.'
+"Metalean.Order.CondLattice" = 'Conditionally complete join-semilattices (\code{CondSemilatticeSup}).'
+"Metalean.Order.Category.CondSemilatSup.Basic" = 'The category of conditionally complete join-semilattices (\code{CondSemilatSup}).'
+"Metalean.Level.Raw.Basic" = 'Raw universe levels and their parameters (\code{Param}).'
+"Metalean.Level.Raw.Equiv" = 'Equivalence of raw universe levels, as equality under every assignment (\code{RawLevel.setoid}).'
+"Metalean.Syntax.Inductive.Ctor" = 'Constructor signatures: the type of an ordinary field (\code{Ctor.ordinaryFieldExpr}).'
+"Metalean.Syntax.Inductive.Recursor" = 'Recursor telescopes: motives (\code{Inductive.motiveTele}), minor premises (\code{Inductive.caseTele}, \code{CtorSig.caseOrdinary}).'
+"Metalean.Syntax.Inductive.LargeElimination" = 'Which inductive blocks eliminate into every sort (\code{Inductive.LargeElim}): subsingletons (\code{Inductive.Subsingleton}) and blocks of level at least one.'
+"Metalean.Syntax.Structure" = 'Structures (\code{Inductive.IsStructure}) and their projection terms (\code{IsStructure.projTerm}).'
+"Metalean.Export.Basic" = 'The four quotient constants (\code{QuotKind}), as the export format names them.'
+"Metalean.Frontend.Failure" = 'The error type of the translator (\code{Failure}), the result type of the term builders.'
+"Metalean.Frontend.Translate" = 'The total term builders of the translator (\code{indTerm}, \code{ctorTerm}, \code{recrTerm}, \code{wrapCase}, \code{quotTerm}), which the bridge uses for $\eta$-terms; its \code{partial} translator is not used.'
+"Metalean.Control" = 'Monadic helpers on tuples (\leandecl{Fin.mapM}).'
+"Metalean.Data.Fin" = 'Lemmas on tuples indexed by \code{Fin}, such as \code{Fin.append}.'
+"Metalean.Data.Tele" = 'Telescopes (\code{Tele}) and predicates on all their entries (\leandecl{Tele.Forall}).'
+"Metalean.Frontend.Rename" = 'The partial renaming and permutation of telescopes (\code{Ctx.permute?}) that the term builders of the translator call.'
+"Metalean.Metatheory.Injectivity" = 'Injectivity of type formers under type equality (\code{Defeq.ind\_inj}, \code{TypeEq.sort\_inj}).'
+"Metalean.Metatheory.SubjectReduction" = 'Subject reduction: weak-head reduction is a definitional equality (\code{WHRedS.defeq}), retyping (\code{Defeq.retype}), projections of constructors.'
+"Metalean.Metatheory.Unique" = 'Uniqueness of types up to type equality (\code{Defeq.uniqTy}).'
+"Metalean.Syntax.Expr.Application" = 'Application spines (\code{Expr.apps}).'
+"Metalean.Syntax.Inductive.Iota" = 'The $\iota$ rule: its right-hand side and induction hypotheses (\code{Inductive.iotaRhs}, \code{Inductive.iotaIHs}).'
+"Metalean.Syntax.Inductive.RecField" = 'Recursive fields of constructors and their instantiated types.'
+"Metalean.Syntax.Quot" = 'The types of the quotient constants (\code{Quot.eqApp}, \code{Quot.compatType}).'
+"Metalean.Syntax.Reduction" = 'Weak-head reduction (\code{WHRed}) and its evaluation frames (\code{Frame}).'
+"Metalean.Syntax.Ren" = 'Renamings (\code{Ren}) and their composition.'
+"Metalean.Syntax.Structure.Projection" = 'Structure projection terms under substitution and weakening.'
+"Metalean.Syntax.Substitution" = 'Substitution lemmas of the syntax: constructor fields, case telescopes, $\lambda$-telescopes.'
+"Metalean.Syntax.Var" = 'Variables of an intrinsically scoped context (\code{Var}).'
+"Metalean.Syntax.Weakening" = 'Lookups in contexts after insertion and extension (\code{Ctx.get\_insert}, \code{Ctx.get\_snoc}).'
+"Metalean.Typing.Context" = 'Well-formed contexts (\code{CtxWF}) and well-typed substitutions (\code{SubstWF}).'
+"Metalean.Typing.InstLevel" = 'Universe instantiation of judgements (\code{Defeq.instLevel}).'
+"Metalean.Typing.Map" = 'Judgements along maps of environments (\code{Defeq.map}): environment weakening.'
+"Metalean.Typing.Structure" = 'Typing of structures and of their projection terms (\code{IsStructure.projTerm\_congr}).'
+"Metalean.Typing.Substitution" = 'The substitution lemma of judgements (\code{Defeq.substitution}) and context conversion (\code{Defeq.snocConv}).'
+"Metalean.Level.Quot.Nat" = 'The arithmetic of level evaluation on \code{Nat} (\leandecl{Nat.imax}).'
+"Metalean.Level.Quot.Order" = 'The order of levels: a join semilattice under \code{max}.'
+"Metalean.Syntax.Eq" = 'The inductive block of \code{Eq} that the quotient constants require (\code{Eq.block}).'
+"Metalean.Typing.Quot" = 'The types of the quotient constants are types (\code{Quot.motiveType\_isType}, \code{Quot.compatType\_isType}).'
+"Metalean.Typing.Telescope" = 'Well-formed telescopes (\code{TeleWF}) and their appending to a context.'
+"Metalean.Typing.ProofFields" = 'Proofs under telescopes: a $\Pi$ over a telescope into a proposition is a proposition (\code{Ctx.pi\_prop}).'
+
+# Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
+# sources"). `repository`: this repository, linked at the commit the site is built from
+# ($BP_REPOSITORY_URL overrides it; CI sets it to the repository the workflow runs in). `lean4`:
+# Lean's repository, linked at the tag of lean-toolchain. The packages of lake-manifest.json are
+# linked at their `url` and `rev`.
+[links]
+repository = "https://github.com/peregrine-project/lean-to-lambdabox"
+lean4 = "https://github.com/leanprover/lean4"
+
+# The repository of a path, by its first component (or its root module file, Metalean.lean): a
+# package of lake-manifest.json, or lean4 for Lean's own modules (under src/ of that repository).
+# Any other path is a path of this repository.
+[links.roots]
+Metalean = "metalean"
+Mathlib = "mathlib"
+Batteries = "batteries"
+Init = "lean4"
+Std = "lean4"
+Lean = "lean4"
