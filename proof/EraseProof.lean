@@ -5,6 +5,7 @@ import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Lookup
 import EraseProof.Source.Marks
+import EraseProof.Simulation.Cases
 import EraseProof.Source.Restrict
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
@@ -30,6 +31,11 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (constants' bodies, inductive blocks), and their stability under abstraction and growth.
 * `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
   instantiation and instantiation.
+* `EraseProof.TargetFacts`: the induction principle of λ□ evaluation.
+* `EraseProof.Relation.Deps`: erased dependencies under substitution and λ□ evaluation.
+* `EraseProof.Source.Value`: the shapes of source values; every evaluation result is one.
+* `EraseProof.Simulation.Cases`: the cases β, ζ, δ, atoms, application congruence and the frozen
+  rules of the relation-level simulation.
 * `EraseProof.Source.Restrict`: source evaluation in the program restricts to a
   dependency-closed sub-environment.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
