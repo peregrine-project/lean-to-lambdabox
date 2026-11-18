@@ -598,7 +598,7 @@ abbrev σ : EvalEnv := evalEnvOf view cfg P
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv2full = .ok envNV2) : ConLecheAccepts P envNV2 :=
-  ⟨nv2full, decls, hfold⟩
+  ⟨nv2full, decls, hfold, by krfl⟩
 
 theorem hty : CLTyped envNV2 e := ⟨kE, 100, .app kMotB kT, toCL_e, t_e⟩
 

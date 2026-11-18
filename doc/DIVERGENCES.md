@@ -805,13 +805,20 @@ What the statements and the checks rely on without proof:
   the pure fold at the empty list. What acceptance gives is con-leche's own: the environment is well
   formed, has a model in every set theory, and its claims hold in every model
   (`EraseProof.ConLecheAccepts.accepted`).
+  Acceptance also requires `EraseProof.RulesCanonical`: every stored recursor rule has the shape
+  con-leche's generator writes (CL ConLeche/Kernel/Inductives/GenRec.lean:189 `classGenRule`, stored
+  by `classRuleOk`, :444). con-leche proves that syntax at install only
+  (CL ConLeche/Model/Inductives/GenRuleSyn.lean:292) and states of the accepted environment's
+  rules their scoping and `λ`-count (CL ConLeche/Verify/EnvWF.lean:217); it is true of every
+  accepted environment, is decidable, and is not derived from the fold here.
 - **Why it is forced:** the main theorem of con-leche is stated for every pin list, so the empty list
   needs no pin data, which comes from con-leche's pin generator and is outside the hygiene allow
   list of check C6; the binary's driver is IO code (check C6) and the cached fold reads a
   lean4export stream, not Lean records, so neither is a function of the program's records.
 - **What was considered instead:** the binary's fold at `natOpPinSets`, which needs the generated
   pin data and a stream; acceptance defined by con-leche's frontend on an export of the program,
-  which is not a function of the records.
+  which is not a function of the records. `RulesCanonical` proved from the fold's block branch (about 1000 lines of the installer's
+  machinery) instead of stated.
 
 ### DV-39
 
