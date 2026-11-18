@@ -10,7 +10,6 @@ EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.quot_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.rec_inv propext,Classical.choice,Quot.sound
 EraseProof.RecLam.recLets_closed propext,Classical.choice,Quot.sound
-EraseProof.ErasesDeps.delta propext,Classical.choice,Quot.sound
 EraseProof.ErasesDeps.construct_ind propext,Classical.choice,Quot.sound
 EraseProof.ErasesInd.indIsPropAndPars propext,Classical.choice,Quot.sound
 EraseProof.ErasesInd.lookupCtor propext,Classical.choice,Quot.sound

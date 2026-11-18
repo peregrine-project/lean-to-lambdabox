@@ -12,7 +12,6 @@ EraseProof.Erases.cases_inv EraseProof.erases_correct
 EraseProof.Erases.quot_inv EraseProof.erases_correct
 EraseProof.Erases.rec_inv EraseProof.erases_correct
 EraseProof.RecLam.recLets_closed EraseProof.erases_correct
-EraseProof.ErasesDeps.delta EraseProof.erases_correct
 EraseProof.ErasesDeps.construct_ind EraseProof.erases_correct
 EraseProof.ErasesInd.indIsPropAndPars EraseProof.erases_correct
 EraseProof.ErasesInd.lookupCtor EraseProof.erases_correct

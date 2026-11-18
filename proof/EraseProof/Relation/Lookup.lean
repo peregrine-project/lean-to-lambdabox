@@ -3,16 +3,14 @@ import EraseProof.Spec
 /-!
 # Erased declarations in the λ□ environment
 
-What `ErasesDeps` gives the simulation's δ, constructor and case steps: the λ□ body at the kername
-of a constant that δ unfolds, which erases every marking of the constant's value
-(`ErasesDeps.delta`); the erased block of the inductive of a λ□ constructor
-(`ErasesDeps.construct_ind`, through `indIdOf_inj`); the block entry of an erased inductive with
-its parameter count and `propositional` flag (`ErasesInd.indIsPropAndPars`), and with the field
-count of each constructor (`ErasesInd.lookupCtor`). What the traversal needs of it: it survives the
-abstraction of a free variable (`ErasesDeps.toBvar`) and fresh growth of the λ□ environment
-(`ErasesDeps.ext`). Every lemma holds for every certificate predicate. Adapted from
-`ML-V Relation/Deps.lean:24-96`, `ML-V Simulation/Ind.lean:150-486`,
-`ML-V Simulation/Cases.lean:724` and `ML-V Core/Steps.lean:457-522`: the inductives' facts come
+What `ErasesDeps` gives the simulation's constructor and case steps: the erased block of the
+inductive of a λ□ constructor (`ErasesDeps.construct_ind`, through `indIdOf_inj`); the block
+entry of an erased inductive with its parameter count and `propositional` flag
+(`ErasesInd.indIsPropAndPars`), and with the field count of each constructor
+(`ErasesInd.lookupCtor`). What the traversal needs of it: it survives the abstraction of a free
+variable (`ErasesDeps.toBvar`) and fresh growth of the λ□ environment (`ErasesDeps.ext`). Every
+lemma holds for every certificate predicate. Adapted from `ML-V Relation/Deps.lean:24-96`,
+`ML-V Simulation/Ind.lean:150-486` and `ML-V Core/Steps.lean:457-522`: the inductives' facts come
 from `ErasesInd` alone, so the lookups take the constructor's position in its inductive as a
 premise instead of reading it from the program's environment.
 -/
@@ -262,37 +260,6 @@ theorem ErasesInd.lookupCtor {T C : Name} {iid : InductiveId} {iv : InductiveVal
   obtain ⟨cv, cb, hc, hcb, hnargs⟩ := hctors _ _ hk
   refine ⟨mib, ob, cb, cv, ?_, hc, hnp, hnargs, hprop⟩
   simp [EraseProof.lookupCtor, hl, hcb]
-
-/-- The λ□ declaration at the kername of a constant that δ unfolds (`EvalEnv.unfold?`), when the
-erased dependencies reach that kername: it is the constant's own (`KernameInj`), its body has
-erased dependencies and erases every marking of the constant's value (`ErasesDecl`; the
-constant is not remapped). Adapted from `ML-V Simulation/Cases.lean:724 erases_correct_delta`.
-Reference: `erases_deps_tConst` (`MR E/Extract.v:324`), the `eval_delta` case of `erases_correct`
-(`MR E/ErasureCorrectness.v:152`). -/
-theorem ErasesDeps.delta {c : Name} {ci : ConstantInfo} {body : Expr} (hinj : KernameInj σ.decls)
-    (hu : σ.unfold? c = some (ci, body)) (h : ErasesDeps cert σ lenv (.const (toKername c))) :
-    ∃ cb b', lookupConst lenv (toKername c) = some cb ∧ cb.cst_body = some b' ∧
-      ErasesDeps cert σ lenv b' ∧ ∀ bM, MarkOf σ.decls σ.cfg [] body bM → Erases cert σ [] bM b' := by
-  unfold EvalEnv.unfold? at hu
-  split at hu
-  · rename_i v hfd
-    split at hu
-    · cases hu
-    · rename_i hax
-      cases hu
-      have hax' : σ.axiomatized (.defnInfo v) = false :=
-        Bool.eq_false_iff.2 fun h => hax (by simp [h])
-      generalize hk : toKername c = kn at h
-      cases h with
-      | @const c' ci' cb hfd' hl hd hbody =>
-        obtain rfl := hinj c c' (by rw [hfd]; rfl) (by rw [hfd']; rfl) hk
-        rw [hfd] at hfd'
-        cases hfd'
-        simp only [ErasesDecl, ConstantInfo.value?] at hd
-        rcases hd with ⟨hax'', -⟩ | ⟨-, -, b', hcb, herb⟩
-        · rw [hax'] at hax''; cases hax''
-        · exact ⟨cb, b', hl, hcb, hbody b' hcb, herb⟩
-  · cases hu
 
 end
 
