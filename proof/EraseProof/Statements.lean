@@ -74,7 +74,7 @@ def erasePure_erases_statement : Prop :=
       ErasesDeps noCert (evalEnvOf view cfg decls) lenv tb ∧ LenvClosed lenv
 
 /-- The statement of `srcEval_sound`: the marked source evaluation preserves meaning in every
-con-leche model of the accepted program: if `e` is typed by con-leche, `ê` is a marking of it and
+con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it and
 `ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
 that is not the proof point (`Sound`). Proved from con-leche's model (`checkDeclsPure_sound_of`,
 the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Reference: none
@@ -82,13 +82,14 @@ the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Refe
 def srcEval_sound_statement.{w} : Prop :=
   ∀ {P decls : List ConstantInfo} {env : ConLeche.Env} {view : EnvView} {cfg : ErasureConfig}
     {e ê v : Expr},
-    ConLecheAccepts P env → CLTyped env e → MarkOf decls cfg [] e ê →
+    ConLecheAccepts P env → CLTyped env e → NoMarkKeys e = true → MarkOf decls cfg [] e ê →
     SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
 
 /-- The statement of `erase_correct`, the final theorem: partial correctness of `#erase` on the
 fragment, against con-leche. If con-leche's pure fold accepts the program `P` with environment
 `env` (`hacc`; `P`'s Lean records are consistent as Lean's kernel generates them, `DeclsOf?`),
-con-leche types the input `e` (`hty`), the view `#erase` reads agrees with `P` and the compiled
+con-leche types the input `e` (`hty`), `e` carries no mark key in its metadata (`hclean`: the marks'
+anonymous key, which elaboration never writes), the view `#erase` reads agrees with `P` and the compiled
 pre-definitions it holds for `P`'s declarations name only constants of `P` (`hview`), the fragment
 test accepts `e` with the closure `decls` (`hfrag`), no declaration of the
 closure that the traversal erases by its value has a compiled pre-definition (`hnopre`), the entry
@@ -146,6 +147,7 @@ def erase_correct_statement.{w} : Prop :=
     {e ê v : Expr} {p : Program} {inl : List Kername},
     (hacc   : ConLecheAccepts P env) →
     (hty    : CLTyped env e) →
+    (hclean : NoMarkKeys e = true) →
     (hview  : ViewAgrees view P) →
     (hfrag  : collectDeps view cfg e = .ok decls) →
     (hnopre : NoPreDefs view cfg decls) →
@@ -172,6 +174,7 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     {e ê v : Expr} {p : Program} {inl : List Kername},
     (hacc   : ConLecheAccepts P env) →
     (hty    : CLTyped env e) →
+    (hclean : NoMarkKeys e = true) →
     (hview  : ViewAgrees view P) →
     (hfrag  : collectDeps view cfg e = .ok decls) →
     (hnopre : NoPreDefs view cfg decls) →
@@ -223,18 +226,20 @@ def clCert_proof_pt_statement.{w} : Prop :=
         X = ConLeche.SetTheory.pt
 
 /-- The statement of `markOf_det`: the marking is a function of the term, the closure, the
-configuration and the locals (the oracle's answers do not depend on the names of the fresh
-variables). Reference: none (DV-32). -/
+configuration and the locals, for a closure whose types and values mention no free variable
+(`ClosedDecls`; the oracle's answers then do not depend on the names of the fresh variables). Reference: none (DV-32). -/
 def markOf_det_statement : Prop :=
   ∀ {decls : List ConstantInfo} {cfg : ErasureConfig} {ls : List Local} {e ê ê' : Expr},
-    MarkOf decls cfg ls e ê → MarkOf decls cfg ls e ê' → ê = ê'
+    ClosedDecls decls = true → MarkOf decls cfg ls e ê → MarkOf decls cfg ls e ê' → ê = ê'
 
 /-- The statement of `markOf_exists`: wherever the pure traversal erases the input, the input has a
-marking, so the hypothesis `hmark` of `erase_correct_statement` follows from `hfrag` and `hrun`.
+marking, so the hypothesis `hmark` of `erase_correct_statement` follows from `hfrag` and `hrun`,
+for a closed closure (`ClosedDecls`) and an input without mark keys (`NoMarkKeys`).
 Reference: none (DV-32). -/
 def markOf_exists_statement : Prop :=
   ∀ {decls : List ConstantInfo} {e : Expr} {view : EnvView} {cfg : ErasureConfig}
     {p : Program} {inl : List Kername},
+    ClosedDecls decls = true → NoMarkKeys e = true →
     collectDeps view cfg e = .ok decls → erasePure view cfg decls e = .ok (p, inl) →
     ∃ ê, MarkOf decls cfg [] e ê
 

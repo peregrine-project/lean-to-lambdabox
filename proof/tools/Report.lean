@@ -22,7 +22,9 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   namespace `EraseProof.Test`. A module of `ConLeche.Cached`, or a constant named under
   `ConLeche.Cached`, may be reached only by `cachedOnly`, which the first pass does not enter (a
   second pass walks it with the cached checker allowed). The walk follows the bodies of the
-  library, the shipping code and con-leche. The check is on the constants reached, not on the
+  library, the shipping code and con-leche, through the types of every constant and the values of
+  definitions and opaques but not the values (proofs) of theorems: hygiene protects what statements
+  and definitions mean, while proofs are kernel-checked and their axioms are bounded by C3/C4. The check is on the constants reached, not on the
   modules imported. It is implemented by `hygieneViolation?`; the message names the reason.
   `ConLeche.Verify.Driver` (the IO driver's verified half, namespace `ConLeche.Driver`) and
   `ConLeche.Verify.Frontend.ModelIO` are denied although they lie under the allowed
@@ -31,7 +33,8 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   a non-test declaration of the library has `ConLeche.CheckMode.verified` as the argument at the
   binder of the entry point's type whose domain is `ConLeche.CheckMode`; an entry point not applied
   up to that argument is a violation; and the constant `ConLeche.CheckMode.trusted` does not occur
-  in a non-test declaration of the library. (A syntactic scan; con-leche's own code reaches the
+  in the type or value of a non-test declaration of the library, except the values of theorems.
+  (A syntactic scan; con-leche's own code reaches the
   constructor `trusted`, which is unavoidable and not scanned.)
 * C7 `leaves`: every declaration outside `EraseProof.Test` is reachable from a root of `ROOTS.txt`,
   from a statement definition, from a proved theorem of `statements` or from a corollary of
@@ -688,7 +691,10 @@ def hygieneWalk (env : Environment) (starts : Array Name) (allowCached : Bool) :
         | some (.inductInfo v) => #[c] ++ v.ctors.toArray
         | _ => #[c]
       for m in block do
-        for u in uses env m do
+        let us := match env.find? m with
+          | some (.thmInfo v) => v.type.getUsedConstants
+          | _ => uses env m
+        for u in us do
           if !seen.contains u then stack := stack.push (u, origin)
   return (out.zip count).map fun ((check, msg), n) =>
     (check, if n > 1 then s!"{msg} (and {n - 1} more)" else msg)
@@ -1145,7 +1151,6 @@ def main (args : List String) : IO UInt32 := do
   for c in nonTest do
     let exprs := match env.find? c with
       | some (.defnInfo v) => #[v.type, v.value]
-      | some (.thmInfo v) => #[v.type, v.value]
       | some (.opaqueInfo v) => #[v.type, v.value]
       | some ci => #[ci.type]
       | none => #[]
