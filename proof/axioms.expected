@@ -3,6 +3,10 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
+EraseProof.toCL?_hasFvar propext,Quot.sound
+EraseProof.toCL?_instLevels propext,Quot.sound
+EraseProof.toCL?_instantiate1'_closed propext,Quot.sound
+EraseProof.CLTyped.closed propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
