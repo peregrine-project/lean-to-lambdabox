@@ -324,11 +324,12 @@ theorem erasable_tT : CLErasable envNV0 tT :=
 
 /-- `CLOk` of the first β-redex `(fun (α : Sort 2) (a : α) => a) □T` -/
 theorem ok_beta1 : CLOk envNV0 beta1 :=
-  ⟨.app (.lam (.sort (.succ (.succ .zero))) (.lam (.bvar 0) (.bvar 0))) cTT, 100, .forallE cTT cTT,
+  ⟨⟨.app (.lam (.sort (.succ (.succ .zero))) (.lam (.bvar 0) (.bvar 0))) cTT, 100, .forallE cTT cTT,
+    by krfl, by krfl⟩, .app (.lam (.sort (.succ (.succ .zero))) (.lam (.bvar 0) (.bvar 0))) cTT, 100, .forallE cTT cTT,
     by krfl, by krfl⟩
 
 /-- `CLOk` of the second β-redex `(fun (a : □T) => a) (fun α a => a)` -/
-theorem ok_beta2 : CLOk envNV0 beta2 := ⟨.app (.lam cTT (.bvar 0)) cIdT, 100, cTT, by krfl, by krfl⟩
+theorem ok_beta2 : CLOk envNV0 beta2 := ⟨⟨.app (.lam cTT (.bvar 0)) cIdT, 100, cTT, by krfl, by krfl⟩, .app (.lam cTT (.bvar 0)) cIdT, 100, cTT, by krfl, by krfl⟩
 
 /-- δ of `nv0id.{2}`: its value, marked (no mark) and instantiated. -/
 theorem ev_id : SrcEval envNV0 σ (.const `nv0id [.succ (.succ .zero)]) id2 :=

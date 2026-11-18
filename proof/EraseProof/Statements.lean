@@ -30,13 +30,16 @@ namespace EraseProof
 dependencies, of a marked source term that evaluates, evaluates in λ□ to an erasure of the source
 value. No typing premise and no certificate (`noCert`): con-leche (`env`) occurs only through the
 run-time certificates of `SrcEval`, which the simulation does not read. The closure facts are
-those the fragment test checks (`KernameInj`, `BlockNamesInj`: DV-14; `ArityTypes`: DV-32). Port
+those the fragment test checks (`KernameInj`, `BlockNamesInj`: DV-14; `ArityTypes`: DV-32), and
+the shape facts con-leche's frontend and `DeclsOf?` check of an accepted program (`CtorsListed`,
+`NatShaped`, `NatCtors`, `RecsShaped`). Port
 of `ML-V Statements.lean:29`. Reference: `erases_correct` (`MR E/ErasureCorrectness.v:51`), whose
 `wf_ext Σ` and typing premises have no counterpart (DV-32); MC §7.3, Thm 7.3. -/
 def erases_correct_statement : Prop :=
   ∀ {env : ConLeche.Env} {σ : EvalEnv} {lenv : GlobalDeclarations} {ê v : Expr} {tb : LBTerm},
-    KernameInj σ.decls → BlockNamesInj σ.decls → ArityTypes σ.decls → LenvClosed lenv →
-    Erases noCert σ [] ê tb → ErasesDeps noCert σ lenv tb → SrcEval env σ ê v →
+    KernameInj σ.decls → BlockNamesInj σ.decls → ArityTypes σ.decls → CtorsListed σ.decls →
+    NatShaped σ → NatCtors σ → RecsShaped σ.decls → LenvClosed lenv → Erases noCert σ [] ê tb →
+    ErasesDeps noCert σ lenv tb → SrcEval env σ ê v →
     ∃ vb, Erases noCert σ [] v vb ∧ LBEval defaultFlags lenv tb vb
 
 /-- The statement of `collectDeps_ok_of`, a lower bound of the fragment test: a program that
@@ -74,9 +77,8 @@ def erasePure_erases_statement : Prop :=
       ErasesDeps noCert (evalEnvOf view cfg decls) lenv tb ∧ LenvClosed lenv
 
 /-- The statement of `srcEval_sound`: the marked source evaluation preserves meaning in every
-con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it that
-con-leche types (`CLTypedAt`: the run-time certificates grade the marked reading, which keeps the
-η-expansions the marks stand for) and `ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
+con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it and
+`ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
 that is not the proof point (`Sound`). Proved from con-leche's model (`checkDeclsPure_sound_of`,
 the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Reference: none
 (subject reduction, `MR P/PCUICSR.v`, has no con-leche counterpart; DV-34). -/
@@ -84,7 +86,7 @@ def srcEval_sound_statement.{w} : Prop :=
   ∀ {P decls : List ConstantInfo} {env : ConLeche.Env} {view : EnvView} {cfg : ErasureConfig}
     {e ê v : Expr},
     ConLecheAccepts P env → CLTyped env e → NoMarkKeys e = true → MarkOf decls cfg [] e ê →
-    CLTypedAt env ê → SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
+    SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
 
 /-- The statement of `erase_correct`, the final theorem: partial correctness of `#erase` on the
 fragment, against con-leche. If con-leche's pure fold accepts the program `P` with environment
@@ -181,7 +183,6 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hnopre : NoPreDefs view cfg decls) →
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
-    (htyM   : CLTypedAt env ê) →
     (hev    : SrcEval env (evalEnvOf view cfg P) ê v) →
     (hfo    : FirstOrderValue (evalEnvOf view cfg P) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧

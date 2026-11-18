@@ -26,28 +26,6 @@ open Lean Erasure
 
 namespace EraseProof
 
-/-! ## Environment conditions -/
-
-/-- Every constructor of `decls` is listed by its inductive at its index `cidx`, with the
-inductive's parameter count, as Lean's kernel generates the records. con-leche's frontend checks
-these fields (`CL ConLeche/Frontend/ExportC.lean:241 validateIndF`), and so does `DeclsOf?`
-(`blockShapeOK`, `declOf?`; DV-3). Reference: `declared_constructor`
-(`MR common/theories/EnvironmentTyping.v:36`). -/
-def CtorsListed (decls : List ConstantInfo) : Prop :=
-  ∀ c cv, findDecl decls c = some (.ctorInfo cv) → ∃ iv,
-    findDecl decls cv.induct = some (.inductInfo iv) ∧ iv.ctors[cv.cidx]? = some c ∧
-    iv.numParams = cv.numParams
-
-/-- The inductive `Nat` of `σ`, if there is one, has Lean's shape: no parameters, not declared in
-`Prop`, and the constructors `zero`, without a field, and `succ`, with one, in that order: the
-λ□ constructors `0` and `1` of the Peano numerals (`Erases.litZero`, `Erases.litSucc`) are its.
-con-leche checks a program's `Nat` against this shape (`CL ConLeche/Kernel/Basis/Nat.lean:68
-natBasis`). Reference: none (λ□ has no Nat literals; DV-27). -/
-def NatShaped (σ : EvalEnv) : Prop :=
-  ∀ iv, findDecl σ.decls ``Nat = some (.inductInfo iv) → iv.numParams = 0 ∧
-    σ.propInd ``Nat = false ∧
-    ∃ z s, iv.ctors = [z, s] ∧ ctorFields σ z = some 0 ∧ ctorFields σ s = some 1
-
 /-! ## λ□ evaluation
 
 Copied from `ML-V TargetFacts.lean:263-354` (closed substitutions commute),
