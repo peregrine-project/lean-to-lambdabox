@@ -7,6 +7,7 @@ import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Lookup
 import EraseProof.Source.Marks
+import EraseProof.Source.MarkRead
 import EraseProof.Simulation.Cases
 import EraseProof.Source.Restrict
 import EraseProof.Test.Marks
@@ -33,6 +34,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (constants' bodies, inductive blocks), and their stability under abstraction and growth.
 * `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
   instantiation and instantiation.
+* `EraseProof.Source.MarkRead`: a marking reads through `unmark` as the term it marks, and its
+  `eta` marks sit on λs.
 * `EraseProof.TargetFacts`: the induction principle of λ□ evaluation.
 * `EraseProof.Relation.Deps`: erased dependencies under substitution and λ□ evaluation.
 * `EraseProof.Source.Value`: the shapes of source values; every evaluation result is one.
