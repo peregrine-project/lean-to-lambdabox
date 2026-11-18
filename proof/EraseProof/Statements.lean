@@ -31,14 +31,15 @@ dependencies, of a marked source term that evaluates, evaluates in λ□ to an e
 value. No typing premise and no certificate (`noCert`): con-leche (`env`) occurs only through the
 run-time certificates of `SrcEval`, which the simulation does not read. The closure facts are
 those the fragment test checks (`KernameInj`, `BlockNamesInj`: DV-14; `ArityTypes`: DV-32), and
-the shape facts con-leche's frontend checks of an accepted program (`CtorsListed`, `NatShaped`). Port
+the shape facts con-leche's frontend and `DeclsOf?` check of an accepted program (`CtorsListed`,
+`NatShaped`, `NatCtors`, `RecsShaped`). Port
 of `ML-V Statements.lean:29`. Reference: `erases_correct` (`MR E/ErasureCorrectness.v:51`), whose
 `wf_ext Σ` and typing premises have no counterpart (DV-32); MC §7.3, Thm 7.3. -/
 def erases_correct_statement : Prop :=
   ∀ {env : ConLeche.Env} {σ : EvalEnv} {lenv : GlobalDeclarations} {ê v : Expr} {tb : LBTerm},
     KernameInj σ.decls → BlockNamesInj σ.decls → ArityTypes σ.decls → CtorsListed σ.decls →
-    NatShaped σ → LenvClosed lenv → Erases noCert σ [] ê tb → ErasesDeps noCert σ lenv tb →
-    SrcEval env σ ê v →
+    NatShaped σ → NatCtors σ → RecsShaped σ.decls → LenvClosed lenv → Erases noCert σ [] ê tb →
+    ErasesDeps noCert σ lenv tb → SrcEval env σ ê v →
     ∃ vb, Erases noCert σ [] v vb ∧ LBEval defaultFlags lenv tb vb
 
 /-- The statement of `collectDeps_ok_of`, a lower bound of the fragment test: a program that

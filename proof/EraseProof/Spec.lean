@@ -144,6 +144,16 @@ def appHeadConst : Lean.Expr → Option Name
   | .const c _ => some c
   | _ => none
 
+/-- The recursor's type has one motive, whose type binds one variable (the major premise of an
+inductive without indices): the motives `recShape` reads off the type (`recShape` returns them from
+the binders after the parameters, whatever the minors). Reference: the recursor as Lean's kernel
+builds it (`mk_rec_infos` in `src/kernel/inductive.cpp`). -/
+def recMotivesOK (r : Lean.RecursorVal) : Bool :=
+  match ((Erasure.piBinders r.type).1.drop r.numParams |>.take r.numMotives).map
+      fun (_, d) => (Erasure.piBinders d).1.map (·.1) with
+  | [[_]] => true
+  | _ => false
+
 /-- The Lean records of the block headed by `H` agree with one another as Lean's kernel generates
 them: the fields con-leche's frontend checks (`CL ConLeche/Frontend/ExportC.lean:241
 validateIndF`: one parameter count, a constructor's `cidx` its position in its type's `ctors`, its
@@ -157,10 +167,15 @@ members, each eliminating the type it is named after (con-leche assigns a recurs
 its major premise and checks only the set of names,
 `CL ConLeche/Kernel/Inductives/BlockShape.lean:357 blockRecNameSetOk`; `collectDeps` looks the
 recursors up by name). `tys` are the block's types, `cvs` their constructors, `rs` the recursors
-of `P` with the block's `all`. Reference: none (DV-3). -/
+of `P` with the block's `all`. Every recursor also has the block's parameter count, and a recursor of
+a block of one type without indices has one motive binding the major premise only (`recMotivesOK`;
+con-leche compares a recursor's type with the generated one up to definitional equality, so the
+syntactic shape is a check of its own, as `RulesCanonical` is). Reference: none (DV-3). -/
 def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
     (cvs : List (List Lean.ConstructorVal)) (rs : List Lean.RecursorVal) : Bool :=
-  tys.all (fun t => t.all == H.all && t.numParams == H.numParams &&
+  rs.all (fun r => r.numParams == H.numParams &&
+      (H.all.length != 1 || r.numIndices != 0 || recMotivesOK r)) &&
+    tys.all (fun t => t.all == H.all && t.numParams == H.numParams &&
       match Erasure.arityShape t.type with
       | some (n, _) => n == H.numParams + t.numIndices
       | none => true) &&
@@ -1223,11 +1238,34 @@ def CtorsListed (decls : List ConstantInfo) : Prop :=
 `Prop`, and the constructors `zero`, without a field, and `succ`, with one, in that order: the
 λ□ constructors `0` and `1` of the Peano numerals (`Erases.litZero`, `Erases.litSucc`) are its.
 con-leche checks a program's `Nat` against this shape (`CL ConLeche/Kernel/Basis/Nat.lean:68
-natBasis`). Reference: none (λ□ has no Nat literals; DV-27). -/
+natBasis`). Reference: none (λ□ has no Nat literals; DV-30). -/
 def NatShaped (σ : EvalEnv) : Prop :=
   ∀ iv, findDecl σ.decls ``Nat = some (.inductInfo iv) → iv.numParams = 0 ∧
     σ.propInd ``Nat = false ∧
     ∃ z s, iv.ctors = [z, s] ∧ ctorFields σ z = some 0 ∧ ctorFields σ s = some 1
+
+/-- Lean's constructors ``Nat.zero`` and ``Nat.succ``, if `σ` has them, are the constructors `0`
+and `1` of ``Nat``: the constructor forms of the Nat literals (`natLitCtor`) are the constructors of
+the λ□ numerals (`Erases.litZero`, `Erases.litSucc`). con-leche checks a program's `Nat` block
+against Lean's (`CL ConLeche/Kernel/Basis/Nat.lean:68 natBasis`). Reference: none (λ□ has no Nat
+literals; DV-30). -/
+def NatCtors (σ : EvalEnv) : Prop :=
+  (∀ cv, findDecl σ.decls ``Nat.zero = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 0) ∧
+    ∀ cv, findDecl σ.decls ``Nat.succ = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 1
+
+/-- Every recursor of `decls` of one inductive without indices has the shape Lean's kernel gives
+it: its inductive's parameter count, and one motive, whose type binds the major premise only (the
+motives `recShape` reads off the recursor's type). The fixpoint `recFix` is then one λ over the
+major premise, and its `case` has the inductive's parameter count. `DeclsOf?` checks the counts
+(`blockShapeOK`); con-leche compares a recursor's type with the generated one up to definitional
+equality only (`CL ConLeche/Kernel/Inductives/GenRec.lean:386 classRecTyCheck`), so the syntactic
+shape of the motive is a condition of its own. Reference: the recursor as Lean's kernel builds it
+(`mk_rec_infos`, `declare_recursors` in `src/kernel/inductive.cpp`). -/
+def RecsShaped (decls : List ConstantInfo) : Prop :=
+  ∀ c rv T iv, findDecl decls c = some (.recInfo rv) → rv.all = [T] →
+    findDecl decls T = some (.inductInfo iv) → rv.numIndices = 0 →
+    rv.numParams = iv.numParams ∧ ∀ ns motives minors,
+      recShape rv.numParams rv.numMotives rv.type ns = some (motives, minors) → ∃ x, motives = [[x]]
 
 /-- The members of a recursor's block as `visitRec` builds them for `recFix`. Port of
 `ML-V Spec.lean:1324`. -/
