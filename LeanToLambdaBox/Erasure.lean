@@ -113,6 +113,17 @@ literal, such as the bound 1114112 in `Char.ofNat`, would exhaust Lean's stack o
 file (200000 still works, 400000 crashes Lean). -/
 def peanoMaxLiteral : Nat := 65536
 
+/-- Largest `Nat` literal that `nat := .machine` erases to a `primInt`: the largest 63-bit signed
+integer, `(BitVec.intMax 63).toNat`. -/
+def machineMaxLiteral : Nat := 2 ^ 62 - 1
+
+/-- The `primInt` of a `Nat` literal, if it is at most `machineMaxLiteral`. The test is in `Nat`:
+`n ≤ BitVec.intMax 63` would coerce `n` to `BitVec 63` and compare modulo `2 ^ 63` (#29). -/
+def primIntOfNat? (n : Nat) : Option LBTerm :=
+  if h : n ≤ machineMaxLiteral then
+    some (.prim ⟨.primInt, BitVec.ofNatLT n (by unfold machineMaxLiteral at h; omega)⟩)
+  else none
+
 /--
 Number of nodes of the term after Peregrine's inlining pass, which replaces every constant listed
 in `.ast.inlinings` by its body, in which the listed constants are already replaced: a constant `kn`
@@ -587,10 +598,12 @@ where
       else
         visitConstructor ``Nat.succ #[.lit (.natVal (n - 1))]
     | .machine, .natVal n =>
-      if n <= BitVec.intMax 63 then
-        pure <| .prim ⟨.primInt, n⟩
-      else
-        panic! "Nat literal not representable as a 63-bit signed integer."
+      match primIntOfNat? n with
+      | some t => pure t
+      | none =>
+        let decl := (← read).decl
+        let site := if decl.isAnonymous then m!"the erased term" else m!"{.ofConstName decl}"
+        throwError "#erase: the Nat literal {n} in {site} exceeds {machineMaxLiteral}, the largest literal that `nat := .machine` erases to a 63-bit signed integer"
     | _, .strVal _ => panic! "String literals not supported."
 
   /-
