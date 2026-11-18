@@ -4,12 +4,7 @@
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
-EraseProof.Erases.cases_inv propext,Classical.choice,Quot.sound
-EraseProof.Erases.ctor_inv propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
-EraseProof.ErasesDeps.construct_ind propext,Classical.choice,Quot.sound
-EraseProof.ErasesInd.indIsPropAndPars propext,Classical.choice,Quot.sound
-EraseProof.ErasesInd.lookupCtor propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.absN propext,Classical.choice,Quot.sound
 EraseProof.RecLam.hasFVar_recLetTerm propext,Classical.choice,Quot.sound
@@ -33,7 +28,30 @@ EraseProof.unmark_instantiate1' propext,Classical.choice,Quot.sound
 EraseProof.toCL?_hasFvar propext,Quot.sound
 EraseProof.toCL?_instLevels propext,Quot.sound
 EraseProof.toCL?_instantiate1'_closed propext,Quot.sound
+EraseProof.SimCases.erases_correct_ctor propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_lit propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_casesIota propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_casesLitZero propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_casesLitSucc propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_casesFrozen propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_proj propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_value propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_beta propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_etaBeta propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_zeta propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_delta propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_appCong propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_ctor propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_frozenApp propext,Classical.choice,Quot.sound
+EraseProof.Sound.of_semSim propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_defn propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_axiom propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_rec propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound

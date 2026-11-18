@@ -1,11 +1,14 @@
 import EraseProof.Bridge.CLAccept
+import EraseProof.Semantics.Cases
 import EraseProof.Bridge.CLRead
+import EraseProof.Bridge.CLStore
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Lookup
 import EraseProof.Source.Marks
 import EraseProof.Simulation.Cases
+import EraseProof.Simulation.Ind
 import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Rec
 import EraseProof.Source.Restrict
@@ -38,6 +41,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Source.Value`: the shapes of source values; every evaluation result is one.
 * `EraseProof.Simulation.Cases`: the cases β, ζ, δ, atoms, application congruence and the frozen
   rules of the relation-level simulation.
+* `EraseProof.Simulation.Ind`: the constructor, `casesOn`, projection and literal cases of the
+  relation-level simulation, and the λ□ evaluation facts they use.
 * `EraseProof.Simulation.Quot`: the quotient cases of the relation-level simulation.
 * `EraseProof.Simulation.RecFix`: the λ□ fixpoint of a recursor of a single inductive, unfolded.
 * `EraseProof.Simulation.Rec`: the recursor ι case of the relation-level simulation.
@@ -45,5 +50,9 @@ The library root of the proof package: the correctness of the erasure behind `#e
   dependency-closed sub-environment.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Bridge.CLAccept`: what con-leche's acceptance of the program gives.
+* `EraseProof.Semantics.Cases`: the invariant of the meaning of source evaluation in con-leche's
+  model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
+  application and the value rules.
+* `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

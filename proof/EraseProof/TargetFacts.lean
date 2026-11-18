@@ -4,7 +4,8 @@ import EraseProof.Target
 # Facts about λ□ evaluation
 
 The induction principle of `LBEval` with a usable hypothesis for the nested premise of
-`constructBlock` (`LBEval.ind`): a verbatim copy from `proof/EraseProof/TargetFacts.lean` of the
+`constructBlock` (`LBEval.ind`), the head of a spine (`headOf_mkApps`) and the evaluation of a
+result to itself (`LBEval.idem`): a verbatim copy from `proof/EraseProof/TargetFacts.lean` of the
 Metalean development of this repository (#16, commit `f3b934f`).
 -/
 
@@ -123,5 +124,47 @@ theorem LBEval.ind {fl : WcbvFlags} {lenv : GlobalDeclarations}
     box beta zeta iota iotaBlock iotaSing fix fixValue fix' delta proj projBlock projProp construct
     (fun h₁ h₂ h₃ h₄ ih => constructBlock h₁ h₂ h₃ h₄ ih) appCong prim atom
     .nil (fun h _ ih ihs => .cons ⟨h, ih⟩ ihs) h
+
+/-- The head of `mkApps f args` is the head of `f`. Reference: `head_mkApps`
+(`MR E/EAstUtils.v:57`). -/
+theorem headOf_mkApps : ∀ {f : LBTerm} {args : List LBTerm}, headOf (mkApps f args) = headOf f
+  | _, [] => rfl
+  | f, a :: as => headOf_mkApps (f := .app f a) (args := as)
+
+/-- An evaluation result evaluates to itself. Reference: `eval_to_value` (`MR E/EWcbvEval.v:771`)
+and `value_final` (`MR E/EWcbvEval.v:1129`). -/
+theorem LBEval.idem {fl : WcbvFlags} {lenv : GlobalDeclarations} {s t : LBTerm}
+    (hev : LBEval fl lenv s t) : LBEval fl lenv t t := by
+  induction hev using LBEval.ind with
+  | box => exact .atom rfl
+  | beta _ _ _ _ _ ih => exact ih
+  | zeta _ _ _ ih => exact ih
+  | iota _ _ _ _ _ _ _ _ ih => exact ih
+  | iotaBlock _ _ _ _ _ _ _ _ ih => exact ih
+  | iotaSing _ _ _ _ _ _ ih => exact ih
+  | fix _ _ _ _ _ _ _ ih => exact ih
+  | fixValue h₁ _ _ h₄ h₅ ihf iha => exact .fixValue h₁ ihf iha h₄ h₅
+  | fix' _ _ _ _ _ _ _ ih => exact ih
+  | delta _ _ _ ih => exact ih
+  | proj _ _ _ _ _ _ _ ih => exact ih
+  | projBlock _ _ _ _ _ _ _ ih => exact ih
+  | projProp => exact .atom rfl
+  | construct h₁ h₂ _ h₄ _ ihf iha => exact .construct h₁ h₂ ihf h₄ iha
+  | constructBlock h₁ h₂ h₃ h₄ ih =>
+    have hl : ∀ {xs ys : List LBTerm}, List.Forall₂ (LBEval fl lenv) xs ys → xs.length = ys.length := by
+      intro xs ys h
+      induction h with
+      | nil => rfl
+      | cons _ _ ih' => simp [ih']
+    refine .constructBlock h₁ h₂ (hl h₄ ▸ h₃) ?_
+    clear h₃ h₄ hl
+    induction ih with
+    | nil => exact .nil
+    | cons h _ ih' => exact .cons h.2 ih'
+  | appCong _ h₂ _ ihf iha => exact .appCong ihf h₂ iha
+  | prim => exact .prim
+  | atom ha => exact .atom ha
+
+/-! ## Closed substitutions -/
 
 end EraseProof
