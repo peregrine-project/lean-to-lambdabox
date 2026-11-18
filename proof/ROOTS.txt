@@ -33,3 +33,4 @@ EraseProof.toCL?_instLevels EraseProof.srcEval_sound
 EraseProof.CLTyped.closed EraseProof.CLOk.wellDenoted
 EraseProof.toCL?_hasFvar EraseProof.CLOk.wellDenoted
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
+EraseProof.SrcEval.restrict EraseProof.erase_correct
