@@ -228,15 +228,42 @@ def declOf? (P : List Lean.ConstantInfo) : Lean.ConstantInfo → Option (List Co
     | some (.inductInfo t) => if t.all == r.all then some [] else none
     | _ => none
 
+/-- The expression has no `mdata` node with the anonymous key, the key of the marks (`markMD`),
+which elaboration never writes. -/
+def NoMarkKeys : Lean.Expr → Bool
+  | .mdata d e => !(d.entries.any (·.1 == .anonymous)) && NoMarkKeys e
+  | .app f a => NoMarkKeys f && NoMarkKeys a
+  | .lam _ t b _ | .forallE _ t b _ => NoMarkKeys t && NoMarkKeys b
+  | .letE _ t v b _ => NoMarkKeys t && NoMarkKeys v && NoMarkKeys b
+  | .proj _ _ e => NoMarkKeys e
+  | _ => true
+
+/-- The expression mentions a free variable (`Expr.hasFVar`, structurally, so that the kernel
+computes it). -/
+def HasFVar : Lean.Expr → Bool
+  | .fvar _ => true
+  | .mdata _ e | .proj _ _ e => HasFVar e
+  | .app f a => HasFVar f || HasFVar a
+  | .lam _ t b _ | .forallE _ t b _ => HasFVar t || HasFVar b
+  | .letE _ t v b _ => HasFVar t || HasFVar v || HasFVar b
+  | _ => false
+
+/-- No type and no value (definition, theorem or opaque) of the declarations mentions a free
+variable: con-leche's forms of the program have none (`toCL?` is `none` on `fvar`). -/
+def ClosedDecls (ds : List Lean.ConstantInfo) : Bool :=
+  ds.all fun ci => !HasFVar ci.type && (ci.value? true).all (!HasFVar ·)
+
 /-- con-leche's input for the program `P` (newest first, as `Erasure.findConst` reads it): the
-records oldest first, `none` if two constants share a name, a constant has no con-leche form, or
+records oldest first, `none` if two constants share a name, a type or value has an `mdata` with the
+anonymous key (`NoMarkKeys`), a constant has no con-leche form, or
 an inductive block's records disagree (`blockShapeOK`, `declOf?`). Reference: con-leche's frontend
 `CL ConLeche/Frontend/ExportC.lean:398` on lean4export's output, whose `parseExportD` it equals on
 the test programs and on Lean's `Eq`/`Quot`/`Nat`, with the record checks of
 `CL ConLeche/Frontend/ExportC.lean:241 validateIndF` and those of the fields the traversal reads
 (DV-3). -/
 def DeclsOf? (P : List Lean.ConstantInfo) : Option (List ConLeche.Declaration) :=
-  if (P.map (·.name)).Nodup then (P.reverse.mapM (declOf? P)).map List.flatten else none
+  if (P.map (·.name)).Nodup ∧ P.all (fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys) then
+    (P.reverse.mapM (declOf? P)).map List.flatten else none
 
 /-- con-leche's pure fold accepts `P` with environment `env`, at the standard fuel
 (`CL ConLeche/Kernel/CheckerBase.lean:44 pureOps`) and the empty `Nat.div`/`Nat.mod` pin list
