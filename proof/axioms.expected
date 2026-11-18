@@ -10,6 +10,12 @@ EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
+EraseProof.unmark_instLevels propext,Classical.choice,Quot.sound
+EraseProof.unmark_instantiate1' propext,Classical.choice,Quot.sound
+EraseProof.toCL?_hasFvar propext,Quot.sound
+EraseProof.toCL?_instLevels propext,Quot.sound
+EraseProof.toCL?_instantiate1'_closed propext,Quot.sound
+EraseProof.CLTyped.closed propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound

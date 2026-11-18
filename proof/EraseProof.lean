@@ -1,5 +1,7 @@
+import EraseProof.Bridge.CLRead
 import EraseProof.Statements
 import EraseProof.Relation.Inst
+import EraseProof.Source.Marks
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
 /-!
@@ -15,5 +17,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.TargetLift`: closedness, lifting and closed substitution of λ□ terms.
 * `EraseProof.Relation.Basic`, `EraseProof.Relation.Inst`: closedness, congruence, inversion,
   substitution and universe instantiation of the erasure relation.
+* `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
+  instantiation and instantiation.
+* `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

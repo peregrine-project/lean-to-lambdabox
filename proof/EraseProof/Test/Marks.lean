@@ -3,8 +3,9 @@ import EraseProof.Statements
 /-!
 # Checks of the marks
 
-By `rfl`: `unmark` strips `erase`/`reduced` marks and η-contracts the `eta`-marked expansion
-`MarkOf` writes for an under-applied spine; marks are transparent to `toCL?`; `MarksCert` asks
+By `rfl`: substitution keeps marks in place, and `unmark_instantiate1'` needs `EtaLams`; `unmark`
+strips `erase`/`reduced` marks and η-contracts the `eta`-marked expansion `MarkOf` writes for an
+under-applied spine; marks are transparent to `toCL?`; `MarksCert` asks
 `CLCert` of a mark in the context of its enclosing binders, and `lamTele` closes a context.
 -/
 
@@ -29,6 +30,23 @@ example : unmark (.app (markReduced (.const `d [])) (.mdata {} (markErase (.cons
 /-- Marks are transparent to `toCL?`. -/
 example : toCL? (markErase (.app (markEta (.const `f [])) (markReduced (.bvar 0)))) =
     toCL? (.app (.const `f []) (.bvar 0)) := rfl
+
+/-- Substitution and universe instantiation keep the marks in place (marks are metadata). -/
+example (s a : Expr) (d k : Nat) (ps : List Name) (us : List Level) :
+    (markErase s).instantiate1' a d = markErase (s.instantiate1' a d) ∧
+    (markEta s).liftLooseBVars' d k = markEta (s.liftLooseBVars' d k) ∧
+    Pure.instLevels ps us (markReduced s) = markReduced (Pure.instLevels ps us s) :=
+  ⟨rfl, rfl, rfl⟩
+
+/-- An `eta` mark on the substituted variable is contracted after the substitution of `λ x. f x`
+… -/
+example : unmark ((markEta (.bvar 0)).instantiate1'
+    (.lam `x (.sort 0) (.app (.const `f []) (.bvar 0)) .default)) = .const `f [] := rfl
+
+/-- … and not before it: `unmark_instantiate1'` asks that `eta` marks sit on λs (`EtaLams`). -/
+example : (unmark (markEta (.bvar 0))).instantiate1'
+    (unmark (.lam `x (.sort 0) (.app (.const `f []) (.bvar 0)) .default)) =
+    .lam `x (.sort 0) (.app (.const `f []) (.bvar 0)) .default := rfl
 
 /-- A mark under an `eta`-marked λ and a λ is certified in the context of both binders, innermost
 first. -/
