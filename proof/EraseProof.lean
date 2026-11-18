@@ -17,6 +17,7 @@ import EraseProof.Test.NV1Run
 import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
+import EraseProof.Test.DeclOf
 /-!
 # Verification of the eraser
 
