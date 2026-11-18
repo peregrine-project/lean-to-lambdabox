@@ -23,6 +23,12 @@ EraseProof.toCL?_hasFvar propext,Quot.sound
 EraseProof.toCL?_instLevels propext,Quot.sound
 EraseProof.toCL?_instantiate1'_closed propext,Quot.sound
 EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_defn propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_axiom propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_rec propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
