@@ -38,33 +38,34 @@ inductive DropMD : Expr → Expr → Prop
   | proj {s : Name} {i : Nat} {e e' : Expr} : DropMD e e' → DropMD (.proj s i e) (.proj s i e')
 
 /-- con-leche reads a term with metadata removed as the term. Reference: none. -/
-theorem DropMD.toCL : ∀ {e e' : Expr}, DropMD e e' → toCL? e' = toCL? e
-  | _, _, .refl _ => rfl
-  | _, _, .drop h => h.toCL
-  | _, _, .app h₁ h₂ => by simp only [toCL?, h₁.toCL, h₂.toCL]
-  | _, _, .lam h => by simp only [toCL?, h.toCL]
-  | _, _, .letE h₁ h₂ => by simp only [toCL?, h₁.toCL, h₂.toCL]
-  | _, _, .proj h => by simp only [toCL?, h.toCL]
+theorem DropMD.toCL {e e' : Expr} (h : DropMD e e') : toCL? e' = toCL? e := by
+  induction h with
+  | refl => rfl
+  | drop _ ih => exact ih
+  | app _ _ ih₁ ih₂ | letE _ _ ih₁ ih₂ => simp only [toCL?, ih₁, ih₂]
+  | lam _ ih | proj _ ih => simp only [toCL?, ih]
 
 /-- Removing metadata commutes with closing a binder. Reference: none. -/
-theorem DropMD.absFV {x : FVarId} : ∀ {e e' : Expr} {d : Nat}, DropMD e e' →
-    DropMD (absFV x d e) (absFV x d e')
-  | _, _, _, .refl _ => .refl _
-  | _, _, _, .drop h => .drop h.absFV
-  | _, _, _, .app h₁ h₂ => .app h₁.absFV h₂.absFV
-  | _, _, _, .lam h => .lam h.absFV
-  | _, _, _, .letE h₁ h₂ => .letE h₁.absFV h₂.absFV
-  | _, _, _, .proj h => .proj h.absFV
+theorem DropMD.absFV {x : FVarId} {e e' : Expr} {d : Nat} (h : DropMD e e') :
+    DropMD (absFV x d e) (absFV x d e') := by
+  induction h generalizing d with
+  | refl => exact .refl _
+  | drop _ ih => exact .drop ih
+  | app _ _ ih₁ ih₂ => exact .app ih₁ ih₂
+  | lam _ ih => exact .lam ih
+  | letE _ _ ih₁ ih₂ => exact .letE ih₁ ih₂
+  | proj _ ih => exact .proj ih
 
 /-- Removing metadata removes no free variable's occurrence but its own. Reference: none. -/
-theorem DropMD.fvarsIn {p : FVarId → Prop} : ∀ {e e' : Expr}, DropMD e e' → FVarsIn p e →
-    FVarsIn p e'
-  | _, _, .refl _, h => h
-  | _, _, .drop h', h => h'.fvarsIn h
-  | _, _, .app h₁ h₂, h => ⟨h₁.fvarsIn h.1, h₂.fvarsIn h.2⟩
-  | _, _, .lam h', h => ⟨h.1, h'.fvarsIn h.2⟩
-  | _, _, .letE h₁ h₂, h => ⟨h.1, h₁.fvarsIn h.2.1, h₂.fvarsIn h.2.2⟩
-  | _, _, .proj h', h => h'.fvarsIn (p := p) h
+theorem DropMD.fvarsIn {p : FVarId → Prop} {e e' : Expr} (h : DropMD e e') (hp : FVarsIn p e) :
+    FVarsIn p e' := by
+  induction h with
+  | refl => exact hp
+  | drop _ ih => exact ih hp
+  | app _ _ ih₁ ih₂ => exact ⟨ih₁ hp.1, ih₂ hp.2⟩
+  | lam _ ih => exact ⟨hp.1, ih hp.2⟩
+  | letE _ _ ih₁ ih₂ => exact ⟨hp.1, ih₁ hp.2.1, ih₂ hp.2.2⟩
+  | proj _ ih => exact ih hp
 
 /-- An application with metadata removed is an application. Reference: none. -/
 theorem DropMD.app_inv {f a u : Expr} (h : DropMD (.app f a) u) :
