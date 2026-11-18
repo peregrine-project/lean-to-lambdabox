@@ -7,9 +7,6 @@
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
-EraseProof.Erases.quot_inv EraseProof.erases_correct
-EraseProof.Erases.rec_inv EraseProof.erases_correct
-EraseProof.RecLam.recLets_closed EraseProof.erases_correct
 EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
 EraseProof.RecLam.hasFVar_recLetTerm EraseProof.erasePure_erases
@@ -34,6 +31,9 @@ EraseProof.SimCases.erases_correct_casesLitSucc EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_casesFrozen EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_proj EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_projFrozen EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_quotMk EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_quotLift EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_recIota EraseProof.erases_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
 EraseProof.SemCases.srcEval_sound_value EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_beta EraseProof.srcEval_sound
