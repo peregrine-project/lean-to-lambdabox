@@ -586,6 +586,99 @@ theorem Erases.cases_inv {Γ : List CtxBinder} {c : Name} {iv : InductiveVal} {u
   | const _ hsa => cases hfn; rw [specialArity_casesOn hc] at hsa; cases hsa
   | bvar | fvar | lam | etaLam | letE | proj | litZero | litSucc | box => cases hfn
 
+/-- An erasure of a spine of `Quot.mk` or `Quot.lift` is the erased element applied to erasures
+of the extra arguments (`Erases.quotMk`), or the erased function applied to the erased quotient
+and to erasures of the extra arguments (`Erases.quotLift`). Adapted from
+`ML-V Relation/Basic.lean:558`: no `□` alternative and no arity bound (an unmarked spine erases
+by its head's rule only). Reference: none (DV-29). -/
+theorem Erases.quot_inv {Γ : List CtxBinder} {c : Name} {qv : QuotVal} {us : List Level}
+    {as : List Expr} {ar : Nat} {tb : LBTerm} (hc : findDecl σ.decls c = some (.quotInfo qv))
+    (har : quotEvalArity qv.kind = some ar)
+    (h : Erases cert σ Γ (mkAppN (.const c us) as.toArray) tb) :
+    (∃ α r a extra a' extra', qv.kind = .ctor ∧ as = [α, r, a] ++ extra ∧
+      Erases cert σ Γ a a' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases cert σ Γ x x') ∧
+      tb = mkApps a' extra') ∨
+    (∃ α r β f h q extra f' q' extra', qv.kind = .lift ∧ as = [α, r, β, f, h, q] ++ extra ∧
+      Erases cert σ Γ f f' ∧ Erases cert σ Γ q q' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases cert σ Γ x x') ∧
+      tb = mkApps f' (q' :: extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  cases h with
+  | quotMk hc' hk ha hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inl ⟨_, _, _, _, _, _, hk, rfl, ha, hlex, hext, rfl⟩
+  | quotLift hc' hk hf hq hlex hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr ⟨_, _, _, _, _, _, _, _, _, _, hk, rfl, hf, hq, hlex, hext, rfl⟩
+  | ctor hq | recLet hq | recFix hq =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hq; cases hq
+  | cases hco | casesReduced _ hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd; cases hd
+  | app hns => exact absurd ⟨c, us, hfn, .inr (.inr (.inl ⟨qv, hc, by rw [har]; rfl⟩))⟩ hns
+  | const _ hsa => cases hfn; simp [specialArity, hc, har] at hsa
+  | bvar | fvar | lam | etaLam | letE | proj | litZero | litSucc | box => cases hfn
+
+/-- An erasure of a recursor spine is the let-bound form of `Erases.recLet` or the closed form of
+`Erases.recFix`: a recursor has no constant erasure and its spines are special. Adapted from
+`ML-V Relation/Basic.lean:614`: no `□` alternative and no arity bound. Reference: none (DV-30). -/
+theorem Erases.rec_inv {Γ : List CtxBinder} {c : Name} {rv : RecursorVal} {us : List Level}
+    {as : List Expr} {tb : LBTerm} (hc : findDecl σ.decls c = some (.recInfo rv))
+    (h : Erases cert σ Γ (mkAppN (.const c us) as.toArray) tb) :
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (mins' is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf σ rv minors F ∧ as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = mins'.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → mins'[i]? = some x' → Erases cert σ Γ x x') ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases cert σ Γ x x') ∧
+      Erases cert σ Γ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases cert σ Γ x x') ∧
+      tb = mkApps (recLets 0 (mins'.zip minors)
+        (mkApps F ((is' ++ [maj']).map (lbLift rv.numMinors 0)))) extra') ∨
+    (∃ (minors : List RecMinor) (F : LBTerm) (ps ms mins is : List Expr) (maj : Expr)
+      (extra : List Expr) (ws is' : List LBTerm) (maj' : LBTerm) (extra' : List LBTerm),
+      RecFixOf σ rv minors F ∧ as = ps ++ ms ++ mins ++ is ++ [maj] ++ extra ∧
+      ps.length = rv.numParams ∧ ms.length = rv.numMotives ∧ mins.length = rv.numMinors ∧
+      is.length = rv.numIndices ∧ mins.length = ws.length ∧
+      (∀ (i : Nat) x x', mins[i]? = some x → ws[i]? = some x' → Erases cert σ Γ x x') ∧
+      (∀ w ∈ ws, closedn 0 w = true ∧ (∀ x, hasFVar x w = false) ∧ LBFixed w) ∧
+      is.length = is'.length ∧
+      (∀ (i : Nat) x x', is[i]? = some x → is'[i]? = some x' → Erases cert σ Γ x x') ∧
+      Erases cert σ Γ maj maj' ∧ extra.length = extra'.length ∧
+      (∀ (i : Nat) x x', extra[i]? = some x → extra'[i]? = some x' → Erases cert σ Γ x x') ∧
+      tb = mkApps (substl ws.reverse F) (is' ++ [maj'] ++ extra')) := by
+  generalize hx : mkAppN (.const c us) as.toArray = x at h
+  have hfn : x.getAppFn = .const c us := hx ▸ getAppFn_mkAppN_const c us as
+  cases h with
+  | recLet hc' hF hps hms hmins his hlm hmin hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inl ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlm, hmin,
+      hli, his', hmaj, hle, hext, rfl⟩
+  | recFix hc' hF hps hms hmins his hlw hmin hws hli his' hmaj hle hext =>
+    obtain ⟨rfl, rfl, rfl⟩ := mkAppN_const_inj hx
+    rw [hc] at hc'; cases hc'
+    exact .inr ⟨_, _, _, _, _, _, _, _, _, _, _, _, hF, rfl, hps, hms, hmins, his, hlw, hmin,
+      hws, hli, his', hmaj, hle, hext, rfl⟩
+  | ctor hq | quotMk hq | quotLift hq =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    rw [hc] at hq; cases hq
+  | cases hco | casesReduced _ hco =>
+    obtain ⟨rfl, -, -⟩ := mkAppN_const_inj hx
+    obtain ⟨d, hd⟩ := casesOn?_defn hco
+    rw [hc] at hd; cases hd
+  | app hns => exact absurd ⟨c, us, hfn, .inr (.inr (.inr ⟨rv, hc⟩))⟩ hns
+  | const _ _ hnr => cases hfn; exact absurd hc (hnr rv)
+  | bvar | fvar | lam | etaLam | letE | proj | litZero | litSucc | box => cases hfn
+
 end
 
 end EraseProof
