@@ -6,3 +6,5 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
+EraseProof.unmark_instantiate1' EraseProof.srcEval_sound
+EraseProof.unmark_instLevels EraseProof.srcEval_sound
