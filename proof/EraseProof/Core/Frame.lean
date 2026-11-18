@@ -15,9 +15,10 @@ The traversal reads the locals through the oracle (`Pure.isErasable`, `Pure.infe
 names of `mkLambda`, `mkLetIn` and `mkAlt`. Everything else it visits has its free variables in `S`,
 under the premises of `visit_agree`:
 * the declarations' read expressions are closed (`ClosedDecls`), and `visitMutual` erases only
-  such a value: a constant whose spine the oracle did not box is not a theorem, a constant that
-  `visitConstApp` passes to `visitConst` is not a recognized `casesOn`, and the other members of a
-  declaration's block have no value (`OwnBlockValues`);
+  such a value, or a closed compiled pre-definition (`Erasure.preDef?`, `DeclsOK.pre`): a
+  constant whose spine the oracle did not box is not a theorem, a constant that `visitConstApp`
+  passes to `visitConst` is not a recognized `casesOn`, and the other members of a declaration's
+  block have no value (`OwnBlockValues`);
 * under `nat := .machine` the visited terms mention neither `Nat.succ` nor `Int.casesOn`
   (`MachineFree`): `visitConstructor` erases `Nat.succ` as `Nat.add`, whose value it erases
   without asking the oracle;
@@ -703,12 +704,15 @@ theorem casesInfo?_spec {decls : List ConstantInfo} {n : Name} {ci : CasesInfo}
     · cases h
   · cases h
 
-/-- What `visit_agree` assumes of the declarations. -/
+/-- What `visit_agree` assumes of the declarations, and of the compiled pre-definitions
+(`Erasure.preDef?`) that `visitMutual` erases in place of values. -/
 structure DeclsOK (pc : PureCtx) (cfg : ErasureConfig) : Prop where
   closed : ClosedDecls pc.decls
   mf : ∀ ci ∈ pc.decls, ∀ x, ReadExpr pc.decls ci x → MachineFree cfg x
   blk : OwnBlockValues pc.decls
   idx : NoIndexFields pc.decls
+  pre : ∀ ci ∈ pc.decls, ∀ p, preDef? pc.view cfg ci = some p → casesInfo? pc.decls ci.name = none →
+    FVarsIn (fun _ => False) p ∧ MachineFree cfg p
 
 /-- A constant whose value `visitMutual` may erase: not a theorem, not a recognized `casesOn`. -/
 def GoodConst (decls : List ConstantInfo) (n : Name) : Prop :=
@@ -728,8 +732,30 @@ theorem RA.ctorArity (n : Name) :
       (_root_.liftM (Backend.ctorArity? (m := PureM) n) : EraseT PureM _) :=
   fun _ _ _ _ _ _ _ _ => ⟨rfl, fun _ _ _ h => by cases h; rfl⟩
 
+/-- The declaration that `PureM.declInfo?` returns for a declaration of the closure: a definition
+with a compiled pre-definition (`Erasure.preDef?`) has it as its value. -/
+def declView (view : EnvView) (cfg : ErasureConfig) (ci : ConstantInfo) : ConstantInfo :=
+  match ci, preDef? view cfg ci with
+  | .defnInfo d, some pre => .defnInfo { d with value := pre }
+  | ci, _ => ci
+
+/-- `declView` keeps the name and the block. -/
+theorem declView_name_all (view : EnvView) (c : ErasureConfig) (ci : ConstantInfo) :
+    (declView view c ci).name = ci.name ∧ (declView view c ci).all = ci.all := by
+  unfold declView
+  split <;> exact ⟨rfl, rfl⟩
+
+/-- The value of `declView`: the compiled pre-definition if there is one, else the value. -/
+theorem declView_value (view : EnvView) (c : ErasureConfig) (ci : ConstantInfo) :
+    (declView view c ci).value? (allowOpaque := true) =
+      match preDef? view c ci with
+      | some p => some p
+      | none => ci.value? (allowOpaque := true) := by
+  unfold declView
+  rcases h : preDef? view c ci with _ | p <;> cases ci <;> first | rfl | simp [preDef?] at h
+
 theorem RA.declInfo (c : ErasureConfig) (n : Name) :
-    RA pc cfg S (fun r => r = findConst pc.decls n)
+    RA pc cfg S (fun r => r = (findConst pc.decls n).map (declView pc.view c))
       (_root_.liftM (Backend.declInfo? (m := PureM) c n) : EraseT PureM _) :=
   fun _ _ _ _ _ _ _ _ => ⟨rfl, fun _ _ _ h => by cases h; rfl⟩
 
@@ -770,36 +796,60 @@ theorem mem_slice {γ : Type} {xs : Array γ} {i j : Nat} {a : γ}
 theorem Good.dummy : Good S cfg (.const `_inhabitedExprDummy []) :=
   ⟨trivial, fun _ => ⟨by decide, by decide⟩⟩
 
-/-- The value that `visitMutual` erases for a constant it is called on. -/
+/-- The value that `visitMutual` erases for a constant it is called on: the value of the
+declaration `PureM.declInfo?` returns (`declView`), the compiled pre-definition if there is one. -/
 theorem value_good (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}
-    (hc : findConst pc.decls n = some ci) (hn : GoodConst pc.decls n) {v : Expr}
-    (hv : ci.value? (allowOpaque := true) = some v) : Good S cfg v := by
-  obtain ⟨hmem, hname⟩ := findDecl_eq_some (l := pc.decls) hc
-  have hread : ReadExpr pc.decls ci v := by
-    cases ci with
-    | defnInfo d =>
-      cases hv
-      refine .inr (.inl ⟨d, rfl, rfl, ?_⟩)
-      have hd : d.name = n := hname
-      simp only [EvalEnv.casesOn?, hd, hn.2, Option.isNone_none]
-    | opaqueInfo o => cases hv; exact .inr (.inr ⟨o, rfl, rfl⟩)
-    | thmInfo t => exact absurd hc (hn.1 t)
-    | axiomInfo | quotInfo | inductInfo | ctorInfo | recInfo => cases hv
-  exact ⟨OracleAgree.fvarsIn_false (hD.closed ci hmem v (.inl hread)), hD.mf ci hmem v hread⟩
+    (hc : (findConst pc.decls n).map (declView pc.view cfg) = some ci) (hn : GoodConst pc.decls n)
+    {v : Expr} (hv : ci.value? (allowOpaque := true) = some v) : Good S cfg v := by
+  obtain ⟨ci₀, hc₀, rfl⟩ := Option.map_eq_some_iff.1 hc
+  obtain ⟨hmem, hname⟩ := findDecl_eq_some (l := pc.decls) hc₀
+  rw [declView_value] at hv
+  rcases hp : preDef? pc.view cfg ci₀ with _ | p
+  · rw [hp] at hv
+    have hread : ReadExpr pc.decls ci₀ v := by
+      cases ci₀ with
+      | defnInfo d =>
+        cases hv
+        refine .inr (.inl ⟨d, rfl, rfl, ?_⟩)
+        have hd : d.name = n := hname
+        simp only [EvalEnv.casesOn?, hd, hn.2, Option.isNone_none]
+      | opaqueInfo o => cases hv; exact .inr (.inr ⟨o, rfl, rfl⟩)
+      | thmInfo t => exact absurd hc₀ (hn.1 t)
+      | axiomInfo | quotInfo | inductInfo | ctorInfo | recInfo => cases hv
+    exact ⟨OracleAgree.fvarsIn_false (hD.closed ci₀ hmem v (.inl hread)), hD.mf ci₀ hmem v hread⟩
+  · rw [hp] at hv
+    cases hv
+    obtain ⟨hcl, hmf⟩ := hD.pre ci₀ hmem _ hp (hname ▸ hn.2)
+    exact ⟨OracleAgree.fvarsIn_false hcl, hmf⟩
 
-/-- The value that `visitMutual`'s fix branch erases for a member of the block. -/
-theorem member_good (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}
-    (hc : findConst pc.decls n = some ci) (hn : GoodConst pc.decls n) {n' : Name}
-    (hn' : n' ∈ ci.all) {ci' : ConstantInfo} (hc' : findConst pc.decls n' = some ci') :
-    Good S cfg (ci'.value! (allowOpaque := true)) := by
-  obtain ⟨hmem, hname⟩ := findDecl_eq_some (l := pc.decls) hc
+/-- The declaration whose value `visitMutual`'s fix branch erases for its own name: the one
+`PureM.declInfo?` returned, whose value is `Good` (`value_good`). -/
+theorem RA.own (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}
+    (hc : (findConst pc.decls n).map (declView pc.view cfg) = some ci) (hn : GoodConst pc.decls n) :
+    RA pc cfg S (fun ci' => Good S cfg (ci'.value! (allowOpaque := true)))
+      (Pure.pure ci : EraseT PureM ConstantInfo) := by
+  refine RA.pure ?_
   rw [value!_eq]
-  rcases hD.blk ci hmem n' hn' with h | h
-  · rw [h, hname, hc] at hc'
-    cases hc'
-    cases hv : ci.value? (allowOpaque := true) with
-    | none => exact Good.dummy
-    | some v => exact value_good hD hc hn hv
+  cases hv : ci.value? (allowOpaque := true) with
+  | none => exact Good.dummy
+  | some v => exact value_good hD hc hn hv
+
+/-- The declaration whose value `visitMutual`'s fix branch erases for another member of the block:
+the one `getConst` returns, which has no value (`OwnBlockValues`). -/
+theorem RA.member (hD : DeclsOK pc cfg) {n : Name} {ci : ConstantInfo}
+    (hc : (findConst pc.decls n).map (declView pc.view cfg) = some ci) {n' : Name}
+    (hn' : n' ∈ ci.all) (hne : ¬ (n' == ci.name) = true) :
+    RA pc cfg S (fun ci' => Good S cfg (ci'.value! (allowOpaque := true)))
+      (Erasure.getConst (m := PureM) n') := by
+  refine RA.mono (RA.getConst _) fun ci' hc' => ?_
+  obtain ⟨ci₀, hc₀, rfl⟩ := Option.map_eq_some_iff.1 hc
+  obtain ⟨hmem, -⟩ := findDecl_eq_some (l := pc.decls) hc₀
+  obtain ⟨hnm, hall⟩ := declView_name_all pc.view cfg ci₀
+  rw [hall] at hn'
+  rw [hnm] at hne
+  rw [value!_eq]
+  rcases hD.blk ci₀ hmem n' hn' with h | h
+  · exact absurd (beq_iff_eq.2 h) hne
   · rw [h ci' hc']
     exact Good.dummy
 
@@ -844,7 +894,7 @@ macro (name := _raMut) "ra_mut" T:term : tactic => `(tactic| repeat' (first
   | split))
 
 /-- `visitMutual` after its recursion test: the non-recursive branch erases the declaration's
-value (`value_good`), the fix branch the values of the block's members (`member_good`). -/
+value (`value_good`), the fix branch the values of the block's members (`RA.own`, `RA.member`). -/
 macro (name := _raJp) "ra_jp" T:term "," hD:term "," hci:term "," hn:term : tactic => `(tactic| (
   refine RA.ite (fun _ => ?_) (fun _ => ?_)
   · refine RA.bind (RA.getOrFail _ _) fun _ he => ?_
@@ -857,13 +907,15 @@ macro (name := _raJp) "ra_jp" T:term "," hD:term "," hci:term "," hn:term : tact
     · exact RA.of_blind (Blind.liftM _)
     · refine RA.withReaderFix (P := fun _ => True) _ (fun _ _ => rfl) (fun _ => rfl) ?_
       refine RA.bind (RA.mapM (P := fun _ => True) fun _ hmem => ?_) fun _ _ => ?_
-      · refine RA.bind (RA.getConst _) fun _ hc' => ?_
-        refine RA.bind (RA.withReaderFix (P := fun _ => True) _ (fun _ _ => rfl) (fun _ => rfl) ?_)
-          fun _ _ => RA.mkDef _ _ _
-        refine RA.read_bind (fun _ _ => ?_) (fun _ _ _ => rfl)
-        refine RA.bind (RA.prepare _ _) fun _ h => ?_
-        subst h
-        exact ($T).expr (member_good $hD $hci $hn hmem hc')
+      · refine RA.ite (fun _ => RA.bind (RA.own $hD $hci $hn) fun _ hg => ?_)
+          (fun hne => RA.bind (RA.member $hD $hci hmem hne) fun _ hg => ?_)
+        all_goals
+          refine RA.bind (RA.withReaderFix (P := fun _ => True) _ (fun _ _ => rfl) (fun _ => rfl) ?_)
+            fun _ _ => RA.mkDef _ _ _
+          refine RA.read_bind (fun _ _ => ?_) (fun _ _ _ => rfl)
+          refine RA.bind (RA.prepare _ _) fun _ h => ?_
+          subst h
+          exact ($T).expr hg
       · refine RA.bind (RA.forIn (I := fun _ => True) trivial fun _ _ _ _ => ?_) fun _ _ =>
           RA.pure trivial
         ra_mut $T))
@@ -1242,10 +1294,11 @@ theorem step_alt {k : Nat} {mask : ConstructorArgMask} {e : Expr} (he : Good S c
 theorem step_mutual {n : Name} (hn : GoodConst pc.decls n) :
     RA pc cfg S (fun _ => True) (visitMutual (m := PureM) (fuel + 1) n) := by
   rw [visitMutual]
-  refine RA.read_bind (fun c _ => ?_) (fun _ _ _ => rfl)
+  refine RA.read_bind (fun c hcfg => ?_) (fun _ _ _ => rfl)
   refine RA.bind (RA.declInfo c.config n) fun r hr => ?_
   subst hr
   refine RA.bind (RA.getOrFail _ _) fun ci hci => ?_
+  rw [hcfg] at hci
   refine RA.bind' (Blind.liftM _) fun _ => RA.bind' (Blind.liftM _) fun _ => ?_
   extract_lets lN nr kn fvn jp jp2
   have hjp : ∀ u, RA pc cfg S (fun _ => True) (jp u) := by
@@ -1390,8 +1443,10 @@ end TravFrame
 in `S` does not depend on the locals outside `S`, when the declarations' read expressions are
 closed (`ClosedDecls`), the visited term and the read expressions mention neither `Nat.succ` nor
 `Int.casesOn` under `nat := .machine` (`MachineFree`), the only member of a declaration's block
-with a value is the declaration itself (`OwnBlockValues`), and the constructors of recognized
-`casesOn` constants have no index fields (`NoIndexFields`). Both runs start from the same state and
+with a value is the declaration itself (`OwnBlockValues`), the constructors of recognized
+`casesOn` constants have no index fields (`NoIndexFields`), and the compiled pre-definitions that
+`visitMutual` erases in place of values (of declarations that are not recognized `casesOn`
+constants) are closed and `MachineFree`. Both runs start from the same state and
 counter of fresh variables, which may be any. Reference: none; MetaRocq erases a constant body in
 the empty context (`MR E/ErasureFunction.v:1309 erase_constant_body`); DV-13; port of
 `L4 Core/Frame.lean:400`. -/
@@ -1400,9 +1455,12 @@ theorem visit_agree {S : FVarId → Prop} {pc : PureCtx} {tc : TravCtx} {st : Er
     (hcl : ClosedDecls pc.decls) (hmf : MachineFree tc.config e)
     (hmfd : ∀ ci ∈ pc.decls, ∀ x, ReadExpr pc.decls ci x → MachineFree tc.config x)
     (hblk : OwnBlockValues pc.decls) (hidx : NoIndexFields pc.decls)
+    (hpre : ∀ ci ∈ pc.decls, ∀ p, preDef? pc.view tc.config ci = some p →
+      casesInfo? pc.decls ci.name = none → FVarsIn (fun _ => False) p ∧ MachineFree tc.config p)
     (hS : LocalsSupport S ls₁) (hag : LocalsAgree S ls₁ ls₂) (he : FVarsIn S e) :
     (visitExpr (m := PureM) fuel e).runPure st { tc with locals := ls₁ } pc ps =
       (visitExpr (m := PureM) fuel e).runPure st { tc with locals := ls₂ } pc ps :=
-  ((TravFrame.trav ⟨hcl, hmfd, hblk, hidx⟩ fuel).expr ⟨he, hmf⟩ st ps tc ls₁ ls₂ rfl hS hag).1
+  ((TravFrame.trav ⟨hcl, hmfd, hblk, hidx, hpre⟩ fuel).expr ⟨he, hmf⟩ st ps tc ls₁ ls₂ rfl hS
+    hag).1
 
 end EraseProof

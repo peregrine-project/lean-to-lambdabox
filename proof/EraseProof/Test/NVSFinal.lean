@@ -7,17 +7,17 @@ import EraseProof.Test.NVRFinal
 # NV-S end to end
 
 The remaining hypotheses of the final theorem on NV-S (`Test/NVSData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `N.s (N.s N.z)` (`hev`). The evaluation unfolds `add`, then `N.brecOn` and
-`N.brecOn.go` (δ, β): the recursor `N.rec` into the pairs `PProd (motive t) (N.below motive t)` takes
-its ι on `N.s N.z` (`SrcEval.recIota`), with the induction hypothesis its ι on `N.z`; each step
-applies `add._f n` to the table built so far, which matches with `add.match_1`, a `N.casesOn` (δ,
-then `SrcEval.casesIota`); the recursive call is the first projection of the table
-(`SrcEval.proj`), and the result is the first projection of the pair. `final` applies the final
-theorem `erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from
-`Test/NVSModel.lean`, `hrun` from `Test/NVSRun.lean`); `firstorder` applies
-`erase_correct_firstorder`: the main term of the program `#erase` emits evaluates in λ□ to
-`N.s (N.s N.z)`'s structural erasure.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to
+`N.s (N.s N.z)` (`hev`). The evaluation unfolds `add`, then `N.brecOn` and `N.brecOn.go` (δ, β): the
+recursor `N.rec` into the pairs `PProd (motive t) (N.below motive t)` takes its ι on `N.s N.z`
+(`SrcEval.recIota`), with the induction hypothesis its ι on `N.z`; each step applies `add._f n` to
+the table built so far, which matches with `add.match_1`, a `N.casesOn` (δ, then
+`SrcEval.casesIota`); the recursive call is the first projection of the table (`SrcEval.proj`), and
+the result is the first projection of the pair. `final` applies the final theorem `erase_correct` to
+all nine hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVSModel.lean`, `hrun` from
+`Test/NVSRun.lean`); `firstorder` applies `erase_correct_firstorder`: the main term of the program
+`#erase` emits evaluates in λ□ to `N.s (N.s N.z)`'s structural erasure.
 -/
 
 open Lean Erasure Metalean
@@ -83,37 +83,37 @@ theorem ns_const {f a : Lean.Expr} {c : Name} {us : List Lean.Level} (h : f.getA
   rw [hc] at h2
   cases h2
 
-theorem ev_atom {e : Lean.Expr} (h : SrcAtom e) : SrcEval σ e e := .atom h
+theorem ev_atom {e : Lean.Expr} (h : SrcAtom e) : SrcEval σ C e e := .atom h
 
 theorem ev_delta {c : Name} {us : List Lean.Level} {v : DefinitionVal} {r : Lean.Expr}
     (h : σ.unfold? c = some (.defnInfo v, v.value))
-    (hr : SrcEval σ (Pure.instLevels v.levelParams us v.value) r) : SrcEval σ (.const c us) r :=
+    (hr : SrcEval σ C (Pure.instLevels v.levelParams us v.value) r) : SrcEval σ C (.const c us) r :=
   .delta h hr
 
-theorem ev_cZ : SrcEval σ cZ cZ :=
+theorem ev_cZ : SrcEval σ C cZ cZ :=
   SrcEval.ctor (c := `N.z) (us := []) (as := []) (vs := []) rfl rfl rfl (fun _ _ _ h => nomatch h)
 
-theorem ev_mj : SrcEval σ mj mj := by
+theorem ev_mj : SrcEval σ C mj mj := by
   refine SrcEval.ctor (c := `N.s) (us := []) (as := [cZ]) (vs := [cZ]) rfl rfl rfl ?_
   intro i a v h1 h2
   rcases i with _ | i <;> simp at h1 h2
   subst h1 h2
   exact ev_cZ
 
-theorem ev_cPU (l : Lean.Level) : SrcEval σ (cPU l) (cPU l) :=
+theorem ev_cPU (l : Lean.Level) : SrcEval σ C (cPU l) (cPU l) :=
   SrcEval.ctor (c := `PUnit.unit) (us := [l]) (as := []) (vs := []) rfl rfl rfl
     (fun _ _ _ h => nomatch h)
 
-theorem ev_tN : SrcEval σ tN tN := .constAtom (by krfl)
-theorem ev_tPU (l : Lean.Level) : SrcEval σ (tPU l) (tPU l) := .constAtom (by krfl)
-theorem ev_tPP (a b : Lean.Level) : SrcEval σ (tPP a b) (tPP a b) := .constAtom (by krfl)
+theorem ev_tN : SrcEval σ C tN tN := .constAtom (by krfl)
+theorem ev_tPU (l : Lean.Level) : SrcEval σ C (tPU l) (tPU l) := .constAtom (by krfl)
+theorem ev_tPP (a b : Lean.Level) : SrcEval σ C (tPP a b) (tPP a b) := .constAtom (by krfl)
 
 /-- `(fun m => N) a ⇓ N`. -/
-theorem ev_motN {a : Lean.Expr} (ha : SrcEval σ a a) : SrcEval σ (.app motN a) tN :=
+theorem ev_motN {a : Lean.Expr} (ha : SrcEval σ C a a) : SrcEval σ C (.app motN a) tN :=
   .beta (ns_lam rfl) (ev_atom trivial) ha ev_tN
 
 /-- `Unit.unit ⇓ PUnit.unit.{1}` (δ). -/
-theorem ev_unitU : SrcEval σ (.const `Unit.unit []) (cPU l1) :=
+theorem ev_unitU : SrcEval σ C (.const `Unit.unit []) (cPU l1) :=
   ev_delta (v := Unit_unit) (by krfl) (ev_cPU l1)
 
 /-! ### `add._f n`, applied: the match on `N.z` and on `N.s N.z` -/
@@ -140,52 +140,53 @@ def casesApp (a : Lean.Expr) : Lean.Expr :=
   .app (.app (.app (.app (.const `N.casesOn [l1]) (.lam `x tN (.app MF (.bvar 0)) .default)) a)
     (.app H1 (.const `Unit.unit []))) (.lam (hyg "n" 22) tN (.app H2 (.bvar 0)) .default)
 
-theorem ev_addf : SrcEval σ (.app (.const `add._f []) mj) Fm :=
+theorem ev_addf : SrcEval σ C (.app (.const `add._f []) mj) Fm :=
   .beta (ns_const (c := `add._f) (us := []) rfl (by krfl))
     (ev_delta (v := add_f) (by krfl) (ev_atom trivial)) ev_mj (ev_atom trivial)
 
 /-- δ and β of `add.match_1` on the arguments `MF a H1 H2`. -/
 syntax (name := _matchBeta) "match_beta" term : tactic
+set_option hygiene false in
 macro_rules
   | `(tactic| match_beta $ha:term) => `(tactic| (
   have hns : specialArity σ `add.match_1 = none := by krfl
-  have h0 := ev_delta (c := `add.match_1) (us := [l1]) (v := add_match_1) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := MF) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 $ha (ev_atom trivial)
-  have h3 := SrcEval.beta (ns_const rfl hns) h2 (ev_atom (e := H1) trivial) (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `add.match_1) (us := [l1]) (v := add_match_1) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := MF) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 $ha (ev_atom trivial)
+  have h3 := SrcEval.beta (C := C) (ns_const rfl hns) h2 (ev_atom (e := H1) trivial) (ev_atom trivial)
   refine SrcEval.beta (ns_const rfl hns) h3 (ev_atom (e := H2) trivial) ?_))
 
 theorem casesOn_N : σ.casesOn? `N.casesOn = some N_ind := by krfl
 
-theorem ev_casesZ : SrcEval σ (casesApp cZ) (.lam (hyg "x" 23) (belowN cZ) mj .default) := by
+theorem ev_casesZ : SrcEval σ C (casesApp cZ) (.lam (hyg "x" 23) (belowN cZ) mj .default) := by
   refine SrcEval.casesIota (c := `N.casesOn) (us := [l1])
     (as := [.lam `x tN (.app MF (.bvar 0)) .default, cZ, .app H1 (.const `Unit.unit []),
       .lam (hyg "n" 22) tN (.app H2 (.bvar 0)) .default]) (i := 0) (fs := [])
     casesOn_N rfl rfl ev_cZ ⟨`N.z, [], Nz_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl ?_
   exact .beta (ns_lam rfl) (ev_atom trivial) ev_unitU (ev_atom trivial)
 
-theorem ev_casesS : SrcEval σ (casesApp mj)
+theorem ev_casesS : SrcEval σ C (casesApp mj)
     (.lam (hyg "x" 23) (belowN mj) (.app cS (.proj `PProd 0 (.bvar 0))) .default) := by
   refine SrcEval.casesIota (c := `N.casesOn) (us := [l1])
     (as := [.lam `x tN (.app MF (.bvar 0)) .default, mj, .app H1 (.const `Unit.unit []),
       .lam (hyg "n" 22) tN (.app H2 (.bvar 0)) .default]) (i := 1) (fs := [cZ])
     casesOn_N rfl rfl ev_mj ⟨`N.s, [], Ns_ctor, [], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl ?_
-  have h := SrcEval.beta (ns_lam rfl) (ev_atom (e := H2) trivial) ev_cZ (ev_atom trivial)
+  have h := SrcEval.beta (C := C) (ns_lam rfl) (ev_atom (e := H2) trivial) ev_cZ (ev_atom trivial)
   exact .beta (ns_lam rfl) (ev_atom trivial) ev_cZ h
 
-theorem ev_matchZ : SrcEval σ (matchApp cZ) (.lam (hyg "x" 23) (belowN cZ) mj .default) := by
+theorem ev_matchZ : SrcEval σ C (matchApp cZ) (.lam (hyg "x" 23) (belowN cZ) mj .default) := by
   match_beta ev_cZ
   exact ev_casesZ
 
-theorem ev_matchS : SrcEval σ (matchApp mj)
+theorem ev_matchS : SrcEval σ C (matchApp mj)
     (.lam (hyg "x" 23) (belowN mj) (.app cS (.proj `PProd 0 (.bvar 0))) .default) := by
   match_beta ev_mj
   exact ev_casesS
 
 /-- `add._f (N.s N.z) N.z PUnit.unit ⇓ N.s N.z`. -/
-theorem ev_FmZ : SrcEval σ (.app (.app Fm cZ) (cPU ml)) mj := by
-  have h1 := SrcEval.beta (ns_lam rfl) (ev_atom (e := Fm) trivial) ev_cZ (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const (c := `add.match_1) (us := [l1]) rfl (by krfl)) ev_matchZ
+theorem ev_FmZ : SrcEval σ C (.app (.app Fm cZ) (cPU ml)) mj := by
+  have h1 := SrcEval.beta (C := C) (ns_lam rfl) (ev_atom (e := Fm) trivial) ev_cZ (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const (c := `add.match_1) (us := [l1]) rfl (by krfl)) ev_matchZ
     (ev_cPU ml) ev_mj
   exact .beta (ns_lam rfl) h1 (ev_cPU ml) h2
 
@@ -202,10 +203,10 @@ def blMinL : Lean.Expr :=
 
 theorem ev_recBlock : σ.recBlock? N_rec = some ([N_ind], [Nz_ctor, Ns_ctor]) := by krfl
 
-theorem ev_belowZ : SrcEval σ (belowL cZ) (tPU ml) := by
+theorem ev_belowZ : SrcEval σ C (belowL cZ) (tPU ml) := by
   have hns : specialArity σ `N.below = none := by krfl
-  have h0 := ev_delta (c := `N.below) (us := [l1]) (v := N_below) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `N.below) (us := [l1]) (v := N_below) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
   refine SrcEval.beta (ns_const rfl hns) h1 ev_cZ ?_
   exact SrcEval.recIota (c := `N.rec) (us := [.succ ml]) (ps := []) (ms := [.lam `t tN (.sort ml) .default])
     (mins := [tPU ml, blMinL]) (mvs := [tPU ml, blMinL]) (fs := []) (rfs := []) (ihvs := [])
@@ -231,7 +232,7 @@ theorem nb_PP1 : ¬ BlocksCong σ (.app (tPP l1 ml) tN) := by
     simp [findDecl_PProd, casesOn_PProd] at h2
 
 /-- `PProd ((fun m => N) N.z) (N.below (fun m => N) N.z) ⇓ PProd N PUnit`. -/
-theorem ev_PPlZ : SrcEval σ (PPl (.app motN cZ) (belowL cZ)) (PPl tN (tPU ml)) :=
+theorem ev_PPlZ : SrcEval σ C (PPl (.app motN cZ) (belowL cZ)) (PPl tN (tPU ml)) :=
   .appCong (ns_const (c := `PProd) (us := [l1, ml]) rfl arity_PProd)
     (.appCong (ns_const (c := `PProd) (us := [l1, ml]) rfl arity_PProd) (ev_tPP l1 ml) nb_PP
       (ev_motN ev_cZ)) nb_PP1 ev_belowZ
@@ -241,7 +242,7 @@ theorem ev_PPlZ : SrcEval σ (PPl (.app motN cZ) (belowL cZ)) (PPl tN (tPU ml)) 
 /-- The table on `N.z`: `⟨N.s N.z, PUnit.unit⟩ : PProd N PUnit`. -/
 def zV : Lean.Expr := PPmkl tN (tPU ml) mj (cPU ml)
 
-theorem ev_zV : SrcEval σ zV zV := by
+theorem ev_zV : SrcEval σ C zV zV := by
   refine SrcEval.ctor (c := `PProd.mk) (us := [l1, ml]) (as := [tN, tPU ml, mj, cPU ml])
     (vs := [tN, tPU ml, mj, cPU ml]) rfl rfl rfl ?_
   intro i a v h1 h2
@@ -253,19 +254,19 @@ theorem ev_zV : SrcEval σ zV zV := by
 
 /-- `add._f (N.s N.z) (N.s N.z) ⟨N.s N.z, PUnit.unit⟩ ⇓ N.s (N.s N.z)`: the recursive call is the
 first projection of the table. -/
-theorem ev_FmS : SrcEval σ (.app (.app Fm mj) zV) ssz := by
-  have h1 := SrcEval.beta (ns_lam rfl) (ev_atom (e := Fm) trivial) ev_mj (ev_atom trivial)
-  have hp : SrcEval σ (.proj `PProd 0 zV) mj :=
+theorem ev_FmS : SrcEval σ C (.app (.app Fm mj) zV) ssz := by
+  have h1 := SrcEval.beta (C := C) (ns_lam rfl) (ev_atom (e := Fm) trivial) ev_mj (ev_atom trivial)
+  have hp : SrcEval σ C (.proj `PProd 0 zV) mj :=
     SrcEval.proj ev_zV ⟨`PProd.mk, [l1, ml], PProd_mk, [tN, tPU ml], rfl, rfl, rfl, rfl, rfl, rfl⟩
       (fs := [mj, cPU ml]) rfl
-  have hs : SrcEval σ (.app cS (.proj `PProd 0 zV)) ssz := by
+  have hs : SrcEval σ C (.app cS (.proj `PProd 0 zV)) ssz := by
     refine SrcEval.ctor (c := `N.s) (us := []) (as := [.proj `PProd 0 zV]) (vs := [mj]) rfl rfl rfl
       ?_
     intro i a v h1 h2
     rcases i with _ | i <;> simp at h1 h2
     subst h1 h2
     exact hp
-  have h2 := SrcEval.beta (ns_const (c := `add.match_1) (us := [l1]) rfl (by krfl)) ev_matchS
+  have h2 := SrcEval.beta (C := C) (ns_const (c := `add.match_1) (us := [l1]) rfl (by krfl)) ev_matchS
     ev_zV hs
   exact .beta (ns_lam rfl) h1 ev_zV h2
 
@@ -281,7 +282,7 @@ def sMing : Lean.Expr :=
 /-- The pair on `N.s N.z`: `⟨N.s (N.s N.z), ⟨N.s N.z, PUnit.unit⟩⟩`. -/
 def sV : Lean.Expr := PPmkl tN (PPl tN (tPU ml)) ssz zV
 
-theorem ev_zMin : SrcEval σ zMing zV := by
+theorem ev_zMin : SrcEval σ C zMing zV := by
   refine SrcEval.ctor (c := `PProd.mk) (us := [l1, ml])
     (as := [.app motN cZ, tPU ml, .app (.app Fm cZ) (cPU ml), cPU ml])
     (vs := [tN, tPU ml, mj, cPU ml]) rfl rfl rfl ?_
@@ -293,21 +294,21 @@ theorem ev_zMin : SrcEval σ zMing zV := by
   · exact ev_cPU ml
 
 theorem ev_minsGo : ∀ (i : Nat) m mv, [zMing, sMing][i]? = some m → [zV, sMing][i]? = some mv →
-    SrcEval σ m mv := by
+    SrcEval σ C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact ev_zMin
   · exact ev_atom trivial
 
 theorem ev_minsGo' : ∀ (i : Nat) m mv, [zV, sMing][i]? = some m → [zV, sMing][i]? = some mv →
-    SrcEval σ m mv := by
+    SrcEval σ C m mv := by
   intro i m mv h1 h2
   rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
   · exact ev_zV
   · exact ev_atom trivial
 
 /-- The induction hypothesis: the recursor's ι on `N.z`. -/
-theorem ev_ihGo : SrcEval σ (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zV, sMing] ++ [cZ]).toArray)
+theorem ev_ihGo : SrcEval σ C (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zV, sMing] ++ [cZ]).toArray)
     zV :=
   SrcEval.recIota (ps := []) (ms := [Mg]) (mins := [zV, sMing]) (mvs := [zV, sMing]) (fs := [])
     (rfs := []) (ihvs := []) (T := `N) (iv := N_ind) (cvs := [Nz_ctor, Ns_ctor]) rfl rfl rfl
@@ -316,8 +317,8 @@ theorem ev_ihGo : SrcEval σ (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zV, sM
     (fun _ _ _ h => nomatch h) ev_zV
 
 /-- The minor of `N.s` on the field `N.z` and the table `⟨N.s N.z, PUnit.unit⟩`. -/
-theorem ev_sMin : SrcEval σ (mkAppN sMing ([cZ] ++ [zV]).toArray) sV := by
-  have h1 := SrcEval.beta (ns_lam rfl) (ev_atom (e := sMing) trivial) ev_cZ (ev_atom trivial)
+theorem ev_sMin : SrcEval σ C (mkAppN sMing ([cZ] ++ [zV]).toArray) sV := by
+  have h1 := SrcEval.beta (C := C) (ns_lam rfl) (ev_atom (e := sMing) trivial) ev_cZ (ev_atom trivial)
   refine SrcEval.beta (ns_lam rfl) h1 ev_zV ?_
   refine SrcEval.ctor (c := `PProd.mk) (us := [l1, ml])
     (as := [.app motN mj, PPl (.app motN cZ) (belowL cZ), .app (.app Fm mj) zV, zV])
@@ -330,7 +331,7 @@ theorem ev_sMin : SrcEval σ (mkAppN sMing ([cZ] ++ [zV]).toArray) sV := by
   · exact ev_zV
 
 /-- The recursor's ι on `N.s N.z`. -/
-theorem ev_goRec : SrcEval σ (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zMing, sMing] ++ [mj]).toArray)
+theorem ev_goRec : SrcEval σ C (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zMing, sMing] ++ [mj]).toArray)
     sV :=
   SrcEval.recIota (ps := []) (ms := [Mg]) (mins := [zMing, sMing]) (mvs := [zV, sMing])
     (fs := [cZ]) (rfs := [cZ]) (ihvs := [zV]) (T := `N) (iv := N_ind) (cvs := [Nz_ctor, Ns_ctor])
@@ -342,33 +343,41 @@ theorem ev_goRec : SrcEval σ (mkAppN (.const `N.rec [ml]) ([] ++ [Mg] ++ [zMing
       exact ev_ihGo)
     ev_sMin
 
-theorem ev_go : SrcEval σ (.app (.app (.app (.const `N.brecOn.go [l1]) motN) mj) Fm) sV := by
+theorem ev_go : SrcEval σ C (.app (.app (.app (.const `N.brecOn.go [l1]) motN) mj) Fm) sV := by
   have hns : specialArity σ `N.brecOn.go = none := by krfl
-  have h0 := ev_delta (c := `N.brecOn.go) (us := [l1]) (v := N_brecOn_go) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 ev_mj (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `N.brecOn.go) (us := [l1]) (v := N_brecOn_go) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 ev_mj (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h2 (ev_atom (e := Fm) trivial) ev_goRec
 
 /-! ### `add (N.s N.z) (N.s N.z) ⇓ N.s (N.s N.z)` -/
 
-theorem ev_brecOn : SrcEval σ (.app (.app (.app (.const `N.brecOn [l1]) motN) mj)
+theorem ev_brecOn : SrcEval σ C (.app (.app (.app (.const `N.brecOn [l1]) motN) mj)
     (.app (.const `add._f []) mj)) ssz := by
   have hns : specialArity σ `N.brecOn = none := by krfl
-  have h0 := ev_delta (c := `N.brecOn) (us := [l1]) (v := N_brecOn) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
-  have h2 := SrcEval.beta (ns_const rfl hns) h1 ev_mj (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `N.brecOn) (us := [l1]) (v := N_brecOn) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 (ev_atom (e := motN) trivial) (ev_atom trivial)
+  have h2 := SrcEval.beta (C := C) (ns_const rfl hns) h1 ev_mj (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h2 ev_addf
     (SrcEval.proj ev_go ⟨`PProd.mk, [l1, ml], PProd_mk, [tN, PPl tN (tPU ml)], rfl, rfl, rfl, rfl,
       rfl, rfl⟩ (fs := [ssz, zV]) rfl)
 
 /-- `hev`: `e` evaluates to `N.s (N.s N.z)`. -/
-theorem hev : SrcEval σ e ssz := by
+theorem hev : SrcEval σ C e ssz := by
   have hns : specialArity σ `add = none := by krfl
-  have h0 := ev_delta (c := `add) (us := []) (v := add_def) (by krfl) (ev_atom trivial)
-  have h1 := SrcEval.beta (ns_const rfl hns) h0 ev_mj (ev_atom trivial)
+  have h0 := ev_delta (C := C) (c := `add) (us := []) (v := add_def) (by krfl) (ev_atom trivial)
+  have h1 := SrcEval.beta (C := C) (ns_const rfl hns) h0 ev_mj (ev_atom trivial)
   exact SrcEval.beta (ns_const rfl hns) h1 ev_mj ev_brecOn
 
 /-! ## The final theorem on NV-S -/
+
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the configuration is `structural := .kernel`), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK E B view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
 
 /-- The final theorem on NV-S: the program `#erase` emits for `add (N.s N.z) (N.s N.z)`, `add`
 defined by structural recursion and erased under `structural := .kernel`, is an untyped λ□ program
@@ -378,7 +387,7 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases E B [] (evalEnvOf view cfg P) .nil [] ssz vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, E[.nil] ⊢ tE : T → ∃ t', TrM E B [] .nil [] ssz t' ∧ E[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 /-- `N.s (N.s N.z)` is a first-order value: constructors of `N : Type` applied to first-order
 values. -/
@@ -398,6 +407,6 @@ to the constructor `1` applied to the constructor `0`. -/
 theorem firstorder :
     ∃ lenv tb, p0 = .untyped lenv (some tb) ∧ LBEval defaultFlags lenv tb
       (.app (.construct iidN 1 []) (.app (.construct iidN 1 []) (.construct iidN 0 []))) :=
-  erase_correct_firstorder henv hwf hview he hty hfrag hrun hev fo_ssz
+  erase_correct_firstorder henv hwf hview hpre he hty hfrag hrun hev fo_ssz
 
 end EraseProof.Test.NVS

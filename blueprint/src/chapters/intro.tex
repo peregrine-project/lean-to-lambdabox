@@ -8,7 +8,7 @@
 \item \lead{Status} \stProved{} \hl{the final theorem \code{erase\_correct}}, its milestones
   \code{erases\_correct} and \code{erasePure\_erases}, the lower bound \code{collectDeps\_ok\_of}
   of the fragment hypothesis, the first-order corollary \code{erase\_correct\_firstorder}, and
-  every lemma they use; ten test programs discharge all eight hypotheses of the final theorem
+  every lemma they use; thirteen test programs discharge all nine hypotheses of the final theorem
   (Chapter~\ref{chap:tests}). Formalized: the four statements,
   as definitions pinned by \code{proof/spec.pin}, with every definition they use. \stShipping{} the eraser: the pure path on the fragment of
   Phase I and the \code{Meta} path on the rest.
@@ -43,12 +43,19 @@
   equality and well-formed environments of Lean's kernel, with inductive types, recursors and
   quotients.
 \item \lead{The scope} closed, typed Lean programs that Metalean can express and that the
-  eraser's fragment test admits, inductive types and \code{casesOn} included; \hl{no recursive
-  definitions by default}, recursion only through the admitted recursors and, under
-  \code{structural := .kernel}, single definitions by structural recursion, and \code{Nat} literals
-  only under \code{nat := .peano} (Chapter~\ref{chap:scope}). \code{Init}'s own \code{Nat.add} on
-  the literals \code{2} and \code{3} is verified end to end under \code{\{extern := .preferLogical, structural := .kernel,
-  nat := .peano\}} (NV-A); no other operation of \code{Init} has an instance.
+  eraser's fragment test admits, inductive types and \code{casesOn} included; recursion through
+  the admitted recursors and \hl{single definitions by structural recursion}, erased through their
+  compiled pre-definitions as $\lambda_\Box$ fixpoints under the default
+  \code{structural := .unsafeRec}, and through their kernel definitions under
+  \code{structural := .kernel}; no well-founded recursion, \code{partial} definition or mutual
+  block; \code{Nat} literals only under \code{nat := .peano} (Chapter~\ref{chap:scope}). A
+  definition by structural recursion over the program's own types is verified end to end under
+  the full default configuration (NV-SUD) and under \code{\{nat := .peano\}}, the setting of the
+  frontend benchmarks (NV-SU).
+  \code{Init}'s own \code{Nat.add} on the literals \code{2} and \code{3} is verified end to end
+  under \code{\{extern := .preferLogical, nat := .peano\}}, through its pre-definition (NV-U) and,
+  under \code{structural := .kernel}, through its kernel definition (NV-A); no other operation of
+  \code{Init} has an instance.
 \item \lead{The references} the verification follows these as closely as the differences between
   Lean and Rocq allow; every divergence from the first two is an entry of
   \code{doc/DIVERGENCES.md}.
@@ -106,7 +113,8 @@ Kernel theory & \code{VExpr} and \code{IsDefEq}; the final theorem inherits six 
   sorries & \code{Expr} and \code{Defeq}, with no sorry \\
 Scope & the $\lambda\Pi$ fragment with \code{let}; no inductive type & inductive types,
   \code{casesOn}, projections, \code{Nat} literals (Phase I); quotients and the recursors of one
-  inductive without indices (Phase I); structural recursion under \code{structural := .kernel} (Phase I); other recursors (Phase II) \\
+  inductive without indices (Phase I); structural recursion, through the compiled pre-definition
+  or the kernel definition (Phase I); other recursors (Phase II) \\
 Bridge & \code{TrS}, after lean4lean's \code{TrExprS} & \code{TrM}, after Metalean's translator
   \leanfile{Metalean/Frontend/Translate.lean} \\
 Reused & -- & the total, fuelled, backend-generic traversal and its pure path (shipping entries
@@ -162,8 +170,8 @@ Mutual blocks in the fragment & the defect admits a definition, theorem or opaqu
 \subsection{Review rounds of the statement}
 
 Four adversarial reviews tried to refute the statements: derive \code{False} from them, or find a
-typed input where one fails; the proof of M2 found two more counterexamples. The pinned statements
-exclude every counterexample found.
+typed input where one fails; the proof of M2 found two more counterexamples, and the proofs of the
+fixpoint rules three. The pinned statements exclude every counterexample found.
 
 \begin{tabular}{p{0.1\linewidth}p{0.82\linewidth}}
 \toprule
@@ -188,6 +196,11 @@ Round & Findings and their consequence in the statement \\
 M2 & a literal read through another inductive's constructor named \code{Nat.zero}, and a
   \code{Prop} block that eliminates into every sort through a field that is no Lean index field,
   made M2 false. Hence the constructor bindings of \code{TrM.lit} and \code{IndBlock.indexVars} \\
+Fixpoints & \code{deltaRec} on a quotient head made subject reduction false; a \code{let}-local
+  erased as a fix variable made \code{Erases.abstract\_let} false; an atom with both
+  \code{deltaRec} and \code{constAtom} had two values. Hence \code{ci.isDefinition},
+  \code{casesOn? = none} and \code{isAtom = false} in \code{deltaRec} and \code{constFix}, the
+  fix-variable local \code{vfix}, and \code{constFix} at one level instance with \code{ConstAt} \\
 \bottomrule
 \end{tabular}
 
@@ -237,7 +250,7 @@ Chapter & Content \\
 \ref{chap:relation} & $\lambda_\Box$ evaluation and the erasure relation \\
 \ref{chap:core} & Soundness of the pure path: oracle, closure, traversal \\
 \ref{chap:final} & The final theorem and its two milestones \\
-\ref{chap:tests} & The tests: the final theorem applied to ten programs \\
+\ref{chap:tests} & The tests: the final theorem applied to thirteen programs \\
 \ref{chap:shipping-changes}, \ref{chap:divergences} & The two registers, rendered \\
 \ref{chap:open} & What is open \\
 \bottomrule

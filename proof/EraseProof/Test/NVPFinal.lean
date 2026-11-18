@@ -6,14 +6,15 @@ import EraseProof.Test.NVPRun
 # NV-P and NV-K end to end
 
 The remaining hypotheses of the final theorem on NV-P and NV-K (`Test/NVPData.lean`): the views
-agree with the programs (`hview`), the fragment test accepts the terms (`hfrag`, from
-`Test/NVPRun.lean`), and both terms evaluate to `fun y => y` (`hev`). On NV-P the major
-`@Eq.refl B B.t` evaluates to itself and ι continues with the alternative (`SrcEval.casesIota`); on
-NV-K the major is the theorem `hEq`, an atom whose statement is the type of `@Eq.refl B B.t`, and the
-`casesOn` continues with the alternative (`SrcEval.casesProof`). `final` applies the final theorem
-`erase_correct` to all eight hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVPModel.lean` and
-`Test/NVKModel.lean`, `hrun` from `Test/NVPRun.lean`): the program `pP` that `#erase` emits is an
-untyped λ□ program whose main term evaluates to an erasure of `fun y => y`.
+agree with the programs (`hview`), no declaration of the programs has a compiled pre-definition
+(`hpre`), the fragment test accepts the terms (`hfrag`, from `Test/NVPRun.lean`), and both terms
+evaluate to `fun y => y` (`hev`). On NV-P the major `@Eq.refl B B.t` evaluates to itself and ι
+continues with the alternative (`SrcEval.casesIota`); on NV-K the major is the theorem `hEq`, an
+atom whose statement is the type of `@Eq.refl B B.t`, and the `casesOn` continues with the
+alternative (`SrcEval.casesProof`). `final` applies the final theorem `erase_correct` to all nine
+hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVPModel.lean` and `Test/NVKModel.lean`, `hrun`
+from `Test/NVPRun.lean`): the program `pP` that `#erase` emits is an untyped λ□ program whose main
+term evaluates to an erasure of `fun y => y`.
 -/
 
 open Lean Erasure Metalean
@@ -44,8 +45,8 @@ theorem casesOn_Eq : (evalEnvOf view cfg P).casesOn? `Eq.casesOn = some Eq_ind :
 /-- `@Eq.refl.{1} B B.t`. -/
 def reflE : Expr := mkAppN (.const `Eq.refl [l1]) #[tB, cT]
 
-theorem ev_refl : SrcEval (evalEnvOf view cfg P) reflE reflE := by
-  have hT : SrcEval (evalEnvOf view cfg P) (mkAppN cT ([] : List Expr).toArray)
+theorem ev_refl : SrcEval (evalEnvOf view cfg P) C reflE reflE := by
+  have hT : SrcEval (evalEnvOf view cfg P) C (mkAppN cT ([] : List Expr).toArray)
       (mkAppN cT ([] : List Expr).toArray) :=
     SrcEval.ctor (as := []) (vs := []) rfl rfl rfl (fun _ _ _ h => nomatch h)
   refine SrcEval.ctor (as := [tB, cT]) (vs := [tB, cT]) rfl rfl rfl ?_
@@ -55,10 +56,18 @@ theorem ev_refl : SrcEval (evalEnvOf view cfg P) reflE reflE := by
   · exact hT
 
 /-- `hev`: `e` evaluates to `fun y => y` (ι on `Eq.refl`). -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e idB :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e idB :=
   SrcEval.casesIota (as := [tB, cT, motE, cT, reflE, idB]) (i := 0) (fs := []) casesOn_Eq rfl rfl
     ev_refl ⟨`Eq.refl, [l1], Eq_refl, [tB, cT], rfl, rfl, rfl, rfl, rfl, rfl⟩ rfl
     (SrcEval.atom trivial)
+
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK EB BB view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
 
 /-- The final theorem on NV-P: the program `#erase` emits for the `Eq.casesOn` on `Eq.refl` is an
 untyped λ□ program whose main term evaluates to an erasure of `fun y => y`, and `fun y => y`
@@ -67,7 +76,7 @@ theorem final :
     ∃ lenv tb vb, NVPK.pP = .untyped lenv (some tb) ∧
       Erases EB BB [] (evalEnvOf view cfg P) .nil [] idB vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, EB[.nil] ⊢ tE : T → ∃ t', TrM EB BB [] .nil [] idB t' ∧ EB[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 end EraseProof.Test.NVP
 
@@ -97,10 +106,18 @@ theorem casesOn_Eq : (evalEnvOf view cfg P).casesOn? `Eq.casesOn = some Eq_ind :
 
 /-- `hev`: `e` evaluates to `fun y => y`: the major `hEq` is an atom whose statement is the type of
 `@Eq.refl B B.t`, so the `casesOn` continues with the alternative. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e idB :=
+theorem hev : SrcEval (evalEnvOf view cfg P) C e idB :=
   SrcEval.casesProof (as := [tB, cT, motE, cT, .const `hEq [], idB]) (ps := [tB, cT]) (vs := [l1])
     casesOn_Eq rfl rfl (SrcEval.constAtom rfl) (AtomSpine.const rfl) rfl rfl rfl rfl rfl rfl rfl
     rfl rfl (SrcEval.atom trivial)
+
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK EK BK view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
 
 /-- The final theorem on NV-K: the program `#erase` emits for the `Eq.casesOn` on the theorem `hEq`
 is an untyped λ□ program whose main term evaluates to an erasure of `fun y => y`, and
@@ -109,6 +126,6 @@ theorem final :
     ∃ lenv tb vb, NVPK.pP = .untyped lenv (some tb) ∧
       Erases EK BK [] (evalEnvOf view cfg P) .nil [] idB vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, EK[.nil] ⊢ tE : T → ∃ t', TrM EK BK [] .nil [] idB t' ∧ EK[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 end EraseProof.Test.NVK

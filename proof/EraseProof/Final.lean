@@ -33,14 +33,17 @@ fragment test's closure. Reference: `erase_correct` (`MR E/ErasureFunctionProper
 which composes the erasure's correctness with `erases_correct` (`MR E/ErasureCorrectness.v:51`)
 and the weakening of the global environment (`erases_extends`, `MR E/ESubstitution.v:73`). -/
 theorem erase_correct_of_pure (h : erasePure_erases_statement) : erase_correct_statement := by
-  intro P decls ζ E B view cfg lps e v t p inl henv hwf hview he hty hfrag hrun hev
+  intro P decls ζ E B view cfg lps e v t p inl henv hwf hview hpre he hty hfrag hrun hev
   obtain ⟨lenv, tb, rfl, her, hdeps, hlc⟩ :=
-    h henv hwf hview he hty hfrag (eraseEntry_pure hfrag hrun)
-  have hsub := collectDeps_sub henv hview he hfrag
-  obtain ⟨hinj, -, -, hcl, -, hc, -, -, hblk, harity⟩ := collectDeps_spec henv hview he hfrag
-  obtain ⟨hev', hcv⟩ := SrcEval.restrict hsub hcl (fun _ _ h => SimInd.ctor_listed henv h) hc hev
+    h henv hwf hview hpre he hty hfrag (eraseEntry_pure hfrag hrun)
+  have hsub := collectDeps_sub henv hview hpre he hfrag
+  obtain ⟨hinj, -, -, hcl, -, hc, -, -, hblk, harity, hprs⟩ :=
+    collectDeps_spec henv hview hpre he hfrag
+  have hpcl := fun ci hci p hp hco => (hprs ci hci p hp hco).1
+  obtain ⟨hev', hcv⟩ :=
+    SrcEval.restrict hsub hcl hpcl (fun _ _ h => SimInd.ctor_listed henv h) hc hev
   obtain ⟨vb, hv, hlb⟩ := erases_correct henv hwf hsub hinj hblk harity hlc he hty her hdeps hev'
-  exact ⟨lenv, tb, vb, rfl, Erases.extend hsub hcl hcv hv, hlb,
+  exact ⟨lenv, tb, vb, rfl, Erases.extend hsub hcl hpcl hcv hv, hlb,
     fun _ hT => SrcEval.defeq henv hwf (fun _ => CollectSub.findDecl_of_view hview) he hT hev⟩
 
 /-- The final theorem: partial correctness of `#erase` on the fragment (statement and scope:

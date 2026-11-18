@@ -221,67 +221,6 @@ theorem count_keep_slice {N i : Nat} (h : i ≤ N) :
   rw [count_keep_replicate]
   omega
 
-/-! ## Closed λ□ terms under the traversal's abstraction -/
-
-theorem length_toBvarDefs (x : FVarId) (k : Nat) :
-    ∀ ds : List (@FixDef LBTerm), (toBvarDefs x k ds).length = ds.length
-  | [] => rfl
-  | _ :: ds => by simp only [toBvarDefs, List.length_cons, length_toBvarDefs x k ds]
-
-mutual
-/-- Turning a free variable into the bound variable `k` keeps a term closed one level up. -/
-theorem closedn_toBvar (x : FVarId) : ∀ (t : LBTerm) (k : Nat), closedn k t = true →
-    closedn (k + 1) (toBvar x k t) = true
-  | .box, _, _ => rfl
-  | .bvar i, k, h => by simp only [toBvar, closedn, decide_eq_true_eq] at h ⊢; omega
-  | .fvar y, k, _ => by
-    simp only [toBvar]
-    split
-    · simp [closedn]
-    · rfl
-  | .lambda _ b, k, h => closedn_toBvar x b (k + 1) h
-  | .letIn _ v b, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x v k h.1, closedn_toBvar x b (k + 1) h.2⟩
-  | .app a b, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x a k h.1, closedn_toBvar x b k h.2⟩
-  | .const _, _, _ => rfl
-  | .construct _ _ args, k, h => closednL_toBvarList x args k h
-  | .case (_, _) d alts, k, h => by
-    simp only [toBvar, closedn, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x d k h.1, closednB_toBvarAlts x alts k h.2⟩
-  | .proj _ e, k, h => closedn_toBvar x e k h
-  | .fix defs _, k, h => by
-    simp only [toBvar, closedn] at h ⊢
-    rw [length_toBvarDefs, show k + 1 + defs.length = k + defs.length + 1 by omega]
-    exact closednD_toBvarDefs x defs (k + defs.length) h
-  | .prim _, _, _ => rfl
-
-theorem closednL_toBvarList (x : FVarId) : ∀ (as : List LBTerm) (k : Nat),
-    closednL k as = true → closednL (k + 1) (toBvarList x k as) = true
-  | [], _, _ => rfl
-  | a :: as, k, h => by
-    simp only [toBvarList, closednL, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x a k h.1, closednL_toBvarList x as k h.2⟩
-
-theorem closednB_toBvarAlts (x : FVarId) : ∀ (bs : List (List BinderName × LBTerm)) (k : Nat),
-    closednB k bs = true → closednB (k + 1) (toBvarAlts x k bs) = true
-  | [], _, _ => rfl
-  | (ns, b) :: bs, k, h => by
-    simp only [toBvarAlts, closednB, Bool.and_eq_true] at h ⊢
-    refine ⟨?_, closednB_toBvarAlts x bs k h.2⟩
-    rw [show k + 1 + ns.length = k + ns.length + 1 by omega]
-    exact closedn_toBvar x b (k + ns.length) h.1
-
-theorem closednD_toBvarDefs (x : FVarId) : ∀ (ds : List (@FixDef LBTerm)) (k : Nat),
-    closednD k ds = true → closednD (k + 1) (toBvarDefs x k ds) = true
-  | [], _, _ => rfl
-  | ⟨_, b, _⟩ :: ds, k, h => by
-    simp only [toBvarDefs, closednD, Bool.and_eq_true] at h ⊢
-    exact ⟨closedn_toBvar x b k h.1, closednD_toBvarDefs x ds k h.2⟩
-end
-
 /-! ## Constructor arguments -/
 
 theorem filterMap_keep {α : Type} : ∀ (l : List α) (n : Nat), l.length ≤ n →
@@ -580,8 +519,8 @@ theorem visitAppArgs_list {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
     {r tf : LBTerm} {args : List Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ args, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hrun : (visitAppArgs (m := PureM) (j + 1) tf args.toArray).runPure st tc ⟨decls, view⟩ ps =
@@ -634,8 +573,8 @@ theorem visitConstructor_core (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm}
     {c : Name} {cv : ConstructorVal} {args : List Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ args, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hc : findDecl decls c = some (.ctorInfo cv))
     (hlen : cv.numParams + cv.numFields ≤ args.length)
@@ -740,8 +679,8 @@ theorem visitConstructor_spec (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm}
     {c : Name} {us : List Level} {cv : ConstructorVal} {args : List Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ args, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hc : findDecl decls c = some (.ctorInfo cv))
     (hlen : cv.numParams + cv.numFields ≤ args.length)
@@ -768,8 +707,8 @@ def SatSpec (E : Metalean.Env ζ) (B : Binds ζ) (view : EnvView) (cfg : Erasure
   ∀ ⦃lps : List Name⦄ ⦃n : Nat⦄ ⦃Γ : Metalean.Ctx ζ lps.length 0 n⦄ ⦃Δ : MLCtx ζ lps.length n⦄
     ⦃S : Name → Prop⦄ ⦃st st' : ErasureState⦄ ⦃tc : TravCtx⦄ ⦃ps ps' : PureState⦄ ⦃r : LBTerm⦄
     ⦃as : List Expr⦄,
-    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-    (∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+    (∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
     ar ≤ as.length → StateOK E B (evalEnvOf view cfg decls) st → I st →
     (∃ t U, TrM E B lps Γ Δ (mkAppN (.const c us) as.toArray) t ∧ E[Γ] ⊢ t : U) →
@@ -790,8 +729,8 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {ar : Nat} {c : Name} {us
       {Δ : MLCtx ζ lps.length n} {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx}
       {ps ps' : PureState} {r : LBTerm} {T : Expr} {T' : Metalean.Expr ζ lps.length n}
       {as : List Expr},
-      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK decls S →
-      (∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+      CtxOK E B lps Γ Δ cfg tc ps → ScopeOK view cfg decls S →
+      (∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
         NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A) →
       (ar = as.length + m ∨ (m = 0 ∧ ar ≤ as.length)) →
       (∃ body, peelForalls m T = some body) → TrM E B lps Γ Δ T T' → E[Γ] ⊢ T' typ →
@@ -843,7 +782,7 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {ar : Nat} {c : Name} {us
     have hxΔ : Δ.findF (pureFVar ps.next) = none := hctx.freshNext
     have hctx' := hctx.pushFVar (nm := nm) hd hd' (tc.lctx.mkLocalDecl (pureFVar ps.next) nm d bi)
     have hΓ' : E[Γ.snoc d'] ⊢ ok := hctx'.wf
-    have hargs' : ∀ a ∈ as ++ [.fvar (pureFVar ps.next)], (∀ e, nameOccurs e a = true → S e) ∧
+    have hargs' : ∀ a ∈ as ++ [.fvar (pureFVar ps.next)], (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧
         MachineFree cfg a ∧ NatPlain cfg a ∧ RecShaped cfg decls a ∧
         ∃ a', TrM E B lps (Γ.snoc d') (Δ.pushLam (some (pureFVar ps.next))) a a' ∧
           ∃ A, E[Γ.snoc d'] ⊢ a' : A := by
@@ -853,7 +792,7 @@ theorem etaGo_spec (hG : CoreEnv E B P decls view cfg) {ar : Nat} {c : Name} {us
         exact ⟨h1, h2, h3, h4, a'.wk, TrM.weakFV hxΔ hta, A.wk, hA.wk d'⟩
       · rw [List.mem_singleton] at ha
         subst ha
-        refine ⟨fun _ h => by simp [nameOccurs] at h, trivial, trivial, trivial, .var (Fin.last n),
+        refine ⟨fun _ _ h => h.elim, trivial, trivial, trivial, .var (Fin.last n),
           .fvar ?_, _, hΓ'.var (Fin.last n)⟩
         simp [MLCtx.pushLam, MLCtx.findF, (fvarId_beq_iff _ _).mpr rfl, MLDecl.denote]
     simp only [lamsOf, Option.map_eq_some_iff] at hw
@@ -908,8 +847,8 @@ theorem withAppEta_spec (hG : CoreEnv E B P decls view cfg) {ar f : Nat} {c : Na
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm} {e : Expr} (hfn : e.getAppFn = .const c us)
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ spineArgs e, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st) (hI : I st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
@@ -1116,8 +1055,8 @@ theorem visitApp_ctor (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
     {lps : List Name} {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {t : Metalean.Expr ζ lps.length n} {st st' : ErasureState} {tc : TravCtx}
     {ps ps' : PureState} {r : LBTerm}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d e = true → S d) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls e → InScope tc lps S d ls) (hmf : MachineFree cfg e) (hnp : NatPlain cfg e)
     (hrf : RecShaped cfg decls e) (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (he : TrM E B lps Γ Δ e t) (ht : ∃ T, E[Γ] ⊢ t : T)
     (hor : Pure.isErasable ⟨decls⟩ oracleFuel tc.locals e = .ok false)
@@ -1141,9 +1080,8 @@ theorem visitApp_ctor (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) → Q e →
       Q e.getAppFn ∧ ∀ a ∈ spineArgs e, Q a := fun hQ' h =>
     foldl_pred hQ' (by rw [← mkAppN_toArray, mkAppN_spine]; exact h)
-  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  obtain ⟨-, hoccA⟩ := hQ (Q := fun x => ∀ d ls, OccursAt d ls x → InScope tc lps S d ls)
+    (fun f a h => ⟨fun d ls hd => h d ls (.inl hd), fun d ls hd => h d ls (.inr hd)⟩) hocc
   obtain ⟨hmfF, hmfA⟩ := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   obtain ⟨hnpF, hnpA⟩ := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   obtain ⟨-, hrfA⟩ := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
@@ -1157,7 +1095,7 @@ theorem visitApp_ctor (hG : CoreEnv E B P decls view cfg) {fuel : Nat}
   rw [← hsp] at he'
   obtain ⟨bs', hlenb, htr, hsat⟩ := TrM.special_inv hB rfl he'
   have htyped := ctor_args_typed hord hsat ht
-  have hargs : ∀ a ∈ spineArgs e, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+  have hargs : ∀ a ∈ spineArgs e, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
     intro a ha
     refine ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, ?_⟩
@@ -1345,13 +1283,13 @@ theorem stepsB_lit_of (hnn : NatCtorNames decls) {fuel : Nat} {l : Literal}
     obtain ⟨cv, hcv⟩ := visitConstructor_ctor hrun
     obtain ⟨hind, hcidx, hnp0, hnf0⟩ := hnn.2 cv hcv
     obtain ⟨A', -, hA'⟩ := OracleInfer.lit_type (Γ := Γ) (Δ := Δ) (lps := lps) hB k
-    have hargs : ∀ a ∈ [Expr.lit (.natVal k)], (∀ d, nameOccurs d a = true → S d) ∧
+    have hargs : ∀ a ∈ [Expr.lit (.natVal k)], (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧
         MachineFree cfg a ∧ NatPlain cfg a ∧ RecShaped cfg decls a ∧
         ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A := by
       intro a ha
       rw [List.mem_singleton] at ha
       subst ha
-      exact ⟨fun _ h => by simp [nameOccurs] at h, trivial, hpeano, trivial, _, .lit hB h₀ h₁, _, hA'⟩
+      exact ⟨fun _ _ h => h.elim, trivial, hpeano, trivial, _, .lit hB h₀ h₁, _, hA'⟩
     obtain ⟨iid, as', rfl, hiid, hlen', hers, hdeps, hgr, -⟩ :=
       visitConstructor_core (args := [.lit (.natVal k)]) hG ihg hctx hsc hargs hcv
         (by simp; omega) (hnat · _) hok hrun
