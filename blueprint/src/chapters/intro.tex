@@ -73,16 +73,15 @@ Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI repor
 
 \section{The stack}\label{sec:intro-stack}
 
-This is the third verification of the pure path of \code{\#erase}, after lean4lean (PR \#13) and
-Metalean (PR \#16). It shares their shipping code, and takes the proof tooling and the
-kernel-agnostic parts of the Metalean development.
+This is the third verification of the pure path of \code{\#erase}, after PR \#13 and PR \#16. It shares the shipping code of PR \#16, and takes the proof tooling and
+the kernel-agnostic parts of its development.
 
 \begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
 \toprule
-Part & Against the Metalean verification \\
+Part & Against PR \#16 \\
 \midrule
 Kernel theory & con-leche's set model and checker, with no syntactic metatheory, in place of
-  Metalean's typing judgement with subject reduction and uniqueness of types \\
+  the typing judgement of PR \#16 with subject reduction and uniqueness of types \\
 Source semantics & marked terms and frozen evaluation (Chapter~\ref{chap:resolution}) in place of
   erasability by typing \\
 Hypotheses & the certificate \code{hcert} replaces the typing premise of every $\Box$; user axioms
@@ -105,7 +104,7 @@ commit.
 \toprule
 Branch & Merges from & Content \\
 \midrule
-\code{cl/translate} (PR \#28) & the Metalean stack's translate branch & the shipping code on con-leche,
+\code{cl/translate} (PR \#28) & the translate branch of PR \#16 & the shipping code on con-leche,
   and the strictly necessary changes; the register \code{doc/SHIPPING-CHANGES.md} \\
 \code{cl/verification} (PR \#33) & \code{cl/translate} & the proof package \code{proof/}; it never
   edits shipping files \\
