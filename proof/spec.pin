@@ -1,0 +1,6 @@
+# The pin of the statements (tools/Report.lean, C12b): `root <statement definition> <digest>`,
+# `body <constant> <digest>` (SHA-256 of the serialized declaration), `conleche <constant> <digest>`
+# (the same, for a constant of con-leche, whose dependencies are not followed), `name <constant>`
+# (a shipping function under verification or a constant of the toolchain, pinned by name),
+# `toolchain <name>` and `dep <package> <rev>` (the root package's lean-toolchain and
+# lake-manifest.json). Written by `tools/Report.lean --write-pin`; proof/scripts/check.sh compares it.

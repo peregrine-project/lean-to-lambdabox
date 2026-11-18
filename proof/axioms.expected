@@ -1,0 +1,5 @@
+# Axiom footprints of the roots (ROOTS.txt) and of the test theorems (namespace EraseProof.Test).
+# One line per declaration: <declaration> <axioms>
+#   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
+#             Quot.sound; `-` for none. sorryAx never occurs.
+# proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
