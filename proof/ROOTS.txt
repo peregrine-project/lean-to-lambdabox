@@ -9,6 +9,17 @@
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Erases.ctor_inv EraseProof.erases_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
+EraseProof.Erases.quot_inv EraseProof.erases_correct
+EraseProof.Erases.rec_inv EraseProof.erases_correct
+EraseProof.RecLam.recLets_closed EraseProof.erases_correct
+EraseProof.ErasesDeps.construct_ind EraseProof.erases_correct
+EraseProof.ErasesInd.indIsPropAndPars EraseProof.erases_correct
+EraseProof.ErasesInd.lookupCtor EraseProof.erases_correct
+EraseProof.Erases.abstract EraseProof.erasePure_erases
+EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
+EraseProof.RecLam.hasFVar_recLetTerm EraseProof.erasePure_erases
+EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
+EraseProof.ErasesDeps.toBvar EraseProof.erasePure_erases
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
 EraseProof.SimCases.erases_correct_beta EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_etaBeta EraseProof.erases_correct
@@ -30,3 +41,9 @@ EraseProof.SemCases.srcEval_sound_appCong EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_ctor EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_frozenApp EraseProof.srcEval_sound
 EraseProof.Sound.of_semSim EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_defn EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_thm EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_axiom EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_rec EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_single EraseProof.srcEval_sound

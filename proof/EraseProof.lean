@@ -1,8 +1,11 @@
 import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
 import EraseProof.Bridge.CLRead
+import EraseProof.Bridge.CLStore
 import EraseProof.Statements
 import EraseProof.Relation.Inst
+import EraseProof.Relation.Abstract
+import EraseProof.Relation.Lookup
 import EraseProof.Source.Marks
 import EraseProof.Simulation.Cases
 import EraseProof.Source.Restrict
@@ -21,9 +24,13 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Target`: λ□ and its evaluation.
 * `EraseProof.Spec`: the definitions the statements are about (the bridge to con-leche, the
   con-leche checks, the marks, the source semantics, the erasure relation, `Sound`).
-* `EraseProof.TargetLift`: closedness, lifting and closed substitution of λ□ terms.
+* `EraseProof.TargetLift`: closedness, lifting, free variables, closed substitution and the
+  abstraction of a free variable on λ□ terms.
 * `EraseProof.Relation.Basic`, `EraseProof.Relation.Inst`: closedness, congruence, inversion,
   substitution and universe instantiation of the erasure relation.
+* `EraseProof.Relation.Abstract`: closing a binder the traversal opened with a free variable.
+* `EraseProof.Relation.Lookup`: what the erased dependencies give of the λ□ environment
+  (constants' bodies, inductive blocks), and their stability under abstraction and growth.
 * `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
   instantiation and instantiation.
 * `EraseProof.TargetFacts`: the induction principle of λ□ evaluation.
@@ -38,5 +45,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.Cases`: the invariant of the meaning of source evaluation in con-leche's
   model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
   application and the value rules.
+* `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
