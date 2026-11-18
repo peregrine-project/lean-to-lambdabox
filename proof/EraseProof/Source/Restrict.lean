@@ -743,11 +743,11 @@ theorem SrcEval.restrict {env : ConLeche.Env} {decls P : List ConstantInfo} {e v
     obtain ⟨ea, ha'⟩ := iha hc.2
     obtain ⟨eb, hv⟩ := ihb (BodyConstsIn_instantiate1' ha' hlam)
     exact ⟨.etaBeta (fun hs => hns ((shortSpine_iff hsub hcl hc).1 hs)) ef ea hok eb, hv⟩
-  | zeta _ hok _ ihv ihb =>
+  | zeta _ hok0 hok _ ihv ihb =>
     intro hc
     obtain ⟨ev, hv'⟩ := ihv hc.2.1
     obtain ⟨eb, hv⟩ := ihb (BodyConstsIn_instantiate1' hv' hc.2.2)
-    exact ⟨.zeta ev hok eb, hv⟩
+    exact ⟨.zeta ev hok0 hok eb, hv⟩
   | delta hu hm _ ih =>
     intro hc
     have hu' := (unfold?_agree hsub hcl hc).trans hu
@@ -889,10 +889,10 @@ theorem SrcEval.restrict {env : ConLeche.Env} {decls P : List ConstantInfo} {e v
   | atom h => intro hc; exact ⟨.atom h, hc⟩
   | etaLam => intro hc; exact ⟨.etaLam, hc⟩
   | frozen h => intro hc; exact ⟨.frozen h, hc⟩
-  | frozenApp hns _ _ herr ihf iha =>
+  | frozenApp hns _ _ herr hty ihf iha =>
     intro hc
     obtain ⟨ef, hf'⟩ := ihf hc.1
     obtain ⟨ea, ha'⟩ := iha hc.2
-    exact ⟨.frozenApp (fun hs => hns ((shortSpine_iff hsub hcl hc).1 hs)) ef ea herr, hf', ha'⟩
+    exact ⟨.frozenApp (fun hs => hns ((shortSpine_iff hsub hcl hc).1 hs)) ef ea herr hty, hf', ha'⟩
 
 end EraseProof

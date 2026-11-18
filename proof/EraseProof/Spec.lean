@@ -360,11 +360,6 @@ Reference: `welltyped Σ [] t` (`MR P/PCUICTyping.v`); `InferClaim`
 def CLTyped (env : ConLeche.Env) (t : Lean.Expr) : Prop :=
   ∃ c F T, toCL? t = some c ∧ ConLeche.inferTypeCore .verified false env F 0 c = .ok T
 
-/-- The run-time certificate of a source evaluation rule: con-leche infers a type for the closed
-redex the rule forms from evaluated parts; it takes the place of subject reduction, which
-con-leche does not have. Reference: none (DV-33). -/
-def CLOk (env : ConLeche.Env) (t : Lean.Expr) : Prop := CLTyped env t
-
 /-- con-leche's full-grade inference accepts the closed term `t` at the checker's own fuel
 `checkFuel` (`CLTyped` at a fixed fuel, so that it is a computation, decidable and refutable by
 evaluation; marks are transparent to `toCL?`). Reference: `welltyped Σ [] t`
@@ -682,6 +677,12 @@ def unmark : Expr → Expr
   | .proj s i e => .proj s i (unmark e)
   | e => e
 
+/-- The run-time certificate of a source evaluation rule: con-leche infers a type for the closed
+redex the rule forms from evaluated parts, and for its `unmark`ed reading (the η-marks contracted,
+which is the reading `Sound` speaks of); it takes the place of subject reduction, which con-leche
+does not have. For a term without η-marks the two runs coincide. Reference: none (DV-33). -/
+def CLOk (env : ConLeche.Env) (t : Lean.Expr) : Prop := CLTyped env t ∧ CLTyped env (unmark t)
+
 /-- `x` becomes the bound variable `d` (under binders, `d` plus their number); loose indices from
 `d` on move up by one; the inverse of `instantiate1' (.fvar x) d`. Port of
 `ML-V Bridge/Abstract.lean:23 absFV`; the traversal's `abstract` on λ□ terms
@@ -937,7 +938,7 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
       SrcEval env σ a a' → CLOk env (.app (markEta (.lam n A b bi)) a') →
       SrcEval env σ (b.instantiate1' a') v → SrcEval env σ (.app f a) v
   /-- `eval_zeta` (`:241`). -/
-  | zeta : SrcEval env σ val val' → CLOk env (.letE n T val' b nd) →
+  | zeta : SrcEval env σ val val' → CLOk env (.letE n T val b nd) → CLOk env (.letE n T val' b nd) →
       SrcEval env σ (b.instantiate1' val') v → SrcEval env σ (.letE n T val b nd) v
   /-- `eval_delta` (`:247`): the value marked as the traversal erases it, at its own levels. -/
   | delta : σ.unfold? c = some (ci, body) → MarkOf σ.decls σ.cfg [] body bM →
@@ -1029,7 +1030,8 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
   | frozen : CLErasable env s → SrcEval env σ (markErase s) (markErase s)
   /-- `eval_box` (`MR E/EWcbvEval.v:121`): a frozen function applied to a value is frozen. -/
   | frozenApp : ¬ ShortSpine σ (.app f a) → SrcEval env σ f (markErase s) → SrcEval env σ a a' →
-      CLErasable env (.app s a') → SrcEval env σ (.app f a) (markErase (.app s a'))
+      CLErasable env (.app s a') → CLTyped env (unmark (.app s a')) →
+      SrcEval env σ (.app f a) (markErase (.app s a'))
 
 /-! ## 6. Closures, views, the fragment -/
 
@@ -1206,6 +1208,26 @@ def ctorFields (σ : EvalEnv) (c : Name) : Option Nat :=
   match findDecl σ.decls c with
   | some (.ctorInfo cv) => some cv.numFields
   | _ => none
+
+/-- Every constructor of `decls` is listed by its inductive at its index `cidx`, with the
+inductive's parameter count, as Lean's kernel generates the records. con-leche's frontend checks
+these fields (`CL ConLeche/Frontend/ExportC.lean:241 validateIndF`), and so does `DeclsOf?`
+(`blockShapeOK`, `declOf?`; DV-3). Reference: `declared_constructor`
+(`MR common/theories/EnvironmentTyping.v:36`). -/
+def CtorsListed (decls : List ConstantInfo) : Prop :=
+  ∀ c cv, findDecl decls c = some (.ctorInfo cv) → ∃ iv,
+    findDecl decls cv.induct = some (.inductInfo iv) ∧ iv.ctors[cv.cidx]? = some c ∧
+    iv.numParams = cv.numParams
+
+/-- The inductive `Nat` of `σ`, if there is one, has Lean's shape: no parameters, not declared in
+`Prop`, and the constructors `zero`, without a field, and `succ`, with one, in that order: the
+λ□ constructors `0` and `1` of the Peano numerals (`Erases.litZero`, `Erases.litSucc`) are its.
+con-leche checks a program's `Nat` against this shape (`CL ConLeche/Kernel/Basis/Nat.lean:68
+natBasis`). Reference: none (λ□ has no Nat literals; DV-27). -/
+def NatShaped (σ : EvalEnv) : Prop :=
+  ∀ iv, findDecl σ.decls ``Nat = some (.inductInfo iv) → iv.numParams = 0 ∧
+    σ.propInd ``Nat = false ∧
+    ∃ z s, iv.ctors = [z, s] ∧ ctorFields σ z = some 0 ∧ ctorFields σ s = some 1
 
 /-- The members of a recursor's block as `visitRec` builds them for `recFix`. Port of
 `ML-V Spec.lean:1324`. -/
