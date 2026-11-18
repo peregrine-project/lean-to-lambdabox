@@ -6,3 +6,7 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
+EraseProof.toCL?_instantiate1'_closed EraseProof.srcEval_sound
+EraseProof.toCL?_instLevels EraseProof.srcEval_sound
+EraseProof.CLTyped.closed EraseProof.CLOk.wellDenoted
+EraseProof.toCL?_hasFvar EraseProof.CLOk.wellDenoted
