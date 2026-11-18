@@ -6,6 +6,9 @@ import EraseProof.Source.Marks
 import EraseProof.Simulation.Cases
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
+import EraseProof.Test.NV0Premises
+import EraseProof.Test.NV1Premises
+import EraseProof.Test.NV2Premises
 /-!
 # Verification of the eraser
 
