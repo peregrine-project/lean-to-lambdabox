@@ -37,3 +37,9 @@ EraseProof.SimCases.erases_correct_etaLam EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozen EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozenApp EraseProof.erases_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
+EraseProof.ConLecheAccepts.find?_defn EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_thm EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_axiom EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_rec EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.find?_single EraseProof.srcEval_sound
