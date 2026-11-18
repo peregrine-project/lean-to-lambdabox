@@ -25,3 +25,4 @@ EraseProof.SimCases.erases_correct_atom EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_etaLam EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozen EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozenApp EraseProof.erases_correct
+EraseProof.SrcEval.restrict EraseProof.erase_correct

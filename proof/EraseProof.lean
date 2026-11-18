@@ -4,6 +4,7 @@ import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Source.Marks
 import EraseProof.Simulation.Cases
+import EraseProof.Source.Restrict
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NV0Premises
@@ -29,6 +30,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Source.Value`: the shapes of source values; every evaluation result is one.
 * `EraseProof.Simulation.Cases`: the cases β, ζ, δ, atoms, application congruence and the frozen
   rules of the relation-level simulation.
+* `EraseProof.Source.Restrict`: source evaluation in the program restricts to a
+  dependency-closed sub-environment.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Bridge.CLAccept`: what con-leche's acceptance of the program gives.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
