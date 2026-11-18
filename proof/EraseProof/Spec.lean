@@ -200,10 +200,10 @@ def blockOf? (P : List Lean.ConstantInfo) (H : Lean.InductiveVal) : Option ConLe
   return .indDecl (types ++ ctors.flatten ++ recs) H.numParams
 
 /-- One Lean constant's records (`CL ConLeche/Frontend/ExportC.lean:398 declOfF`). Unsafe and
-partial constants are left out, as lean4export leaves them out
+partial constants (not inductives: an unsafe inductive rejects the program) are left out, as lean4export leaves them out
 (`CL ConLeche/Frontend/Olean/Reads.lean:18 CKindF.skipped`); an inductive block is emitted at its
 first member, and its other members, constructors and recursors are part of it: each must be
-listed by its block (an inductive in its head's `all`, a constructor in its `induct`'s `ctors`, a
+listed by its block (an inductive in its head's `all`, and in its own `all`, a constructor in its `induct`'s `ctors`, a
 recursor's `all` that of the inductive at its head), so that every record of `P` is checked. -/
 def declOf? (P : List Lean.ConstantInfo) : Lean.ConstantInfo → Option (List ConLeche.Declaration)
   | .axiomInfo v =>
@@ -216,10 +216,10 @@ def declOf? (P : List Lean.ConstantInfo) : Lean.ConstantInfo → Option (List Co
     if v.isUnsafe then some [] else return [.opaqueDecl (← cvOf? v.toConstantVal) (← toCL? v.value)]
   | .quotInfo v => return [.quotDecl (quotKindOf v.kind) (← cvOf? v.toConstantVal)]
   | .inductInfo v =>
-    if v.isUnsafe then some []
+    if v.isUnsafe then none
     else if v.all.head? == some v.name then return [← blockOf? P v]
     else match v.all.head?.bind (Erasure.findConst P) with
-      | some (.inductInfo h) => if h.all == v.all then some [] else none
+      | some (.inductInfo h) => if h.all == v.all && v.all.contains v.name then some [] else none
       | _ => none
   | .ctorInfo c => match Erasure.findConst P c.induct with
     | some (.inductInfo t) => if t.ctors.contains c.name then some [] else none

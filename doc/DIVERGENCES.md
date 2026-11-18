@@ -811,6 +811,8 @@ What the statements and the checks rely on without proof:
   (CL ConLeche/Model/Inductives/GenRuleSyn.lean:292) and states of the accepted environment's
   rules their scoping and `λ`-count (CL ConLeche/Verify/EnvWF.lean:217); it is true of every
   accepted environment, is decidable, and is not derived from the fold here.
+  Acceptance also rejects a program whose declarations include an unsafe inductive: con-leche skips
+  an unsafe block, so its constructors and recursors would be unchecked.
 - **Why it is forced:** the main theorem of con-leche is stated for every pin list, so the empty list
   needs no pin data, which comes from con-leche's pin generator and is outside the hygiene allow
   list of check C6; the binary's driver is IO code (check C6) and the cached fold reads a
