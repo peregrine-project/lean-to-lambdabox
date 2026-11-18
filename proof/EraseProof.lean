@@ -1,3 +1,4 @@
+import EraseProof.Bridge.CLRead
 import EraseProof.Statements
 import EraseProof.Source.Marks
 import EraseProof.Test.Marks
@@ -14,5 +15,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
   con-leche checks, the marks, the source semantics, the erasure relation, `Sound`).
 * `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
   instantiation and instantiation.
+* `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
