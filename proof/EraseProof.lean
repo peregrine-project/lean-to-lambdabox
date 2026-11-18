@@ -11,6 +11,7 @@ import EraseProof.Simulation.Cases
 import EraseProof.Simulation.Ind
 import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Rec
+import EraseProof.Simulation.Main
 import EraseProof.Source.Restrict
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
@@ -47,6 +48,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Simulation.Quot`: the quotient cases of the relation-level simulation.
 * `EraseProof.Simulation.RecFix`: the λ□ fixpoint of a recursor of a single inductive, unfolded.
 * `EraseProof.Simulation.Rec`: the recursor ι case of the relation-level simulation.
+* `EraseProof.Simulation.Main`: the relation-level simulation `erases_correct`.
 * `EraseProof.Source.Restrict`: source evaluation in the program restricts to a
   dependency-closed sub-environment.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
