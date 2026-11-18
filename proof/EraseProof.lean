@@ -1,3 +1,5 @@
+import EraseProof.Statements
+import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
 /-!
 # Verification of the eraser
@@ -5,4 +7,9 @@ import EraseProof.Test.NV1Run
 The library root of the proof package: the correctness of the erasure behind `#erase`
 (`LeanToLambdaBox`) against con-leche's set-theoretic model of Lean's kernel. The checks are in
 `scripts/check.sh`.
+
+* `EraseProof.Target`: λ□ and its evaluation.
+* `EraseProof.Spec`: the definitions the statements are about (the bridge to con-leche, the
+  con-leche checks, the marks, the source semantics, the erasure relation, `Sound`).
+* `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

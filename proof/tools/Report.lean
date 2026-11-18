@@ -149,11 +149,35 @@ def trustedMode : Name := `ConLeche.CheckMode.trusted
 
 /-- The theorems with a statement definition (`EraseProof/Statements.lean`), each with that
 definition (C12). -/
-def statements : Array (Name × Name) := #[]
+def statements : Array (Name × Name) := #[
+  (`EraseProof.erase_correct, `EraseProof.erase_correct_statement),
+  (`EraseProof.erases_correct, `EraseProof.erases_correct_statement),
+  (`EraseProof.erasePure_erases, `EraseProof.erasePure_erases_statement),
+  (`EraseProof.srcEval_sound, `EraseProof.srcEval_sound_statement),
+  (`EraseProof.collectDeps_ok_of, `EraseProof.collectDeps_ok_of_statement),
+  (`EraseProof.erase_correct_firstorder, `EraseProof.erase_correct_firstorder_statement),
+  (`EraseProof.sound_nonvacuous, `EraseProof.sound_nonvacuous_statement),
+  (`EraseProof.clCert_proof_pt, `EraseProof.clCert_proof_pt_statement),
+  (`EraseProof.markOf_det, `EraseProof.markOf_det_statement),
+  (`EraseProof.markOf_exists, `EraseProof.markOf_exists_statement),
+  (`EraseProof.collectDeps_sub, `EraseProof.collectDeps_sub_statement),
+  (`EraseProof.markOf_agree, `EraseProof.markOf_agree_statement)]
 
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
-def unproved : Array Name := #[]
+def unproved : Array Name := #[
+  `EraseProof.erase_correct,
+  `EraseProof.erases_correct,
+  `EraseProof.erasePure_erases,
+  `EraseProof.srcEval_sound,
+  `EraseProof.collectDeps_ok_of,
+  `EraseProof.erase_correct_firstorder,
+  `EraseProof.sound_nonvacuous,
+  `EraseProof.clCert_proof_pt,
+  `EraseProof.markOf_det,
+  `EraseProof.markOf_exists,
+  `EraseProof.collectDeps_sub,
+  `EraseProof.markOf_agree]
 
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)
