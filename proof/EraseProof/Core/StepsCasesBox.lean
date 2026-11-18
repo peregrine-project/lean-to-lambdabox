@@ -374,8 +374,8 @@ theorem visitAppArgs_run {j : Nat} (ih : ∀ e, ExprSpec E B view cfg decls j e)
     {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {S : Name → Prop} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
     {r tf : LBTerm} {args : List Expr}
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hargs : ∀ a ∈ args, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hargs : ∀ a ∈ args, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A)
     (hok : StateOK E B (evalEnvOf view cfg decls) st)
     (hdf : ErasesDeps E B (evalEnvOf view cfg decls) st.gdecls tf)
@@ -440,8 +440,8 @@ theorem casesSat_reduced (hG : CoreEnv E B P decls view cfg) {j : Nat}
     {tc : TravCtx} {ps : PureState} {r : LBTerm} {st' : ErasureState} {ps' : PureState}
     {u : Level} (hu : ∀ m, as[casesMajor iv]? = some m →
       Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals m = .ok u) (hz : u.isNeverZero = false)
-    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK decls S)
-    (hocc : ∀ d, nameOccurs d (mkAppN (.const c us) as.toArray) = true → S d)
+    (hctx : CtxOK E B lps Γ Δ cfg tc ps) (hsc : ScopeOK view cfg decls S)
+    (hocc : ∀ d ls, OccursAt d ls (mkAppN (.const c us) as.toArray) → InScope tc lps S d ls)
     (hmf : MachineFree cfg (mkAppN (.const c us) as.toArray))
     (hnp : NatPlain cfg (mkAppN (.const c us) as.toArray))
     (hrf : RecShaped cfg decls (mkAppN (.const c us) as.toArray))
@@ -531,15 +531,14 @@ theorem casesSat_reduced (hG : CoreEnv E B P decls view cfg) {j : Nat}
   have hQ : ∀ {Q : Expr → Prop}, (∀ f a, Q (.app f a) → Q f ∧ Q a) →
       Q (mkAppN (.const c us) as.toArray) → ∀ a ∈ as, Q a := fun hQ' h =>
     (foldl_pred hQ' (by rw [← hsp]; exact h)).2
-  have hoccA := hQ (Q := fun x => ∀ d, nameOccurs d x = true → S d)
-    (fun f a h => ⟨fun d hd => h d (by simp [nameOccurs, hd]),
-      fun d hd => h d (by simp [nameOccurs, hd])⟩) hocc
+  have hoccA := hQ (Q := fun x => ∀ d ls, OccursAt d ls x → InScope tc lps S d ls)
+    (fun f a h => ⟨fun d ls hd => h d ls (.inl hd), fun d ls hd => h d ls (.inr hd)⟩) hocc
   have hmfA := hQ (Q := MachineFree cfg) (fun _ _ h => h) hmf
   have hnpA := hQ (Q := NatPlain cfg) (fun _ _ h => h) hnp
   have hrfA := hQ (Q := RecShaped cfg decls) (fun _ _ h => h) hrf
   have htyA := (spine_typed (casesOn_notSpecial (σ := evalEnvOf view cfg decls) hG.prog hG.sub hd)
     he ⟨T, hT⟩).2
-  have hargs : ∀ a ∈ as, (∀ d, nameOccurs d a = true → S d) ∧ MachineFree cfg a ∧
+  have hargs : ∀ a ∈ as, (∀ d ls, OccursAt d ls a → InScope tc lps S d ls) ∧ MachineFree cfg a ∧
       NatPlain cfg a ∧ RecShaped cfg decls a ∧ ∃ a', TrM E B lps Γ Δ a a' ∧ ∃ A, E[Γ] ⊢ a' : A :=
     fun a ha => ⟨hoccA a ha, hmfA a ha, hnpA a ha, hrfA a ha, htyA a ha⟩
   -- the alternative

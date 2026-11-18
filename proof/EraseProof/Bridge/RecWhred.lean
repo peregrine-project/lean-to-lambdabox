@@ -19,6 +19,8 @@ open Metalean (WHRed WHRedS Head Defeq)
 
 namespace EraseProof
 
+variable {C : Expr → Expr → Prop}
+
 variable {ζ : Metalean.Sigs} {E : Metalean.Env ζ} {B : Binds ζ} {P : List ConstantInfo}
 
 /-- A weakened binding is a recursor binding only if the binding is one. -/

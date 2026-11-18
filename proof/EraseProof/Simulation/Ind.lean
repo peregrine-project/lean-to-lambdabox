@@ -302,10 +302,11 @@ theorem mkApps_construct_ne_box {iid : InductiveId} {c : Nat} {as : List LBTerm}
   rw [headOf_mkApps] at this
   cases this
 
-/-- A spine with fewer arguments than its head's arity erases to `□` or as its η-expansion. -/
+/-- A spine with fewer arguments than its head's arity, in a context without fix variables,
+erases to `□` or as its η-expansion. -/
 theorem eta_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ lps.length n}
     {c : Name} {us : List Level} {as : List Expr} {e' : Expr} {tb : LBTerm}
-    (heta : σ.etaSpine? c us as = some e')
+    (hΔ : ∀ y, Δ.findFix y = none) (heta : σ.etaSpine? c us as = some e')
     (h : Erases E B lps σ Γ Δ (mkAppN (.const c us) as.toArray) tb) :
     (tb = .box ∧ ErasableS E B lps Γ Δ (mkAppN (.const c us) as.toArray)) ∨
       Erases E B lps σ Γ Δ e' tb := by
@@ -367,6 +368,15 @@ theorem eta_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ l
     obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
     rw [har] at hsa
     cases hsa
+  | fixVar _ _ hF => rw [hΔ] at hF; cases hF
+  | constFix hci hdef hco =>
+    obtain ⟨-, rfl, -⟩ := SrcDefeq.spine_const hx
+    rcases SrcDefeq.specialArity_some har with ⟨cv, hcv, -⟩ | ⟨iv, hiv⟩ | ⟨qv, hqv, -⟩ |
+      ⟨rv, hrv, -⟩
+    · rw [hci] at hcv; cases hcv; cases hdef
+    · rw [hco] at hiv; cases hiv
+    · rw [hci] at hqv; cases hqv; cases hdef
+    · rw [hci] at hrv; cases hrv; cases hdef
   | bvar | fvar | lam | letE | proj | litZero | litSucc | mdata =>
     exact absurd hx.symm (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
 
@@ -404,7 +414,8 @@ theorem lam_erases_atom {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : ML
   | lam | box => rfl
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | letE | app | const | proj | litZero | litSucc | mdata => cases hx
+  | bvar | fvar | letE | app | const | fixVar | constFix | proj | litZero | litSucc | mdata =>
+    cases hx
 
 /-- The `k`-th constructor of an inductive bound to a Metalean sort: its declaration, counts and
 position. -/
@@ -487,7 +498,8 @@ theorem proj_inv {n : Nat} {Γ : Metalean.Ctx ζ lps.length 0 n} {Δ : MLCtx ζ 
   | box hb => subst hx; exact .inl ⟨rfl, hb⟩
   | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
     exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-  | bvar | fvar | lam | letE | app | const | litZero | litSucc | mdata => cases hx
+  | bvar | fvar | lam | letE | app | const | fixVar | constFix | litZero | litSucc | mdata =>
+    cases hx
 
 /-- The major premise of a typed projection has a typed translation. -/
 theorem trM_proj_major {S : Name} {i : Nat} {e : Expr} {t T : Metalean.Expr ζ lps.length 0}
@@ -749,7 +761,7 @@ theorem erases_correct_lit (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     | litSucc => cases hx
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | mdata => cases hx
   | succ k ih =>
     generalize hx : Expr.lit (.natVal (k + 1)) = x at her
     cases her with
@@ -765,7 +777,7 @@ theorem erases_correct_lit (henv : ProgEnv P ζ E B) (hsub : SubEnv σ.decls P)
     | litZero => cases hx
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | mdata => cases hx
 
 /-- The `eta` case of `erases_correct`: a spine with fewer arguments than its head's arity erases
 as its η-expansion, a λ, whose erasure is a λ□ value, or to `□`. Reference: none (MetaRocq
@@ -775,7 +787,7 @@ theorem erases_correct_eta (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubE
     (heta : σ.etaSpine? c us as = some e') :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) e' := by
   intro t tb he ⟨T, ht⟩ her _
-  rcases eta_inv heta her with ⟨rfl, hbx⟩ | h
+  rcases eta_inv (fun _ => rfl) heta her with ⟨rfl, hbx⟩ | h
   · exact erases_correct_box henv hE hsub he ht hbx (.eta heta)
   · obtain ⟨x, A, b, bi, rfl⟩ := etaSpine?_lam heta
     exact ⟨tb, h, .atom (lam_erases_atom h)⟩
@@ -788,16 +800,16 @@ theorem erases_correct_ctor (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     (hbinj : BlockNamesInj σ.decls) {c : Name} {us : List Level} {cv : ConstructorVal}
     {as vs : List Expr} (hc : findDecl σ.decls c = some (.ctorInfo cv))
     (hlen : as.length = cv.numParams + cv.numFields) (hlen' : as.length = vs.length)
-    (hev : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ a v)
+    (hev : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → SrcEval σ (SrcConv E B lps) a v)
     (ih : ∀ (i : Nat) a v, as[i]? = some a → vs[i]? = some v → ErasesSim E B lps σ lenv a v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) :=
+  have hsrc : SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) as.toArray) (mkAppN (.const c us) vs.toArray) :=
     .ctor hc hlen hlen' hev
-  rcases Erases.ctor_inv hc (by omega) her with ⟨rfl, hbx⟩ | ⟨iid, as', hid, rfl, hlen'', hall⟩
+  rcases Erases.ctor_inv hc (by omega) (fun _ => rfl) her with ⟨rfl, hbx⟩ | ⟨iid, as', hid, rfl, hlen'', hall⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
   have hnp : ¬ PropInductive E B cv.induct := fun hp =>
-    mkApps_construct_ne_box (Erases.ctorProp_box hc hp (by omega) her)
+    mkApps_construct_ne_box (Erases.ctorProp_box hc hp (by omega) (fun _ => rfl) her)
   obtain ⟨ι, η, s, k, o, hB, -, -, -, hmo, -⟩ := henv.lookup_ctor (SrcDefeq.findDecl_sub hsub hc)
   obtain ⟨bs', hlb, hargs, hsat⟩ := TrM.special_inv hB rfl he
   have htyped := SrcDefeq.satTr_ctor_typed hmo hsat ht
@@ -844,10 +856,10 @@ never-zero sort has no proofs, `eval_proj_prop` applies, and the field is a proo
 `eval_proj` case of `erases_correct` (`MR E/ErasureCorrectness.v:489`). -/
 theorem erases_correct_proj (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls) {S : Name} {i : Nat} {e m a : Expr} {fs : List Expr}
-    (hm : SrcEval σ e m) (hcv : CtorValue σ S m 0 fs) (ha : fs[i]? = some a)
+    (hm : SrcEval σ (SrcConv E B lps) e m) (hcv : CtorValue σ S m 0 fs) (ha : fs[i]? = some a)
     (ih : ErasesSim E B lps σ lenv e m) : ErasesSim E B lps σ lenv (.proj S i e) a := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (.proj S i e) a := .proj hm hcv ha
+  have hsrc : SrcEval σ (SrcConv E B lps) (.proj S i e) a := .proj hm hcv ha
   rcases proj_inv her with ⟨rfl, hbx⟩ | ⟨iid, iv, e', -, hid, hiv, hdisj, he', rfl⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
   obtain ⟨e₀, M, he₀, hM⟩ := trM_proj_major he ht
@@ -858,7 +870,7 @@ theorem erases_correct_proj (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
   obtain ⟨mb, hmb, hevmb⟩ := ih he₀ ⟨M, hM⟩ he' hde
   obtain ⟨C, us', cv, ps, hC, hind, hcidx, hps, hfs, rfl⟩ := hcv
   have hlen : (ps ++ fs).length = cv.numParams + cv.numFields := by simp [hps, hfs]
-  rcases Erases.ctor_inv hC (by omega) hmb with ⟨rfl, hbx⟩ | ⟨iid', as', hid', rfl, hlen', hall⟩
+  rcases Erases.ctor_inv hC (by omega) (fun _ => rfl) hmb with ⟨rfl, hbx⟩ | ⟨iid', as', hid', rfl, hlen', hall⟩
   · -- the major's value is `□`: the inductive is in `Prop`
     have hP : PropInductive E B S := by
       rcases hdisj with hP | ⟨n, u, har, hnz⟩
@@ -873,7 +885,7 @@ theorem erases_correct_proj (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : Sub
     rw [hid] at hid'
     cases hid'
     have hnp : ¬ PropInductive E B cv.induct := fun hp =>
-      mkApps_construct_ne_box (Erases.ctorProp_box hC hp (by omega) hmb)
+      mkApps_construct_ne_box (Erases.ctorProp_box hC hp (by omega) (fun _ => rfl) hmb)
     rw [hind] at hnp
     obtain ⟨mib, ob, cb, hlk, hnpars, hnargs, hprop⟩ :=
       lookupCtor_of henv hsub hC (by rw [hind]; exact hid) (by rw [hind]; exact hindS)
@@ -906,11 +918,11 @@ value, a neutral proof projection, is erasable. Reference: none (DV-24); the λ�
 `eval_proj_prop` (`MR E/EWcbvEval.v:238`). -/
 theorem erases_correct_projProp (henv : ProgEnv P ζ E B) (hE : EnvWF E) (hsub : SubEnv σ.decls P)
     (hbinj : BlockNamesInj σ.decls) {S : Name} {i : Nat} {e m : Expr}
-    (hS : σ.propInd S = true) (hm : SrcEval σ e m) (hv : AtomSpine σ m ∨ PropProj σ m)
+    (hS : σ.propInd S = true) (hm : SrcEval σ (SrcConv E B lps) e m) (hv : AtomSpine σ m ∨ PropProj σ m)
     (ih : ErasesSim E B lps σ lenv e m) :
     ErasesSim E B lps σ lenv (.proj S i e) (.proj S i m) := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (.proj S i e) (.proj S i m) := .projProp hS hm hv
+  have hsrc : SrcEval σ (SrcConv E B lps) (.proj S i e) (.proj S i m) := .projProp hS hm hv
   rcases proj_inv her with ⟨rfl, hbx⟩ | ⟨iid, iv, e', -, hid, hiv, -, he', rfl⟩
   · exact erases_correct_box henv hE hsub he ht hbx hsrc
   obtain ⟨e₀, M, he₀, hM⟩ := trM_proj_major he ht
@@ -938,16 +950,16 @@ theorem erases_correct_casesProof (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) {c : Name} {us vs : List Level} {iv : InductiveVal}
     {as ps : List Expr} {m mv alt v st : Expr} {l : Level} {cn : Name} {cv : ConstructorVal}
     (hcs : σ.casesOn? c = some iv) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m mv) (hat : AtomSpine σ mv)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ (SrcConv E B lps) m mv) (hat : AtomSpine σ mv)
     (hl : casesSortLevel iv us = some l) (hz : EvidentZero l = true) (hcn : iv.ctors = [cn])
     (hcv : findDecl σ.decls cn = some (.ctorInfo cv)) (hnf : cv.numFields = 0)
     (hst : σ.spineType? mv = some st) (hps : ps.length = cv.numParams)
     (hpi : piInst ps (Pure.instLevels cv.levelParams vs cv.type) = some st)
-    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ alt v)
+    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ (SrcConv E B lps) alt v)
     (ihalt : ErasesSim E B lps σ lenv alt v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) as.toArray) v :=
     .casesProof hcs hlen hm hmv hat hl hz hcn hcv hnf hst hps hpi halt hv
   rcases Erases.cases_inv hcs (by omega) her with ⟨rfl, hbx⟩ | ⟨-, -, -, -, -, -, -, -, -, hnr, -⟩ |
     ⟨pre, maj, alt', extra, cn', cv', altb, extra', rfl, -, hcn', hcv', -, hpre, haltb, hlex, -, rfl⟩
@@ -983,14 +995,14 @@ theorem erases_correct_casesLitZero (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     (hsub : SubEnv σ.decls P) (hbinj : BlockNamesInj σ.decls) {c : Name} {us : List Level}
     {iv : InductiveVal} {as : List Expr} {m alt v : Expr}
     (hcs : σ.casesOn? c = some iv) (hnat : iv.name = ``Nat) (hlen : as.length = casesArity iv)
-    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ m (.lit (.natVal 0)))
-    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ alt v)
+    (hm : as[casesMajor iv]? = some m) (hmv : SrcEval σ (SrcConv E B lps) m (.lit (.natVal 0)))
+    (halt : as[casesMajor iv + 1]? = some alt) (hv : SrcEval σ (SrcConv E B lps) alt v)
     (ihm : ErasesSim E B lps σ lenv m (.lit (.natVal 0)))
     (ihalt : ErasesSim E B lps σ lenv alt v) :
     ErasesSim E B lps σ lenv (mkAppN (.const c us) as.toArray) v := by
   intro t tb he ⟨T, ht⟩ her hdeps
   have hok := SrcDefeq.nil_ok (E := E) (lps := lps)
-  have hsrc : SrcEval σ (mkAppN (.const c us) as.toArray) v :=
+  have hsrc : SrcEval σ (SrcConv E B lps) (mkAppN (.const c us) as.toArray) v :=
     .casesLitZero hcs hnat hlen hm hmv halt hv
   -- the Metalean `Nat`
   obtain ⟨m₀, M, hm₀, hM⟩ := casesOn_arg henv hsub hcs hm he ht
@@ -1062,7 +1074,7 @@ theorem erases_correct_casesLitZero (henv : ProgEnv P ζ E B) (hE : EnvWF E)
     | litSucc => cases hx
     | ctor | cases | casesReduced | eta | quotMk | quotLift | recLet | recFix =>
       exact absurd hx (CasesWhred.ne_mkAppN_const fun _ _ h => by cases h)
-    | bvar | fvar | lam | letE | app | const | proj | mdata => cases hx
+    | bvar | fvar | lam | letE | app | const | fixVar | constFix | proj | mdata => cases hx
   subst hmbz
   -- the first alternative, under no field binder
   have halt0 : alts[0]? = some alt := by

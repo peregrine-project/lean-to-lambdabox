@@ -3802,6 +3802,156 @@ the calls at which the two oracles answer differently. It must equal
 - **Effect on emitted .ast (corpus):** none: only the README changes.
 - **Regression test:** none; the change is documentation.
 
+## S-56: Under `structural := .unsafeRec`, the pure path erases structural recursion through its compiled pre-definition, and the fragment test admits it
+
+- **Commit:** the commit whose subject starts with `S-56:` (`git log --grep='^S-56:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: new `renameUnsafeRec` (every constant `n._unsafe_rec`
+    of a term replaced by `n`, by a structural walk, as `replaceUnsafeRecNames` does on the `Meta`
+    path) and `preDef?` (under `structural := .unsafeRec`, the compiled pre-definition of a
+    definition by structural recursion: the value of its `_unsafe_rec` companion in the view,
+    renamed by `renameUnsafeRec`, if it mentions the definition; `none` otherwise); `nameOccurs`
+    moves before them; `PureM.declInfo?` takes the configuration and gives a definition with a
+    compiled pre-definition that value, with its name, levels, type and block; the instance
+    `Backend PureM` passes the configuration on; the module docstring and the instance's
+    docstring.
+  - `LeanToLambdaBox/Erasure.lean`: `visitMutual`, fixpoint branch: the member whose name is that
+    of the declaration `declInfo?` returned is erased from that declaration instead of being
+    looked up again with `getConst`; the other members are looked up as before.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: `declExclusion` admits a definition with an
+    `_unsafe_rec` companion if it is a definition by structural recursion
+    (`isStructuralRecursive`) and either `structural := .kernel` or it has a compiled
+    pre-definition; `closureStep` also reads the constants of a definition's compiled
+    pre-definition (the constants of its kernel value are still read); the docstrings of
+    `declExclusion`, `closureStep` and `collectDeps`.
+  - new `tests/regress/pure_unsafe_rec.lean` with its goldens.
+  - `tests/regress/pure_backend.lean`: `declInfo?_eq` states `Backend.declInfo? cfg n =
+    PureM.declInfo? cfg n`; the docstring.
+  - `tests/regress/structural.lean`: the verdict on `ST.useAdd` without the flag, the golden
+    `useAddDefault.ast` with its `.inlinings`, and the docstring.
+  - `tests/regress/auto_inline.lean` (`on.ast`, `run.ast`), `tests/regress/peano_literal.lean`
+    (`hugeIfZero`) and `tests/corpus/Defects.lean` (`collide`): the program is erased under
+    `remove_irrel_constr_args` as well, so that it stays outside the fragment and on the `Meta`
+    path; the docstrings.
+  - `tests/corpus/SHA256SUMS`, `tests/harness/expected/pure-harness.txt`.
+  - `doc/SHIPPING-CHANGES.md`: this entry and R-11.
+- **Why necessary:** under the default `structural := .unsafeRec`, the `Meta` path erases a
+  definition by structural recursion through its `_unsafe_rec` companion (S-42), the
+  pre-definition that the code generator compiles, which calls the function itself. The fragment
+  test sent every definition with a companion to the `Meta` path, so a program with structural
+  recursion reached the pure path only under `structural := .kernel` (S-44), whose fixpoints over
+  `T.brecOn` compute the whole `T.below` table before the function's body runs. With this change
+  the pure path erases such a definition through the same pre-definition, to the fixpoint that
+  the `Meta` path emits, and the fragment test admits it under the default configuration. The
+  kernel value is still read, so the recursors that it applies are still checked by the fragment
+  test. `visitMutual` must keep the declaration `declInfo?` returned: it looked every member up
+  again by name, which on the pure path gives the kernel definition. On the `Meta` path,
+  `declInfoCore` returns `Environment.find?` of the declaration's own name (the companion's or
+  the definition's), which is what `getConst` returns for that name, so the `Meta` path's output
+  does not change. `preDef?` looks the companion up before it tests `isStructuralRecursive`, so a
+  definition without a companion does not reach `brecOnInduct?`, whose `String.startsWith` does
+  not reduce under `decide`, which `pure_inductive` applies to `collectDeps`.
+- **Behaviour before:** with `config {extern := .preferLogical, nat := .peano}`, `collectDeps`
+  excludes `Nat.add 2 3` (`outside the fragment: recursive definition Nat.add`), and `#erase` takes
+  the `Meta` path; the pure path erases a definition only through its kernel definition.
+- **Behaviour after:** `Nat.add 2 3`, `Nat.beq 2 3` and `[true, false, true].length` are in the
+  fragment and take the pure path, which declares `Nat.add` as `tFix [⟨Nat.add, λ x. λ y. …, 0⟩]
+  0`, the fixpoint of the `Meta` path, with the matcher `Nat.add.match_1` as a constant instead of
+  inlined (the pure path has no `prepare` step, S-20); peregrine evaluates the three programs to
+  5, `false` and 3. A definition by well-founded recursion (`log2`), a `partial` definition, a
+  member of a mutual block, and a definition whose pre-definition mentions it only in a type stay
+  outside, as before. Under `structural := .kernel` and on the `Meta` path nothing changes. A
+  program that moves to the pure path is erased with the pure path's differences (S-29): with
+  `auto_inline_typeclass_dispatch`, it marks no instance and logs nothing.
+- **Effect on emitted .ast (corpus):** against the corpus of S-55 (708 files): 696 byte-identical,
+  among them the 120 benchmark files and every program that stays on the `Meta` path; `PANIC`
+  counts unchanged. 12 files of 8 programs under `nat := .peano` differ, and each of these
+  programs moves from the `Meta` path to the pure path (the recursive definition that excluded it
+  in parentheses): `NearMiss/NM_church3.peano` and `NM_R_church3.peano` (`NM.church`),
+  `PortProbe/double.peano` (`Nat.add`), `fact.peano` (`Tiny.fact`), `ptEqN.peano` (`Nat.beq`),
+  `useHalf.peano` and `usePred.peano` (`Nat.ble`), and `width.peano` (`Nat.sub`), with the
+  `.inlinings` of
+  `NM_church3.peano`, `NM_R_church3.peano`, `fact.peano` and `ptEqN.peano`. Their recursive
+  definitions are the fixpoints of the `Meta` path. The differences are the pure path's (S-29):
+  matchers stay constants (`@[inline]` ones listed in the `.inlinings` file: `NM.isZeroNat.match_1`,
+  `Tiny.fact.match_1`, `Tiny.instBEqPt.beq.match_1`, `Bool.Internal.and.match_1`); the
+  `@[macro_inline]` `ite`, `dite`, `False.elim` and `instDecidableEqBool` stay constants; in
+  `ptEqN.peano`, `Bool.and` and `Bool.not` are not replaced by their `@[csimp]` variants
+  `Bool.Internal.and` and `Bool.Internal.not`, and their kernel values, which apply `Bool.rec`, are
+  erased to two more fixpoints (S-40). `peregrine validate`
+  accepts the 8 outputs, and `peregrine eval` gives the values of the `Meta` outputs (3, 6, 24,
+  1, 3, 2 and 3 for the seven applications); `NM_church3.peano` is a function, whose printed
+  closure differs only in a code number. `scripts/pure-harness.sh` passes with its expected
+  summary updated: 294 `#erase`, 233 in the fragment (225), 58 outside (66), 3 `collectDeps`
+  errors; 219 identical, 14 differ (6), the 8 new ones with `#erase = pure`; 9949 oracle calls
+  (8326), 1 differs (unchanged), none fails. For 9 programs that stay outside, the exclusion
+  named changes, since the closure no longer stops at the recursive definition: `mli_fallback`
+  (`recursor Nat.rec, which the eraser keeps as a constant`), `bigEq.peano` and `colorCode.peano`
+  (`recursor Eq.rec, …`), `double.default` and `double.prune` (`Nat.succ under nat := .machine`),
+  `fact.default` and `fact.prune` (`Nat literal under nat := .machine`), `shapeEq.peano`
+  (`recursive definition Nat.bitwise`) and `collide` (`inductive OfNat under
+  remove_irrel_constr_args`).
+- **Regression test:** `pure_unsafe_rec` checks `preDef?` on `Nat.add` (the renamed value of
+  `Nat.add._unsafe_rec`, which mentions `Nat.add` and not the companion) and `none` under
+  `structural := .kernel`, on `log2`, on the non-recursive `Nat.pred` and on `Nat.succ`; that
+  `PureM.declInfo?` keeps the name, levels, type and block of `Nat.add`; the routes: the three
+  programs take the pure path, whose output differs from the `Meta` path's, while `Nat.add 2 3`
+  under `remove_irrel_constr_args` and `log2 8` stay outside; the fixpoint of `Nat.add` and the
+  constant `Nat.add.match_1` in the pure program; and it pins `add.ast`, `beq.ast`, `length.ast`
+  and `metaAdd.ast` (the `Meta` path's, which equals the output of the parent commit for the same
+  `#erase` up to hygienic names), which peregrine validates and evaluates to 5, `false`, 3 and 5.
+  Before this commit the test does not elaborate (`preDef?` does not exist). `structural`: without
+  the flag, `useAdd` is in the fragment, and `useAddDefault.ast` is the pure path's program (the
+  matcher `ST.add.match_1` kept, and listed in the `.inlinings`), which peregrine still validates
+  and evaluates to 5. `auto_inline`, `peano_literal` and the corpus keep their outputs and
+  messages; without `remove_irrel_constr_args`, `useAll`, `hugeIfZero` and `collide` take the pure
+  path, and the `#guard_msgs` fail (no instance marked; the pure path's error texts).
+  `scripts/regress.sh` passes (32 tests) with `PEREGRINE`.
+
+## S-57: The compiled pre-definition is read only from a `partial` companion, and the docstrings say that the test for structural recursion is syntactic
+
+- **Commit:** the commit whose subject starts with `S-57:` (`git log --grep='^S-57:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure/Pure.lean`: `preDef?` also requires the companion's safety to be
+    `partial` (`u.safety == .partial`, tested after `cfg.structural` and before
+    `isStructuralRecursive`); its docstring.
+  - `LeanToLambdaBox/Erasure.lean`: the docstrings of `isStructuralRecursive`,
+    `Config.Structural` and `declInfoCore`.
+  - `LeanToLambdaBox/Erasure/Entry.lean`: the docstrings of `declExclusion` and `collectDeps`.
+  - `README.md`: the paragraph of "Routing".
+  - `tests/regress/pure_unsafe_rec.lean`: the `partial def PUR.spin`, the check of `preDef?` in a
+    view whose `Nat.add._unsafe_rec` is `safe`, the route of `PUR.spin true` under the default
+    configuration, the `#erase` of `partial.ast`, and the docstring; new goldens `partial.ast` and
+    `partial.ast.inlinings`, with `partial.ast.validate` and `partial.ast.eval`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** `isStructuralRecursive` tests whether a definition's value mentions some
+  `brecOn` anywhere, proof subterms included, so a definition by well-founded recursion whose
+  value mentions some `T.brecOn` passes it as well. Its docstring said that it decides whether a
+  declaration is a definition by structural recursion, and the docstrings of `preDef?`,
+  `declExclusion`, `declInfoCore` and `collectDeps` (which lists exactly when the fragment test
+  reports `outOfFragment`) named the exception "a definition by structural recursion"; the
+  README said that the fragment test checks whether the closure lies in the verified fragment.
+  `preDef?` read the value of any definition named `n._unsafe_rec`, while the companion that
+  `addAndCompilePartialRec` (`Lean/Elab/PreDefinition/Basic.lean:280`) adds, whose value the code
+  generator compiles, has safety `partial`. The only test that the fragment test excludes a
+  `partial def` (`ST.loop` in `tests/regress/structural.lean`) runs under `structural := .kernel`.
+- **Behaviour before:** `preDef?` gives the renamed value of a companion of any safety. The
+  docstrings and the README describe the test for structural recursion as exact.
+- **Behaviour after:** `preDef?` is `none` when the companion is not `partial`, so under
+  `structural := .unsafeRec` the fragment test excludes such a definition (`recursive definition
+  n`). Every `_unsafe_rec` definition of the environment of the regression tests (Init, Lean,
+  Std and this package: 3118) is `partial`, so no program changes route. The docstrings say that
+  `isStructuralRecursive` admits every definition whose value mentions a `brecOn`, every
+  definition by structural recursion among them; its behaviour is unchanged.
+- **Effect on emitted .ast (corpus):** byte-identical for all 708 files (`scripts/corpus.sh
+  --check` passes). `scripts/pure-harness.sh` passes with its expected summary unchanged.
+- **Regression test:** `pure_unsafe_rec`: `preDef?` of `Nat.add` is `none` in a view whose
+  `Nat.add._unsafe_rec` has safety `safe` (before this commit it is the renamed value); under the
+  default configuration the fragment test excludes `PUR.spin true` (`outside the fragment:
+  partial definition PUR.spin`), and `#erase` takes the `Meta` path, which erases `PUR.spin`
+  through `PUR.spin._unsafe_rec` as a fixpoint: `partial.ast`, which peregrine validates and
+  evaluates to `true`. `scripts/regress.sh` passes (32 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
@@ -3975,7 +4125,8 @@ example in `tests/corpus/Defects.lean` whose output lies in `examples/Defects/` 
   `peregrine validate` rejects it: `Error while checking .URec.ug: Fixpoint body is not a lambda`.
 - **Impact:** none observed on recursive definitions whose value is a λ, which includes every
   compiler pre-definition; a recursive `unsafe def` whose value is not a λ gives a program that
-  peregrine rejects.
+  peregrine rejects. Since S-56 the pure path erases structural recursion through these
+  pre-definitions as well, so its fixpoints also have `rarg = 0` and λ bodies.
 - **Why not fixed:** not required by the verification goal unless it later becomes required.
 
 ### R-12: Mutual blocks skip the `@[extern]` and `@[inline]` handling

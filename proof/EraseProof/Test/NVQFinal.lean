@@ -6,13 +6,13 @@ import EraseProof.Test.NVQRun
 # NV-Q end to end
 
 The remaining hypotheses of the final theorem on NV-Q (`Test/NVQData.lean`): the view agrees with
-the program (`hview`), the fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and
-`e` evaluates to `B.t` (`hev`: the quotient ι, `SrcEval.quotLift`, on `Quot.mk R (fun y => y)`,
-whose element is a value, continues with the body of `fun x => x` at the element, `fun y => y`;
-then a β-step on the argument `B.t`). `final` applies the final theorem `erase_correct` to all
-eight hypotheses (`henv`, `hwf`, `he`, `hty` from `Test/NVQModel.lean`, `hrun` from
-`Test/NVQRun.lean`): the program `p0` that `#erase` emits is an untyped λ□ program whose main term
-evaluates to an erasure of `B.t`.
+the program (`hview`), no declaration of the program has a compiled pre-definition (`hpre`), the
+fragment test accepts `e` (`hfrag`, the closure `D` of `hcollect`), and `e` evaluates to `B.t`
+(`hev`: the quotient ι, `SrcEval.quotLift`, on `Quot.mk R (fun y => y)`, whose element is a value,
+continues with the body of `fun x => x` at the element, `fun y => y`; then a β-step on the argument
+`B.t`). `final` applies the final theorem `erase_correct` to all nine hypotheses (`henv`, `hwf`,
+`he`, `hty` from `Test/NVQModel.lean`, `hrun` from `Test/NVQRun.lean`): the program `p0` that
+`#erase` emits is an untyped λ□ program whose main term evaluates to an erasure of `B.t`.
 -/
 
 open Lean Erasure Metalean
@@ -46,23 +46,23 @@ theorem hfrag : collectDeps view cfg e = .ok D := hcollect
 
 /-- A λ is a value. -/
 theorem ev_lam {x : Name} {A b : Expr} {bi : BinderInfo} :
-    SrcEval (evalEnvOf view cfg P) (.lam x A b bi) (.lam x A b bi) :=
+    SrcEval (evalEnvOf view cfg P) C (.lam x A b bi) (.lam x A b bi) :=
   SrcEval.atom trivial
 
 /-- `@Quot.lift … (fun x => x) hR (Quot.mk R (fun y => y))` evaluates to `fun y => y`, by the
 quotient ι. -/
 theorem ev_lift :
-    SrcEval (evalEnvOf view cfg P)
+    SrcEval (evalEnvOf view cfg P) C
       (mkAppN (.const `Quot.lift [l1, l1]) [tBB, cR, tBB, idF, .const `hR [], qm].toArray) idB :=
   SrcEval.quotLift (qv := QuotLift_val) (qv' := QuotMk_val) rfl rfl ev_lam
     (SrcEval.quotMk (qv := QuotMk_val) (α := tBB) (r := cR) rfl rfl ev_lam) rfl rfl ev_lam
 
 /-- `B.t` is a value. -/
-theorem ev_cT : SrcEval (evalEnvOf view cfg P) cT cT :=
+theorem ev_cT : SrcEval (evalEnvOf view cfg P) C cT cT :=
   SrcEval.ctor (c := `B.t) (us := []) (as := []) (vs := []) rfl rfl rfl (fun _ _ _ h => nomatch h)
 
 /-- `hev`: `e` evaluates to `B.t`. -/
-theorem hev : SrcEval (evalEnvOf view cfg P) e cT := by
+theorem hev : SrcEval (evalEnvOf view cfg P) C e cT := by
   refine SrcEval.beta (f := mkAppN (.const `Quot.lift [l1, l1]) [tBB, cR, tBB, idF, .const `hR [], qm].toArray)
     ?_ ev_lift ev_cT ev_cT
   rintro ⟨c, us, ar, hc, ha, hle⟩
@@ -119,7 +119,7 @@ theorem quot_not_short {x : Expr} (hx : x.getAppFn = .const `Quot [l1]) :
   simp [specialArity, evalEnvOf, hQ, quotEvalArity, Quot_val] at ha
 
 /-- The quotient type `@Quot (B → B) R` is a value: `Quot` and `R` are atoms, `B → B` a Π. -/
-theorem ev_qT : SrcEval (evalEnvOf view cfg P) qT qT :=
+theorem ev_qT : SrcEval (evalEnvOf view cfg P) C qT qT :=
   SrcEval.appCong (quot_not_short rfl)
     (SrcEval.appCong (quot_not_short rfl) (SrcEval.constAtom rfl) (quot_not_blocksCong rfl)
       (SrcEval.atom trivial))
@@ -132,13 +132,13 @@ def idT : Expr := .lam `T (.sort l1) (.lam `q (.bvar 0) (.bvar 0) .default) .def
 def qa : Expr := .app (.app idT qT) qm
 
 /-- `Quot.mk R (fun y => y)` is a value. -/
-theorem ev_qm : SrcEval (evalEnvOf view cfg P) qm qm :=
+theorem ev_qm : SrcEval (evalEnvOf view cfg P) C qm qm :=
   SrcEval.quotMk (qv := QuotMk_val) (α := tBB) (r := cR) rfl rfl ev_lam
 
 /-- `idT` at the quotient type evaluates to the identity on the quotient, and at `Quot.mk R (fun y
 => y)` to the latter: the quotient type is evaluated as a β-argument. -/
-theorem ev_qa : SrcEval (evalEnvOf view cfg P) qa qm := by
-  have h1 : SrcEval (evalEnvOf view cfg P) (.app idT qT) (.lam `q qT (.bvar 0) .default) :=
+theorem ev_qa : SrcEval (evalEnvOf view cfg P) C qa qm := by
+  have h1 : SrcEval (evalEnvOf view cfg P) C (.app idT qT) (.lam `q qT (.bvar 0) .default) :=
     SrcEval.beta (by rintro ⟨c, us, ar, hc, -⟩; simp [Expr.getAppFn, idT] at hc) ev_lam ev_qT
       ev_lam
   exact SrcEval.beta (by rintro ⟨c, us, ar, hc, -⟩; simp [Expr.getAppFn, idT] at hc) h1 ev_qm
@@ -149,8 +149,8 @@ def eT : Expr :=
   mkAppN (.const `Quot.lift [l1, l1]) #[tBB, cR, tBB, idF, .const `hR [], qa, cT]
 
 /-- The variant `eT` of NV-Q's term evaluates to `B.t`. -/
-theorem ev_eT : SrcEval (evalEnvOf view cfg P) eT cT := by
-  have hl : SrcEval (evalEnvOf view cfg P)
+theorem ev_eT : SrcEval (evalEnvOf view cfg P) C eT cT := by
+  have hl : SrcEval (evalEnvOf view cfg P) C
       (mkAppN (.const `Quot.lift [l1, l1]) [tBB, cR, tBB, idF, .const `hR [], qa].toArray) idB :=
     SrcEval.quotLift (qv := QuotLift_val) (qv' := QuotMk_val) rfl rfl ev_lam ev_qa rfl rfl ev_lam
   refine SrcEval.beta (f := mkAppN (.const `Quot.lift [l1, l1])
@@ -170,6 +170,14 @@ theorem ev_eT : SrcEval (evalEnvOf view cfg P) eT cT := by
   revert hle
   decide
 
+/-- `hpre`: no declaration of `P` has a compiled pre-definition (`preDef?` is `none`:
+the view holds no `_unsafe_rec` companion), so `PreDefsOK` holds vacuously. -/
+theorem hpre : PreDefsOK EH BH view cfg P := by
+  intro _ ci _ _ hP h
+  have hn : P.all (fun ci => (preDef? view cfg ci).isNone) = true := by krfl
+  rw [Option.isNone_iff_eq_none.mp (List.all_eq_true.mp hn ci (by rw [hP]; simp))] at h
+  cases h
+
 /-- The final theorem on NV-Q: the program `#erase` emits for
 `@Quot.lift (B → B) R (B → B) (fun x => x) hR (Quot.mk R (fun y => y)) B.t` is an untyped λ□
 program whose main term evaluates to an erasure of `B.t`, and `B.t` translates to a term
@@ -178,6 +186,6 @@ theorem final :
     ∃ lenv tb vb, p0 = .untyped lenv (some tb) ∧
       Erases EH BH [] (evalEnvOf view cfg P) .nil [] cT vb ∧ LBEval defaultFlags lenv tb vb ∧
       ∀ T, EH[.nil] ⊢ tE : T → ∃ t', TrM EH BH [] .nil [] cT t' ∧ EH[.nil] ⊢ tE ≡ t' : T :=
-  erase_correct henv hwf hview he hty hfrag hrun hev
+  erase_correct henv hwf hview hpre he hty hfrag hrun hev
 
 end EraseProof.Test.NVQ
