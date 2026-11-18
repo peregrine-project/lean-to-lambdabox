@@ -6,6 +6,14 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
+EraseProof.Erases.inst EraseProof.erases_correct
+EraseProof.Erases.inst_let EraseProof.erases_correct
+EraseProof.ErasesAlt.inst EraseProof.erases_correct
+EraseProof.Erases.instLevels EraseProof.erases_correct
+EraseProof.Erases.app_inv EraseProof.erases_correct
+EraseProof.Erases.ctor_inv EraseProof.erases_correct
+EraseProof.Erases.cases_inv EraseProof.erases_correct
+EraseProof.AbsFV.LBV_of_toCL? EraseProof.erases_correct
 EraseProof.unmark_instantiate1' EraseProof.srcEval_sound
 EraseProof.unmark_instLevels EraseProof.srcEval_sound
 EraseProof.toCL?_instantiate1'_closed EraseProof.srcEval_sound
