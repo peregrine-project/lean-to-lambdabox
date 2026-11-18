@@ -5,9 +5,6 @@
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
-EraseProof.Erases.quot_inv propext,Classical.choice,Quot.sound
-EraseProof.Erases.rec_inv propext,Classical.choice,Quot.sound
-EraseProof.RecLam.recLets_closed propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.absN propext,Classical.choice,Quot.sound
 EraseProof.RecLam.hasFVar_recLetTerm propext,Classical.choice,Quot.sound
@@ -31,6 +28,9 @@ EraseProof.SimCases.erases_correct_casesLitSucc propext,Classical.choice,Quot.so
 EraseProof.SimCases.erases_correct_casesFrozen propext,Classical.choice,Quot.sound
 EraseProof.SimCases.erases_correct_proj propext,Classical.choice,Quot.sound
 EraseProof.SimCases.erases_correct_projFrozen propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_quotMk propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_quotLift propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_recIota propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_value propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_beta propext,Classical.choice,Quot.sound
