@@ -1,0 +1,155 @@
+\chapter{Trust boundary}\label{chap:trust}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State what the statements and checks rely on without proof, what con-leche
+  contributes to the trust base, how the proof package is checked, and what the proof uses from
+  con-leche.
+\item \lead{Main results} The axiom footprint of every declaration is within \code{propext},
+  \code{Classical.choice} and \code{Quot.sound}; the model hypothesis is an argument, never an
+  axiom.
+\item \lead{Status} \stProved{} the checks pass on the statement definitions and the tests;
+  \stOpen{} the theorems. \stShipping{} the eraser, trusted as built.
+\item \lead{Nodes} \bpnodes{chap:trust}
+\item \lead{Lean files} \leanfile{proof/EraseProof/} (the verification library);
+  \leanfile{LeanToLambdaBox/} (the shipping code); \leanfile{LeanToLambdaBox/ConLeche.lean} (the
+  check that the eraser imports con-leche).
+\end{itemize}
+
+\section{Trusted, not verified}\label{sec:trust-trusted}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Trusted part & Why it is trusted, and what checks it \\
+\midrule
+Lean's kernel at \code{v4.35.0}, and the axioms \code{propext}, \code{Classical.choice},
+  \code{Quot.sound} & every declaration of the library stays within the three axioms; the
+  toolchain's \code{leanchecker} \hl{replays every module} of the library and of the shipping code
+  through the kernel. The footprint of the library is the standard three: con-leche's own main
+  theorem has the same footprint (Section~\ref{sec:trust-conleche}). \\
+con-leche's compiled code and \code{.olean} files & trusted as built, not replayed: \code{leanchecker}
+  covers the modules of this repository, not those of its dependencies. The proofs use only
+  con-leche's logical definitions. \\
+The statement definitions & \leanfile{proof/EraseProof/Statements.lean} with
+  \leanfile{proof/EraseProof/Spec.lean} and \leanfile{proof/EraseProof/Target.lean}: a reader
+  checks them against the references; \code{proof/spec.pin} holds a SHA-256 digest of each and of
+  every definition of the library or of the shipping code they reach. \\
+Shipping definitions the statements reach & the $\lambda_\Box$ syntax, the configuration, the
+  environment view, the recognizer of \code{casesOn} and the helpers of the fragment test: they
+  define what the statements say. \code{proof/spec.pin} hashes their bodies and names only the
+  three functions under verification, \code{collectDeps}, \code{erasePure} and
+  \code{eraseEntry}. \\
+The oracle & \leandecl{Erasure.Pure.isErasable} defines the marks; it is pinned and checked on each
+  program through \code{hcert}. \\
+Lean's compiler and runtime & the statements are about the logical definitions, \code{\#erase} runs
+  their compiled code (\code{@[extern]}, \code{@[implemented\_by]}, \code{opaque}); the kernel
+  checks the test instances on the logical definitions, and
+  \leanfile{proof/tools/NVEmit.lean} exercises the compiled code on them. \\
+\bottomrule
+\end{tabular}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Outside every statement & What it does \\
+\midrule
+Elaboration & produces the kernel term of \code{\#erase t}, and evaluates the \code{config} term \\
+The printer and the file writes & the S-expression printer, and the writes of \code{.ast} and
+  \code{.ast.inlinings} \\
+The inlining sidecar & the constants \code{.ast.inlinings} asks Peregrine to inline \\
+\code{\#erase\_lcnf} & a second eraser, from the LCNF that Lean's compiler stores
+  (\leanfile{LeanToLambdaBox/FromLCNF.lean}); no statement speaks about it \\
+Peregrine & compiles the emitted program \\
+The \code{Meta} path & out-of-fragment inputs keep the traversal with the elaborator's oracle and
+  Lean's compiler passes \\
+\bottomrule
+\end{tabular}
+
+\section{con-leche's trust base}\label{sec:trust-conleche}
+
+\begin{itemize}
+\item \lead{Pin} the \code{con-leche} package of Section~\ref{sec:intro-pins}, never edited and never
+  re-pinned; \code{proof/spec.pin} holds the digest of every con-leche definition the statements
+  reach.
+\item \lead{Footprint} \leandecl{ConLeche.model_exists} and \leandecl{ConLeche.no_False_declaration} depend
+  on the standard axioms only (\leanfile{LeanToLambdaBox/ConLeche.lean} pins both).
+\item \lead{The model hypothesis} \hl{\code{Sound} quantifies over a \code{SetTheory} model inside its
+  conclusion}, as \leandecl{ConLeche.model_exists} does: the instance is a hypothesis, never an
+  axiom. Inside Lean no instance exists without con-leche's \code{bridge/} package, which proves
+  one from an hypothesis on inaccessible cardinals. No module of this repository imports that
+  package or Mathlib, so the statements hold vacuously where no model exists, and no theorem of
+  this repository shows that one does.
+\item \lead{No sorry} no declaration of the audited environment depends on \code{sorryAx}.
+\item \lead{Module system} con-leche is built with Lean's module system; the proof reads only
+  what its modules expose.
+\item \lead{Checker modes} the proof applies con-leche's entry points at the verified mode only.
+\end{itemize}
+
+\subsection{Census of con-leche}\label{sec:trust-census-conleche}
+
+\input{generated/census-conleche}
+
+\section{Programs with an inductive type}\label{sec:trust-gap}
+
+\begin{itemize}
+\item \lead{The gap} the kernel cannot run con-leche's fold on an inductive block: the installer
+  hashes names with an opaque hash, and $\iota$ and level comparison use well-founded functions.
+  The test programs check the fold equation of \code{hacc}, and any certificate that needs
+  $\iota$, by compiled evaluation (\code{\#eval}), which trusts Lean's compiler.
+\item \lead{What the kernel checks} every other hypothesis; inductive-free programs are
+  kernel-checked end to end.
+\end{itemize}
+
+\section{The checks of the proof package}\label{sec:trust-checks}
+
+\code{proof/scripts/check.sh} runs these checks; \leanfile{proof/tools/Report.lean} computes the
+checks on the Lean environment. CI runs it on every push to \code{cl/verification}.
+
+\begin{tabular}{p{0.12\linewidth}p{0.80\linewidth}}
+\toprule
+Check & What it enforces \\
+\midrule
+C1, C8 & \code{lake build} of the root package, of \code{proof/} and of the tests \\
+C2 & no forbidden token in \code{proof/} (\code{sorry}, \code{axiom}, \code{opaque},
+  \code{native\_decide}, \code{unsafe}, \code{implemented\_by}, \code{extern}, and others), also
+  quoted with guillemets \\
+replay & \code{leanchecker LeanToLambdaBox EraseProof}: every declaration of the shipping code and
+  of the library is added again through the kernel \\
+C3, C4 & every axiom footprint within \code{propext}, \code{Classical.choice}, \code{Quot.sound}; no
+  declaration reaches con-leche's \code{bridge/} package or Mathlib \\
+C6 & hygiene: no declaration outside the tests reaches con-leche's driver, frontend, pin generator,
+  completeness development, IO model, a module off the allow list, or a test; C6b: con-leche's entry
+  points are applied at the verified mode only \\
+C7 & no leaves: every declaration is reachable from a root of \code{proof/ROOTS.txt}, a statement
+  definition or a proved theorem with a statement; footprints equal \code{proof/axioms.expected} \\
+C10 & the shipping regression tests \\
+C11 & \code{NVEmit}: the entry point of \code{\#erase} emits, byte for byte, the programs the
+  test instances compute \\
+C12 & the twelve statement definitions exist; each theorem that is proved has a type
+  definitionally equal to its statement \\
+C12b & the statement definitions and the definitions they reach have the digests of
+  \code{proof/spec.pin}, every pinned constant exists, and the toolchain and dependency revisions
+  are the pinned ones \\
+\bottomrule
+\end{tabular}
+
+\section{What the proof uses from con-leche}\label{sec:trust-imported}
+
+\begin{itemize}
+\item \lead{Nodes} one imported node per con-leche module whose declarations the proof library
+  (outside its tests) or the shipping code uses directly, in a type or a proof term; each lists
+  those declarations, and the nodes that use them.
+\item \lead{Source} \code{blueprint/scripts/audit.py -{}-update} writes them from the Lean
+  environment, and the one-line descriptions from \code{blueprint/audit.toml}; the audit fails
+  when they are stale.
+\end{itemize}
+
+\input{generated/conleche-imports}
+
+\section{The shipping code}\label{sec:trust-shipping}
+
+The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and generic over a backend
+monad. \code{\#erase} runs it with the pure backend on programs in the fragment, and with the
+\code{CoreM} backend, which asks the elaborator for types, on the others. The census of its
+partial, opaque, unsafe and monadic declarations follows.
+
+\input{generated/census-shipping}
