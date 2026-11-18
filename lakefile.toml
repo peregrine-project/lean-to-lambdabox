@@ -6,6 +6,6 @@ defaultTargets = ["LeanToLambdaBox"]
 name = "LeanToLambdaBox"
 
 [[require]]
-name = "metalean"
-git = "https://github.com/intgrah/metalean"
-rev = "0146928517ff839f52d8de71c8da7beb108c78a9"
+name = "con-leche"
+git = "https://github.com/leanprover/con-leche"
+rev = "d88e04e9b25ca48e5f9f90c07f2493fbc2b489e8"

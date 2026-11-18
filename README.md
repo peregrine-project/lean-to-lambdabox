@@ -4,14 +4,14 @@ The Lean 4 frontend of [Peregrine](https://github.com/peregrine-project/peregrin
 Lean's kernel terms (`Expr`) to the untyped λ□ (LambdaBox) and writes them in Peregrine's
 S-expression format.
 
-> **This branch** is `ml/translate`, the first layer of the Metalean verification stack
+> **This branch** is `cl/translate`, the first layer of the con-leche verification stack
 > ([Verification](#verification)). It is not meant for `main`; use `main` for the production
 > frontend. Here `#erase` erases the programs of the verified fragment with the [pure path](#routing).
 
 - Builds with Lean `v4.35.0` ([`lean-toolchain`](lean-toolchain)).
-- Depends on [Metalean](https://github.com/intgrah/metalean), and through it on Mathlib (run `lake exe cache get` for its build).
-- `import LeanToLambdaBox` loads neither Metalean nor Mathlib. `LeanToLambdaBox.Metalean` loads both, and `lake build LeanToLambdaBox.Metalean` checks the dependency.
-- Lake still clones Metalean, Mathlib and Mathlib's dependencies for every package that requires this one.
+- Depends on [con-leche](https://github.com/leanprover/con-leche), which has no dependencies of its own.
+- `import LeanToLambdaBox` does not load con-leche. `LeanToLambdaBox.ConLeche` does, and `lake build LeanToLambdaBox.ConLeche` checks the dependency.
+- Lake still clones con-leche for every package that requires this one.
 
 ## Usage
 
@@ -117,7 +117,7 @@ Each stack is three branches, each a PR on the one before:
 | `*/verification` | `proof/`: the theorem, the non-vacuity instances (concrete programs on which every hypothesis is proved), and `proof/scripts/check.sh`. `doc/DIVERGENCES.md` lists the departures from MetaRocq's erasure. |
 | `*/blueprint` | `blueprint/`: a [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the proof, with an audit of its links to the Lean code. |
 
-| | Lean4Lean stack | Metalean stack (this one) |
+| | Lean4Lean stack | Metalean stack |
 |---|---|---|
 | Model of the kernel | [lean4lean](https://github.com/digama0/lean4lean) | [Metalean](https://github.com/intgrah/metalean) |
 | Lean | `v4.33.0-rc2` (lean4lean's) | `v4.35.0` |
