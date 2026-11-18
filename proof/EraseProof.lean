@@ -1,5 +1,6 @@
 import EraseProof.Bridge.CLAccept
 import EraseProof.Bridge.CLRead
+import EraseProof.Bridge.CLStore
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -43,5 +44,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
   dependency-closed sub-environment.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Bridge.CLAccept`: what con-leche's acceptance of the program gives.
+* `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
