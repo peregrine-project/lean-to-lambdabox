@@ -30,7 +30,7 @@ shipping_prefix = "LeanToLambdaBox"
 # Module prefix of the verification modules whose declarations a node must cite (a user-written
 # declaration of a module with this prefix is cited by a node that is not planned). The prefix names
 # the statements module; the chapters that document the other modules extend it.
-cover_prefix = "EraseProof.Statements"
+cover_prefix = "EraseProof"
 
 # The no-leaves register of the proof package, rendered as a table (relative to the repository
 # root).
@@ -57,15 +57,31 @@ targets = ["EraseProof"]
 # module, and no other, has an entry here.
 [conleche_modules]
 "ConLeche.Denotes" = 'The set-model denotation relation (\code{Denotes}), with its valuations of bound variables (\code{BVarIdx}) and universe parameters (\code{LevelParam}).'
+"ConLeche.Kernel.CheckDecl" = 'The pure fold over declarations (\code{checkDeclsPure}).'
+"ConLeche.Kernel.CheckerBase" = 'The fuelled operations of the checker (\code{fueledOps}).'
 "ConLeche.Kernel.Core" = 'The fuel of the full-grade checker (\code{checkFuel}).'
 "ConLeche.Kernel.Env" = 'Environments (\code{Env}) of declarations, and the checker modes (\code{CheckMode}).'
 "ConLeche.Kernel.Error" = 'The checker monad (\code{CheckM}) and its errors (\code{CheckError}).'
 "ConLeche.Kernel.Expr" = 'The checker expressions (\code{Expr}): no binder names or infos, no metavariables.'
+"ConLeche.Kernel.ExprOps" = 'Operations on checker expressions: head of a spine, free variables, instantiation of a bound variable.'
+"ConLeche.Kernel.Level" = 'Levels: instantiation of universe parameters, and zero under every valuation (\code{isAlwaysZero}).'
+"ConLeche.Kernel.Name" = 'Checker names (\code{Name}) and the conversion from Lean names (\code{Name.ofLeanName}).'
+"ConLeche.Kernel.NatOpPinSet" = 'The set of pinned \code{Nat} operations of the checker (\code{NatOpPinSet}).'
 "ConLeche.Kernel.TypeChecker" = 'The weak-head reduction (\code{whnf}) and type inference (\code{inferTypeCore}).'
+"ConLeche.Model.Capstone" = 'The inputs of the rules of con-leche, from a set-theory model (\code{RulesInputs.ofSem}).'
+"ConLeche.Model.Claims" = 'The claims of reduction, definitional equality and inference in a model (\code{WhnfClaim}, \code{DefEqClaim}, \code{InferClaim}).'
+"ConLeche.Model.ClaimsIO" = 'The inference claim for the checker run in \code{IO} (\code{InferClaimIO}).'
 "ConLeche.Model.Denotes" = 'The model of an environment as a model of expressions (\code{Model.ofEnvModelM}).'
 "ConLeche.Model.Env.EnvModelM" = 'Models of an accepted environment (\code{Model.EnvModelM}), the invariant behind the soundness theorem.'
+"ConLeche.Model.Fold" = 'Soundness of the pure fold (\code{checkDeclsPure\_sound\_of}): an accepted environment has a model.'
+"ConLeche.Model.Rules.Recompose" = 'The soundness of the moves of the checker at every fuel (\code{checkSoundAtP5}).'
+"ConLeche.Semantics.DeclWF" = 'Well-formedness of an environment the pure fold returns (\code{checkDeclsPure\_envWF}).'
 "ConLeche.SetTheory.Core" = 'The class of set-theoretic universes (\code{SetTheory}), which the meaning claim quantifies over.'
 "ConLeche.SetTheory.Derive.Pt" = 'The proof point of the model (\code{SetTheory.pt}).'
+"ConLeche.Verify.EnvWF" = 'The syntactic well-formedness of an environment (\code{EnvWF}).'
+"ConLeche.Verify.Inductives.RecCheckScope" = 'Inferred types are closed (\code{infer\_full\_bvarClosed}).'
+"ConLeche.Verify.Rules.Bridge" = 'The bridge from accepting runs to the relations of the checker (\code{inferTypeCore\_bridge}).'
+"ConLeche.Verify.Subst" = 'Agreement of the two instantiations of the checker (\code{instantiate1Lift\_eq\_instantiate1}).'
 
 # Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
 # sources"). `repository`: this repository, linked at the commit the site is built from

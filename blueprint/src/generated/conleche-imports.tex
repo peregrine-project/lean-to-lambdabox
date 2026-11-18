@@ -8,8 +8,31 @@
   \lead{In short} The set-model denotation relation (\code{Denotes}), with its valuations of bound
   variables (\code{BVarIdx}) and universe parameters (\code{LevelParam}).
   \lead{Used directly} 4 declarations: 2 definitions, 1 inductive type, 1 structure.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-Sound}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.CheckDecl}]
+  \label{imp:ConLeche-Kernel-CheckDecl}
+  \lean{ConLeche.checkDeclsPure}
+  \leanok
+  \srcloc{ConLeche/Kernel/CheckDecl.lean}{176}
+  \lead{In short} The pure fold over declarations (\code{checkDeclsPure}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbystatements{\ref{def:EraseProof-DeclsOf}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.CheckerBase}]
+  \label{imp:ConLeche-Kernel-CheckerBase}
+  \lean{ConLeche.fueledOps}
+  \leanok
+  \srcloc{ConLeche/Kernel/CheckerBase.lean}{36}
+  \lead{In short} The fuelled operations of the checker (\code{fueledOps}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbystatements{\ref{def:EraseProof-DeclsOf}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Core}]
@@ -19,18 +42,25 @@
   \srcloc{ConLeche/Kernel/Core.lean}{1925}
   \lead{In short} The fuel of the full-grade checker (\code{checkFuel}).
   \lead{Used directly} 1 declaration: 1 definition.
-  \usedbystatements{\ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbystatements{\ref{def:EraseProof-DeclsOf}, \ref{def:EraseProof-CLCert},
+    \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Env}]
   \label{imp:ConLeche-Kernel-Env}
-  \lean{ConLeche.CheckMode, ConLeche.Env}
+  \lean{ConLeche.CheckMode, ConLeche.ConstantVal, ConLeche.RecRuleFire, ConLeche.RecRule,
+    ConLeche.ReducibilityHint, ConLeche.IndCaps, ConLeche.ConstantInfo, ConLeche.QuotKind,
+    ConLeche.Declaration, ConLeche.Env, ConLeche.Env.find?}
   \leanok
   \srcloc{ConLeche/Kernel/Env.lean}{20}
   \lead{In short} Environments (\code{Env}) of declarations, and the checker modes
   (\code{CheckMode}).
-  \lead{Used directly} 2 declarations: 1 inductive type, 1 structure.
-  \usedbystatements{\ref{def:EraseProof-erase_correct-statement},
+  \lead{Used directly} 11 declarations: 1 definition, 6 inductive types, 4 structures.
+  \usedbystatements{\ref{def:EraseProof-toCL}, \ref{def:EraseProof-DeclsOf},
+    \ref{lem:EraseProof-CLTyped-closed}, \ref{lem:EraseProof-ConLecheAccepts-accepted},
+    \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound}, \ref{def:EraseProof-SrcEval},
+    \ref{lem:EraseProof-SrcEval-restrict}, \ref{def:EraseProof-erase_correct-statement},
     \ref{def:EraseProof-erases_correct-statement}, \ref{def:EraseProof-srcEval_sound-statement},
     \ref{def:EraseProof-collectDeps_ok_of-statement},
     \ref{def:EraseProof-erase_correct_firstorder-statement},
@@ -46,20 +76,72 @@
   \srcloc{ConLeche/Kernel/Error.lean}{15}
   \lead{In short} The checker monad (\code{CheckM}) and its errors (\code{CheckError}).
   \lead{Used directly} 2 declarations: 1 definition, 1 inductive type.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-DeclsOf}, \ref{def:EraseProof-CLCert},
+    \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}, \ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Expr}]
   \label{imp:ConLeche-Kernel-Expr}
-  \lean{ConLeche.Expr}
+  \lean{ConLeche.Level, ConLeche.Literal, ConLeche.Expr}
   \leanok
-  \srcloc{ConLeche/Kernel/Expr.lean}{376}
+  \srcloc{ConLeche/Kernel/Expr.lean}{34}
   \lead{In short} The checker expressions (\code{Expr}): no binder names or infos, no
   metavariables.
-  \lead{Used directly} 1 declaration: 1 inductive type.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \lead{Used directly} 3 declarations: 3 inductive types.
+  \usedbystatements{\ref{def:EraseProof-toCL}, \ref{lem:EraseProof-toCL-instantiate1},
+    \ref{lem:EraseProof-CLTyped-closed}, \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound},
+    \ref{lem:EraseProof-Erases-app-inv}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.ExprOps}]
+  \label{imp:ConLeche-Kernel-ExprOps}
+  \lean{ConLeche.Expr.instantiate1, ConLeche.Expr.looseBVarsBounded, ConLeche.Expr.hasFvar,
+    ConLeche.Expr.liftLooseBVars, ConLeche.Expr.instantiate1Lift, ConLeche.Expr.getAppFn}
+  \leanok
+  \srcloc{ConLeche/Kernel/ExprOps.lean}{23}
+  \lead{In short} Operations on checker expressions: head of a spine, free variables,
+  instantiation of a bound variable.
+  \lead{Used directly} 6 declarations: 6 definitions.
+  \usedbystatements{\ref{lem:EraseProof-toCL-instantiate1}, \ref{lem:EraseProof-CLTyped-closed},
+    \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound}, \ref{lem:EraseProof-Erases-app-inv}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.Level}]
+  \label{imp:ConLeche-Kernel-Level}
+  \lean{ConLeche.Level.subst, ConLeche.Level.subst.go, ConLeche.Level.isAlwaysZero,
+    ConLeche.Expr.instantiateLevelParams}
+  \leanok
+  \srcloc{ConLeche/Kernel/Level.lean}{31}
+  \lead{In short} Levels: instantiation of universe parameters, and zero under every valuation
+  (\code{isAlwaysZero}).
+  \lead{Used directly} 4 declarations: 4 definitions.
+  \usedbystatements{\ref{lem:EraseProof-toCL-instantiate1}, \ref{def:EraseProof-CLCert}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.Name}]
+  \label{imp:ConLeche-Kernel-Name}
+  \lean{ConLeche.Name, ConLeche.instDecidableEqName, ConLeche.Name.ofLeanName}
+  \leanok
+  \srcloc{ConLeche/Kernel/Name.lean}{19}
+  \lead{In short} Checker names (\code{Name}) and the conversion from Lean names
+  (\code{Name.ofLeanName}).
+  \lead{Used directly} 3 declarations: 2 definitions, 1 inductive type.
+  \usedbystatements{\ref{def:EraseProof-toCL}, \ref{lem:EraseProof-toCL-instantiate1},
+    \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Kernel.NatOpPinSet}]
+  \label{imp:ConLeche-Kernel-NatOpPinSet}
+  \lean{ConLeche.NatOpPinSet}
+  \leanok
+  \srcloc{ConLeche/Kernel/NatOpPinSet.lean}{35}
+  \lead{In short} The set of pinned \code{Nat} operations of the checker (\code{NatOpPinSet}).
+  \lead{Used directly} 1 declaration: 1 structure.
+  \usedbystatements{\ref{def:EraseProof-DeclsOf}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.TypeChecker}]
@@ -69,8 +151,42 @@
   \srcloc{ConLeche/Kernel/TypeChecker.lean}{33}
   \lead{In short} The weak-head reduction (\code{whnf}) and type inference (\code{inferTypeCore}).
   \lead{Used directly} 2 declarations: 2 definitions.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-CLCert}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Model.Capstone}]
+  \label{imp:ConLeche-Model-Capstone}
+  \lean{ConLeche.Model.Rules.RulesInputs.ofSem}
+  \leanok
+  \srcloc{ConLeche/Model/Capstone.lean}{149}
+  \lead{In short} The inputs of the rules of con-leche, from a set-theory model
+  (\code{RulesInputs.ofSem}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Model.Claims}]
+  \label{imp:ConLeche-Model-Claims}
+  \lean{ConLeche.Model.WhnfCoreClaim, ConLeche.Model.WhnfClaim, ConLeche.Model.DefEqClaim,
+    ConLeche.Model.InferClaim}
+  \leanok
+  \srcloc{ConLeche/Model/Claims.lean}{49}
+  \lead{In short} The claims of reduction, definitional equality and inference in a model
+  (\code{WhnfClaim}, \code{DefEqClaim}, \code{InferClaim}).
+  \lead{Used directly} 4 declarations: 4 definitions.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Model.ClaimsIO}]
+  \label{imp:ConLeche-Model-ClaimsIO}
+  \lean{ConLeche.Model.InferClaimIO}
+  \leanok
+  \srcloc{ConLeche/Model/ClaimsIO.lean}{70}
+  \lead{In short} The inference claim for the checker run in \code{IO} (\code{InferClaimIO}).
+  \lead{Used directly} 1 declaration: 1 definition.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Denotes}]
@@ -81,7 +197,7 @@
   \lead{In short} The model of an environment as a model of expressions
   (\code{Model.ofEnvModelM}).
   \lead{Used directly} 1 declaration: 1 definition.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-Sound}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
 \end{imported}
 
@@ -93,8 +209,41 @@
   \lead{In short} Models of an accepted environment (\code{Model.EnvModelM}), the invariant behind
   the soundness theorem.
   \lead{Used directly} 1 declaration: 1 structure.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-Sound}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Model.Fold}]
+  \label{imp:ConLeche-Model-Fold}
+  \lean{ConLeche.Model.checkDeclsPure_sound_of}
+  \leanok
+  \srcloc{ConLeche/Model/Fold.lean}{372}
+  \lead{In short} Soundness of the pure fold (\code{checkDeclsPure\_sound\_of}): an accepted
+  environment has a model.
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Model.Rules.Recompose}]
+  \label{imp:ConLeche-Model-Rules-Recompose}
+  \lean{ConLeche.Model.Rules.checkSoundAtP5}
+  \leanok
+  \srcloc{ConLeche/Model/Rules/Recompose.lean}{45}
+  \lead{In short} The soundness of the moves of the checker at every fuel (\code{checkSoundAtP5}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Semantics.DeclWF}]
+  \label{imp:ConLeche-Semantics-DeclWF}
+  \lean{ConLeche.Semantics.checkDeclsPure_envWF}
+  \leanok
+  \srcloc{ConLeche/Semantics/DeclWF.lean}{318}
+  \lead{In short} Well-formedness of an environment the pure fold returns
+  (\code{checkDeclsPure\_envWF}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Core}]
@@ -105,8 +254,9 @@
   \lead{In short} The class of set-theoretic universes (\code{SetTheory}), which the meaning claim
   quantifies over.
   \lead{Used directly} 1 declaration: 1 structure.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-Sound}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Derive.Pt}]
@@ -116,6 +266,48 @@
   \srcloc{ConLeche/SetTheory/Derive/Pt.lean}{68}
   \lead{In short} The proof point of the model (\code{SetTheory.pt}).
   \lead{Used directly} 1 declaration: 1 definition.
-  \usedbystatements{\ref{def:EraseProof-sound_nonvacuous-statement},
+  \usedbystatements{\ref{def:EraseProof-Sound}, \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Verify.EnvWF}]
+  \label{imp:ConLeche-Verify-EnvWF}
+  \lean{ConLeche.EnvWF}
+  \leanok
+  \srcloc{ConLeche/Verify/EnvWF.lean}{241}
+  \lead{In short} The syntactic well-formedness of an environment (\code{EnvWF}).
+  \lead{Used directly} 1 declaration: 1 structure.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Verify.Inductives.RecCheckScope}]
+  \label{imp:ConLeche-Verify-Inductives-RecCheckScope}
+  \lean{ConLeche.infer_full_bvarClosed}
+  \leanok
+  \srcloc{ConLeche/Verify/Inductives/RecCheckScope.lean}{289}
+  \lead{In short} Inferred types are closed (\code{infer\_full\_bvarClosed}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Verify.Rules.Bridge}]
+  \label{imp:ConLeche-Verify-Rules-Bridge}
+  \lean{ConLeche.Rules.inferTypeCore_bridge}
+  \leanok
+  \srcloc{ConLeche/Verify/Rules/Bridge.lean}{67}
+  \lead{In short} The bridge from accepting runs to the relations of the checker
+  (\code{inferTypeCore\_bridge}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Verify.Subst}]
+  \label{imp:ConLeche-Verify-Subst}
+  \lean{ConLeche.Expr.instantiate1Lift_eq_instantiate1}
+  \leanok
+  \srcloc{ConLeche/Verify/Subst.lean}{591}
+  \lead{In short} Agreement of the two instantiations of the checker
+  (\code{instantiate1Lift\_eq\_instantiate1}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-toCL-instantiate1}}
 \end{imported}

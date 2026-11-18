@@ -855,7 +855,8 @@ def declares(name, lines, start, end, path):
         return f'line {end} holds no code'
     for k in range(h + 1, end + 1):
         c, inside, _ = code[k - 1]
-        if not inside and c.strip() and _indent(c) <= hi and (member or not CONTINUES.match(c.strip())):
+        if (not inside and c.strip() and _indent(c) <= hi and not (member and c.strip().startswith('|'))
+                and (member or not CONTINUES.match(c.strip()))):
             return f'line {k} is another command: {lines[k - 1].strip()[:50]!r}'
     j = _next_code(code, lines, end)
     if j is not None and not (member and member[1][1] in TYPE_KEYWORDS and start == h):

@@ -1,0 +1,161 @@
+\chapter{The bridge to con-leche}\label{chap:bridge}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Read the program's Lean declarations as con-leche reads them, and take from
+  con-leche's acceptance of the program the facts the proofs use.
+\item \lead{Main results} The reading commutes with instantiation of bound variables and of universe
+  parameters (Section~\ref{sec:bridge-reading}); acceptance gives well-formedness, a model in every
+  set theory and con-leche's claims (Section~\ref{sec:bridge-accept}).
+\item \lead{Status} \stProved{} every node of this chapter, from the axioms of Lean alone.
+  \stOpen{} \code{CLOk.wellDenoted} (planned).
+\item \lead{Nodes} \bpnodes{chap:bridge}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Bridge/CLRead, Bridge/CLAccept}.
+\item \lead{Reference} \leanfile{ConLeche/Frontend/ExportC.lean} (the reading), \leanfile{ConLeche/MainTheorem.lean}.
+\end{itemize}
+
+\section{Reading the program}\label{sec:bridge-reading}
+
+The functions that turn a Lean \code{Expr} and \code{ConstantInfo} into con-leche's forms, and the
+program's records as con-leche's fold takes them.
+
+\begin{definition}[Reading of Lean declarations]
+  \label{def:EraseProof-toCL}
+  \lean{EraseProof.toCL?, EraseProof.Name.toCL, EraseProof.Level.toCL, EraseProof.cvOf?, EraseProof.hintOf, EraseProof.quotKindOf, EraseProof.ruleOf?, EraseProof.recOf?, EraseProof.piLen, EraseProof.mentionsAny, EraseProof.hasDomainMentioning, EraseProof.piResult, EraseProof.appHeadConst, EraseProof.blockShapeOK, EraseProof.blockOf?, EraseProof.declOf?}
+  \leanok
+  \srcloc{proof/EraseProof/Spec.lean}{61}
+  \lead{In short} \hl{\code{toCL?} reads a Lean \code{Expr} as con-leche's \code{Expr}}, and the helpers read a declaration's records.
+  \begin{itemize}
+  \item \code{toCL?}: drops binder names, infos, \code{nonDep} and \code{mdata}; \code{none} on a free variable or a metavariable;
+  \item \code{Name.toCL}, \code{Level.toCL}: con-leche's own conversions (a level metavariable has none);
+  \item \code{cvOf?}, \code{ruleOf?}, \code{recOf?}, \code{hintOf}, \code{quotKindOf}: the records of a constant, a rule, a recursor;
+  \item \code{blockOf?}, \code{declOf?}: an inductive block, one Lean constant (unsafe and partial constants are left out);
+  \item \code{piLen}, \code{piResult}, \code{mentionsAny}, \code{hasDomainMentioning}, \code{blockShapeOK}: the checks of con-leche's frontend.
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/Frontend/ExportC.lean}, DV-1, DV-3.
+\end{definition}
+
+\begin{definition}[The program as con-leche takes it]
+  \label{def:EraseProof-DeclsOf}
+  \lean{EraseProof.DeclsOf?, EraseProof.NoMarkKeys, EraseProof.HasFVar, EraseProof.ClosedDecls, EraseProof.ConLecheAccepts}
+  \leanok
+  \uses{def:EraseProof-toCL}
+  \srcloc{proof/EraseProof/Spec.lean}{256}
+  \lead{In short} \code{DeclsOf?} is con-leche's input for the program; \code{ConLecheAccepts} says its pure fold accepts it.
+  \begin{itemize}
+  \item \code{DeclsOf?}: the records oldest first; \code{none} on a repeated name, a mark key, or a constant it cannot read;
+  \item \code{ConLecheAccepts P env}: \code{checkDeclsPure} at the standard fuel, without \code{Nat.div} and \code{Nat.mod} pins, returns \code{env};
+  \item \code{NoMarkKeys}, \code{HasFVar}, \code{ClosedDecls}: no mark key in an expression, a free variable, no free variable in a closure (statements \code{hclean} and \code{markOf\_det}).
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/MainTheorem.lean}, DV-3, DV-38, DV-39.
+\end{definition}
+
+\begin{lemma}[The reading commutes with substitution]
+  \label{lem:EraseProof-toCL-instantiate1}
+  \lean{EraseProof.toCL?_instantiate1', EraseProof.toCL?_liftLooseBVars', EraseProof.toCL?_instantiate1'_closed, EraseProof.Name.toCL_injective, EraseProof.Level.toCL_instLevel, EraseProof.toCL?_instLevels}
+  \leanok
+  \uses{def:EraseProof-toCL}
+  \srcloc{proof/EraseProof/Bridge/CLRead.lean}{53}
+  \lead{In short} \code{toCL?} commutes with lifting, instantiation of a bound variable and of universe parameters, and \code{Name.toCL} is injective.
+  \begin{itemize}
+  \item \code{toCL?\_liftLooseBVars'}, \code{toCL?\_instantiate1'}: the reading of the result is the mapped reading, for a closed-readable argument;
+  \item \code{toCL?\_instantiate1'\_closed}, \code{toCL?\_instLevels}, \code{Level.toCL\_instLevel}: the same for closed readings and for levels;
+  \item \code{Name.toCL\_injective}: distinct Lean names read as distinct con-leche names.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Structural induction on the expression, with con-leche's \code{instantiate1Lift}.
+\end{proof}
+
+\begin{lemma}[Typed terms are closed]
+  \label{lem:EraseProof-CLTyped-closed}
+  \lean{EraseProof.CLTyped.closed, EraseProof.toCL?_hasFvar}
+  \leanok
+  \uses{def:EraseProof-toCL, def:EraseProof-CLCert}
+  \srcloc{proof/EraseProof/Bridge/CLRead.lean}{230}
+  \lead{In short} A term con-leche types, read by \code{toCL?}, has no loose bound variable and no free variable.
+  \begin{itemize}
+  \item \code{CLTyped.closed}: the reading of a typed term is closed;
+  \item \code{toCL?\_hasFvar}: a term with a free variable has no reading.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \code{toCL?} fails on a free variable; closedness follows from con-leche's \code{infer\_full\_bvarClosed}.
+\end{proof}
+
+\section{Acceptance}\label{sec:bridge-accept}
+
+What con-leche proves of an environment its fold returns, and the run-time certificates that stand in
+for a typing judgement.
+
+\begin{lemma}[Acceptance gives a model and claims]
+  \label{lem:EraseProof-ConLecheAccepts-accepted}
+  \lean{EraseProof.ConLecheAccepts.accepted, EraseProof.CLAccepted}
+  \leanok
+  \uses{def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Bridge/CLAccept.lean}{39}
+  \lead{In short} \hl{\code{ConLecheAccepts} yields a well-formed environment, a model in every \code{SetTheory}, and con-leche's claims} at every valuation and fuel.
+  \begin{itemize}
+  \item \code{CLAccepted}: \code{wf} (\code{EnvWF}), \code{model} (\code{EnvModelM} in every set theory \code{V}), \code{claims} (the five claims for reduction, conversion and inference at both grades);
+  \item \code{ConLecheAccepts.accepted}: acceptance implies \code{CLAccepted}.
+  \end{itemize}
+  \lead{Reference} \code{checkDeclsPure\_sound\_of}, \code{checkSoundAtP5}, DV-3.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} con-leche's soundness of the pure fold and its capstone for the claims.
+\end{proof}
+
+\begin{definition}[Run-time certificates]
+  \label{def:EraseProof-CLCert}
+  \lean{EraseProof.CLCert, EraseProof.CLTyped, EraseProof.CLOk, EraseProof.CLTypedAt, EraseProof.CLFormer, EraseProof.CLProof, EraseProof.CLVerdict, EraseProof.CLErasable, EraseProof.CtxBinder, EraseProof.lamTele, EraseProof.openLams, EraseProof.MarksCert, EraseProof.ProgCert}
+  \leanok
+  \uses{def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Spec.lean}{357}
+  \lead{In short} \hl{con-leche's own inference stands in for typing}: a redex, a mark or a program is certified when the checker infers a type for it.
+  \begin{itemize}
+  \item \code{CLTyped}, \code{CLTypedAt}: inference accepts the closed term, at some fuel and at \code{checkFuel};
+  \item \code{CLOk}: the certificate of a source evaluation rule, the closed redex it forms;
+  \item \code{CLFormer}, \code{CLProof}, \code{CLVerdict}, \code{CLErasable}: the type is a type-former type or a proposition;
+  \item \code{CLCert}, \code{CtxBinder}, \code{lamTele}, \code{openLams}: a subterm under binders, closed by a telescope;
+  \item \code{MarksCert}, \code{ProgCert}: every mark of the marked input, and the main term of the program, is certified.
+  \end{itemize}
+  \lead{Reference} \code{isErasable} (\code{MR E/Extract.v:18}), DV-33, DV-37.
+\end{definition}
+
+\begin{definition}[Meaning of a value]
+  \label{def:EraseProof-Sound}
+  \lean{EraseProof.Sound, EraseProof.CLStrictType, EraseProof.FirstOrderValue, EraseProof.peanoLB, EraseProof.foErase, EraseProof.FrozenLeaf}
+  \leanok
+  \uses{def:EraseProof-CLCert}
+  \srcloc{proof/EraseProof/Spec.lean}{1387}
+  \lead{In short} \code{Sound} says the source value means what the input means in every con-leche model of the environment.
+  \begin{itemize}
+  \item \code{Sound}: \code{unmark v} has a con-leche form that denotes what the input denotes, wherever that is not the proof point;
+  \item \code{CLStrictType}: a type whose members are never the proof point;
+  \item \code{FirstOrderValue}, \code{foErase}, \code{FrozenLeaf}, \code{peanoLB}: a constructor tree, its structural erasure and its frozen leaves.
+  \end{itemize}
+  \lead{Reference} DV-27, DV-34.
+\end{definition}
+
+\begin{lemma}[Certified redexes denote]
+  \label{lem:EraseProof-CLOk-wellDenoted}
+  \lean{EraseProof.CLOk.wellDenoted}
+  \planned
+  \uses{lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-CLTyped-closed}
+  \lead{In short} A redex with a \code{CLOk} certificate is well denoted in every model of an accepted environment.
+
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-CLTyped-closed}
+  \lead{Idea} The claims of \code{ConLecheAccepts.accepted} for inference on the redex.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \code{toCL?} is a reading of the shipping data, not con-leche's frontend: the two agree on the test programs only.
+\item Acceptance is by the pure fold on the reading, without \code{Nat.div} and \code{Nat.mod} pins.
+\item \code{CLOk} and \code{CLCert} are checker runs; no substitution lemma holds for them.
+\end{itemize}

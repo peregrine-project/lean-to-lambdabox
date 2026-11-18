@@ -51,7 +51,8 @@ ROOTS = os.path.join(REPO, 'proof', 'ROOTS.txt')
 AUDIT_TOML = os.path.join(BP, 'audit.toml')
 
 # Layer of a declaration: from its name (first matching prefix), and from its module.
-NAME_LAYER = [('EraseProof.Test.', 'test'), ('EraseProof.', 'proof'), ('ConLeche.', 'conleche')]
+NAME_LAYER = [('EraseProof.Test.', 'test'), ('EraseProof.', 'proof'), ('ConLeche.', 'conleche'),
+              ('List.Forall₂', 'proof')]
 DEFAULT_LAYER = 'shipping'
 MODULE_LAYER = [('EraseProof.Test', 'test'), ('EraseProof', 'proof'), ('ConLeche', 'conleche'),
                 ('LeanToLambdaBox', 'shipping')]

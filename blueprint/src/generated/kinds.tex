@@ -12,9 +12,35 @@
 \bpdefinestatus{standard}{333333}
 \bpdefinestatus{planned}{333333}
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
-\bpdefinenodes{chap:trust}{\bpkind{conleche}~10}
+\bpdefinenodes{chap:trust}{\bpkind{conleche}~26}
+\bpdefinenodes{chap:bridge}{\bpkind{step}~2 \bpkind{lemma}~2 \bpkind{definition}~4}
+\bpdefinenodes{chap:source}{\bpkind{step}~1 \bpkind{lemma}~2 \bpkind{definition}~3}
+\bpdefinenodes{chap:relation}{\bpkind{step}~2 \bpkind{lemma}~3 \bpkind{definition}~3}
 \bpdefinenodes{chap:statements}{\bpkind{final}~1 \bpkind{milestone}~4 \bpkind{lemma}~7 \bpkind{definition}~12}
+\bpdefinenodes{chap:tests}{\bpkind{test}~7}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
+\bpsetkind{def:EraseProof-toCL}{definition}{standard}{}
+\bpsetkind{def:EraseProof-DeclsOf}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-toCL-instantiate1}{step}{standard}{}
+\bpsetkind{lem:EraseProof-CLTyped-closed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-accepted}{step}{standard}{}
+\bpsetkind{def:EraseProof-CLCert}{definition}{standard}{}
+\bpsetkind{def:EraseProof-Sound}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-CLOk-wellDenoted}{lemma}{planned}{}
+\bpsetkind{def:EraseProof-LBEval}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-TargetLift}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-Erases}{definition}{standard}{}
+\bpsetkind{def:EraseProof-RecFixOf}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-mkAppN-snoc}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-app-inv}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-inst}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Erases-inst-aux}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-MarkOf}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-unmark-instantiate1}{step}{standard}{}
+\bpsetkind{def:EraseProof-SrcEval}{definition}{standard}{}
+\bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-SrcEval-restrict}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Restrict-aux}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-erase_correct-statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erase_correct}{final}{planned}{}
 \bpsetkind{def:EraseProof-erases_correct-statement}{definition}{standard}{}
@@ -39,13 +65,36 @@
 \bpsetkind{lem:EraseProof-collectDeps_sub}{lemma}{planned}{}
 \bpsetkind{def:EraseProof-markOf_agree-statement}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-markOf_agree}{lemma}{planned}{}
+\bpsetkind{def:EraseProof-Test-NV0-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV0-hacc}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV1-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-hacc}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV2-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV2-hacc}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-Run}{test}{standard}{}
 \bpsetkind{imp:ConLeche-Denotes}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-CheckDecl}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-CheckerBase}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Kernel-Core}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Kernel-Env}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Kernel-Error}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Kernel-Expr}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-ExprOps}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-Level}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-Name}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Kernel-NatOpPinSet}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Kernel-TypeChecker}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-Capstone}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-Claims}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-ClaimsIO}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Denotes}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Env-EnvModelM}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-Fold}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-Rules-Recompose}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Semantics-DeclWF}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-SetTheory-Core}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-SetTheory-Derive-Pt}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Verify-EnvWF}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Verify-Inductives-RecCheckScope}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Verify-Rules-Bridge}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Verify-Subst}{conleche}{standard}{}

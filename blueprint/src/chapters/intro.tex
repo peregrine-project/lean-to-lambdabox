@@ -7,13 +7,15 @@
   Chapter~\ref{chap:scope}.
 \item \lead{Status} \stOpen{} \hl{the theorems}: none is proved. \stProved{} the proof package
   builds, its checks pass, and the \hl{statements are pinned}: twelve definitions of type
-  \code{Prop} (Chapter~\ref{chap:statements}), each with the definitions it reads, and the
-  run-level tests of the first test program. \stShipping{} the eraser.
+  \code{Prop} (Chapter~\ref{chap:statements}), each with the definitions it reads; the bridge to
+  con-leche, the marks, the source semantics and its restriction, and the relation lemmas
+  (Chapters~\ref{chap:bridge}--\ref{chap:relation}); the hypotheses of the final theorem on three
+  test programs (Chapter~\ref{chap:tests}). \stShipping{} the eraser.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
   the proved results and tests, the formalized definitions and the planned nodes.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
   Lake package \code{EraseProof}, the verification library).
-\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}).
+\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}), \code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}).
 \end{itemize}
 
 \section{What is verified}\label{sec:intro-what}
@@ -128,8 +130,13 @@ Chapter & Content \\
 \ref{chap:trust} & The trust boundary: what is trusted, con-leche's trust base, the checks, what the
   proof uses from con-leche \\
 \ref{chap:resolution} & Why the source semantics carries marks, and what it freezes \\
+\ref{chap:bridge} & The bridge: the reading of Lean declarations, acceptance, run-time certificates \\
+\ref{chap:source} & Marks, the source semantics, the fragment conditions and the restriction to the closure \\
+\ref{chap:relation} & $\lambda_\Box$ evaluation, the erasure relation, inversion and instantiation \\
 \ref{chap:statements} & The twelve statements, as definitions, and the theorems that are to prove them \\
+\ref{chap:tests} & The hypotheses of the final theorem on three programs \\
 \ref{chap:shipping-changes} & The register of shipping changes, rendered \\
+\ref{chap:divergences} & The register of divergences from the references, rendered \\
 \ref{chap:open} & What the theorems do not say, and what is open \\
 \bottomrule
 \end{tabular}

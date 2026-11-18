@@ -3,8 +3,9 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what the final theorem does not say, and what is not done.
-\item \lead{Status} \stOpen{} every theorem of Chapter~\ref{chap:statements}; \stProved{} the
-  statement definitions and the run-level tests of the first program.
+\item \lead{Status} \stOpen{} every theorem of Chapter~\ref{chap:statements} and the planned lemma
+  of Chapter~\ref{chap:bridge}; \stProved{} the statement definitions, the lemmas of Chapters~\ref{chap:bridge}--\ref{chap:relation},
+  and the hypotheses of the final theorem on three programs (Chapter~\ref{chap:tests}).
 \end{itemize}
 
 \section{What the final theorem does not say}\label{sec:open-notsay}
@@ -75,7 +76,7 @@ generated from \code{proof/ROOTS.txt}.
 Milestone & Content \\
 \midrule
 Simulation & \code{erases\_correct}: the $\lambda_\Box$ evaluation of an erasure of a marked source
-  value, from the relation between source and target \\
+  value, from the lemmas of Chapter~\ref{chap:relation}; the cases for $\beta$, $\delta$, constructors, \code{casesOn}, projections and recursors \\
 Meaning of the evaluation & \code{srcEval\_sound}: the marked evaluation preserves the set-model
   meaning, from con-leche's claims and the run-time certificates \\
 The shipping traversal & \code{erasePure\_erases} and \code{collectDeps\_ok\_of}, with the facts on

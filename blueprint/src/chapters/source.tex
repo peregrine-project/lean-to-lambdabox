@@ -1,0 +1,136 @@
+\chapter{Marks and the source semantics}\label{chap:source}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define the marked source term, the weak call-by-value semantics on it, and the
+  fragment conditions; prove that marks commute with substitution and that the semantics restricts
+  to the closure.
+\item \lead{Main results} \code{unmark} commutes with instantiation (Section~\ref{sec:source-marks});
+  evaluation over the program is evaluation over the closure (Section~\ref{sec:source-restrict}).
+\item \lead{Status} \stProved{} every node of this chapter. \stOpen{} the determinism and existence of the marking (Chapter~\ref{chap:statements}).
+\item \lead{Nodes} \bpnodes{chap:source}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Source/Marks, Source/Restrict}.
+\item \lead{Reference} \code{MR P/PCUICWcbvEval.v}; Chapter~\ref{chap:resolution}.
+\end{itemize}
+
+\section{Marks}\label{sec:source-marks}
+
+A mark is metadata with the anonymous key on a subterm, written by \code{MarkOf} one rule per case of the traversal.
+
+\begin{definition}[Marked terms]
+  \label{def:EraseProof-MarkOf}
+  \lean{EraseProof.MarkOf, EraseProof.EtaLams, EraseProof.markMD, EraseProof.markErase, EraseProof.markEta, EraseProof.markReduced, EraseProof.bvarOccurs, EraseProof.etaContract, EraseProof.unmark, EraseProof.absFV, EraseProof.Fresh, EraseProof.oracle, EraseProof.forallView?, EraseProof.markArity?, EraseProof.MarkEta, EraseProof.MarkSat, EraseProof.MarkAlt}
+  \leanok
+  \uses{def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Spec.lean}{667}
+  \lead{In short} \hl{\code{MarkOf decls cfg ls e em}: \code{em} is \code{e} with the traversal's decisions written on it}; \code{unmark} inverts it.
+  \begin{itemize}
+  \item \code{markErase}, \code{markEta}, \code{markReduced}, \code{markMD}: a subterm erased, a $\lambda$ introduced by $\eta$-expansion, a reduced discriminant;
+  \item \code{MarkOf}, \code{MarkEta}, \code{MarkSat}, \code{MarkAlt}: the marking relation, for $\eta$-expansion, saturated spines and alternatives;
+  \item \code{oracle}, \code{forallView?}, \code{markArity?}, \code{Fresh}, \code{absFV}: the oracle's answer, the $\Pi$ it reads, the arity, a fresh local, abstraction;
+  \item \code{unmark}, \code{etaContract}, \code{EtaLams}, \code{bvarOccurs}: remove the marks, contract an $\eta$, every $\eta$ mark sits on a $\lambda$.
+  \end{itemize}
+  \lead{Reference} none; DV-23, DV-32.
+\end{definition}
+
+\begin{lemma}[Unmarking commutes with substitution]
+  \label{lem:EraseProof-unmark-instantiate1}
+  \lean{EraseProof.unmark_instantiate1', EraseProof.Marks.nat_beq_false, EraseProof.Marks.bvarOccurs_lift_out, EraseProof.Marks.bvarOccurs_lift_below, EraseProof.Marks.bvarOccurs_inst, EraseProof.Marks.inst_lift_cancel, EraseProof.Marks.lower_inst, EraseProof.Marks.lower_lift, EraseProof.Marks.instLevels_lift, EraseProof.Marks.instLevels_instantiate1', EraseProof.Marks.bvarOccurs_instLevels, EraseProof.Marks.EtaShape, EraseProof.Marks.etaContract_of_not, EraseProof.Marks.etaShape_of_lift, EraseProof.Marks.etaContract_lift, EraseProof.Marks.etaShape_of_instLevels, EraseProof.Marks.etaContract_instLevels, EraseProof.Marks.lift_ne_bvar0, EraseProof.Marks.etaContract_inst_lam, EraseProof.unmark_liftLooseBVars', EraseProof.unmark_instLevels}
+  \leanok
+  \uses{def:EraseProof-MarkOf}
+  \srcloc{proof/EraseProof/Source/Marks.lean}{415}
+  \lead{In short} \hl{\code{unmark} commutes with lifting, instantiation and universe instantiation}, instantiation on terms whose $\eta$ marks sit on $\lambda$s.
+  \begin{itemize}
+  \item \code{unmark\_instantiate1'}, \code{unmark\_instLevels}, \code{unmark\_liftLooseBVars'}: the three commutations;
+  \item \code{Marks.etaContract\_*}, \code{Marks.etaShape\_*}, \code{Marks.bvarOccurs\_*}, \code{Marks.lower\_*}, \code{Marks.inst\_lift\_cancel}: the de Bruijn facts they need.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the term; $\eta$-contraction commutes with the operations on $\eta$-shaped $\lambda$s.
+\end{proof}
+
+\section{The semantics}\label{sec:source-sem}
+
+The evaluation environment, the semantics, and the conditions the fragment test imposes on the closure.
+
+\begin{definition}[Source evaluation]
+  \label{def:EraseProof-SrcEval}
+  \lean{EraseProof.SrcEval, EraseProof.findDecl, EraseProof.FVarsIn, EraseProof.ConstsIn, EraseProof.EvalEnv, EraseProof.casesOnOf?, EraseProof.EvalEnv.casesOn?, EraseProof.casesMajor, EraseProof.casesArity, EraseProof.quotEvalArity, EraseProof.specialArity, EraseProof.ShortSpine, EraseProof.EvalEnv.unfold?, EraseProof.EvidentZero, EraseProof.DeltaFree, EraseProof.EvidentProp, EraseProof.OwnRules, EraseProof.IsThm, EraseProof.EvalEnv.isAtom, EraseProof.SrcAtom, EraseProof.CtorValue, EraseProof.natLitCtor, EraseProof.EvalEnv.propInd, EraseProof.EvalEnv.recBlock?, EraseProof.BlocksCong, EraseProof.ReadExpr, EraseProof.KernameInj, EraseProof.SubEnv, EraseProof.evalEnvOf, EraseProof.HasNatLit}
+  \leanok
+  \uses{def:EraseProof-MarkOf, def:EraseProof-CLCert}
+  \srcloc{proof/EraseProof/Spec.lean}{845}
+  \lead{In short} \hl{\code{SrcEval env $\sigma$ e v}: weak call-by-value evaluation of closed marked terms}, with a certificate in each rule that forms a redex.
+  \begin{itemize}
+  \item rules: \code{beta}, \code{etaBeta}, \code{zeta}, \code{delta}, \code{constAtom}, \code{ctor}, \code{casesIota}, \code{casesLit*}, \code{quotMk}, \code{quotLift}, \code{recIota}, \code{proj}, \code{lit}, \code{appCong}, \code{atom}, \code{etaLam};
+  \item frozen rules: \code{frozen}, \code{frozenApp}, \code{casesFrozen}, \code{projFrozen}, a marked subterm certified by con-leche;
+  \item \code{EvalEnv}, \code{evalEnvOf}, \code{unfold?}, \code{isAtom}, \code{propInd}, \code{recBlock?}: the declarations, the remapping and the configuration;
+  \item \code{ShortSpine}, \code{specialArity}, \code{casesOnOf?}, \code{BlocksCong}, \code{CtorValue}, \code{EvidentProp}: the spine and value conditions.
+  \end{itemize}
+  \lead{Reference} \code{eval} (\code{MR P/PCUICWcbvEval.v}); DV-24, DV-25, DV-32.
+\end{definition}
+
+\begin{definition}[Fragment conditions]
+  \label{def:EraseProof-ViewAgrees}
+  \lean{EraseProof.ViewAgrees, EraseProof.NoPreDefs, EraseProof.LevelPlain, EraseProof.PlainExpr, EraseProof.ReadClosed, EraseProof.Eliminated, EraseProof.RecInFragment, EraseProof.RecShaped, EraseProof.PreRead, EraseProof.PhaseIDecl}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Spec.lean}{992}
+  \lead{In short} The conditions on the view and the closure that the fragment test and the statements read.
+  \begin{itemize}
+  \item \code{ViewAgrees}, \code{NoPreDefs}: the view agrees with the program; no closure declaration is erased through a compiled pre-definition;
+  \item \code{PlainExpr}, \code{LevelPlain}, \code{ReadClosed}: a plain expression, and the closure holds what the traversal reads;
+  \item \code{Eliminated}, \code{RecInFragment}, \code{RecShaped}, \code{PhaseIDecl}, \code{PreRead}: the first-phase fragment.
+  \end{itemize}
+  \lead{Reference} DV-26, DV-35.
+\end{definition}
+
+\section{Restriction to the closure}\label{sec:source-restrict}
+
+The evaluation over the program is the evaluation over the closure the traversal erased.
+
+\begin{lemma}[Evaluation restricts to the closure]
+  \label{lem:EraseProof-SrcEval-restrict}
+  \lean{EraseProof.SrcEval.restrict}
+  \leanok
+  \uses{def:EraseProof-SrcEval, def:EraseProof-ViewAgrees, lem:EraseProof-Restrict-aux}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{708}
+  \lead{In short} \hl{A source evaluation over the program is one over the closure}, and its value mentions only constants of the closure.
+  \begin{itemize}
+  \item \code{hsub}, \code{hcl}, \code{hctors}: the closure is a closed sub-environment that keeps the constructors' inductives;
+  \item \code{hmark}: markings over the program are markings over the closure;
+  \item \code{hc}: the constants of the term, without $\lambda$ domains, lie in the closure.
+  \end{itemize}
+  \lead{Reference} \code{ML-V Source/Restrict}; DV-35.
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Restrict-aux}
+  \leanok
+  \lead{Idea} Induction on the evaluation; each rule reads the same declarations over the closure.
+\end{proof}
+
+\begin{lemma}[Agreement over the closure]
+  \label{lem:EraseProof-Restrict-aux}
+  \lean{EraseProof.DepClosed, EraseProof.BodyConstsIn, EraseProof.Restrict.ConstsIn_getAppFn, EraseProof.Restrict.ConstsIn_peelLams, EraseProof.Restrict.ConstsIn_spine, EraseProof.Restrict.BodyConstsIn.of_constsIn, EraseProof.Restrict.BodyConstsIn_foldl, EraseProof.Restrict.BodyConstsIn_mkAppN, EraseProof.Restrict.BodyConstsIn_getAppFn, EraseProof.Restrict.BodyConstsIn_lift, EraseProof.Restrict.BodyConstsIn_instantiate1', EraseProof.Restrict.BodyConstsIn_instLevels, EraseProof.Restrict.BodyConstsIn_absFV, EraseProof.Restrict.findDecl_eq_some, EraseProof.Restrict.findDecl_sub, EraseProof.Restrict.findDecl_agree, EraseProof.Restrict.ctorAlts_congr, EraseProof.Restrict.blockCtorCount_congr, EraseProof.Restrict.casesInfo?_congr, EraseProof.Restrict.isConstAt_const, EraseProof.Restrict.casesInfo?_reads, EraseProof.Restrict.casesOnOf?_agree, EraseProof.Restrict.specialArity_agree, EraseProof.Restrict.unfold?_agree, EraseProof.Restrict.EvidentProp_agree, EraseProof.Restrict.isAtom_agree, EraseProof.Restrict.head_mem, EraseProof.Restrict.shortSpine_iff, EraseProof.Restrict.propInd_agree, EraseProof.Restrict.CtorValue.restrict, EraseProof.Restrict.natLitCtor_cases, EraseProof.Restrict.natLitCtor_restrict, EraseProof.Restrict.casesOnOf?_ind, EraseProof.Restrict.ctor_mem_of_casesOn?, EraseProof.Restrict.unfold?_read, EraseProof.Restrict.mapM_restrict, EraseProof.Restrict.mem_mapM, EraseProof.Restrict.recBlock?_restrict, EraseProof.Restrict.BlocksCong_sub, EraseProof.Restrict.forall_mem_of_rel, EraseProof.Restrict.MarkOf.bodyConstsIn}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Source/Restrict.lean}{19}
+  \lead{In short} Every recognizer and reader of the semantics gives the same answer over the program and over a closed sub-environment.
+  \begin{itemize}
+  \item \code{DepClosed}, \code{BodyConstsIn}: the closure is closed under dependencies; constants of a term without domains;
+  \item \code{Restrict.*\_agree}, \code{Restrict.*\_congr}, \code{Restrict.findDecl\_*}: recognizers and lookups agree;
+  \item \code{Restrict.BodyConstsIn\_*}, \code{Restrict.ConstsIn\_*}: the constant conditions are stable under spines and substitution;
+  \item \code{Restrict.MarkOf.bodyConstsIn}, \code{Restrict.CtorValue.restrict}, \code{Restrict.recBlock?\_restrict}: marks, values and blocks restrict.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Case analysis on the reader, with membership of the closure for every name it reads.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item Marks are the eraser's decisions; the oracle behind them is not verified (Chapter~\ref{chap:open}).
+\item \code{SrcEval} has no rule for $\delta$ on theorems, opaques or \code{@[extern]} atoms under \code{.preferAxiom}.
+\item The restriction ignores $\lambda$ domains: no rule reads them.
+\end{itemize}
