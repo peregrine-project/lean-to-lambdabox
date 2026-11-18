@@ -325,7 +325,10 @@ def addComponent (phase : Phase) (g : Std.HashMap Name Node) (comp : List Name) 
   | _ => addFix comp
 where
   addFix (names : List Name) : EraseM Unit := do
-    let ids ← names.mapM fun _ => mkFreshFVarId
+    -- The variables of the component are named after its members, not drawn from the name
+    -- generator: the stored LCNF code keeps the `_uniq.N` names of the context that compiled it,
+    -- and a fresh `_uniq.N` here can coincide with one of them.
+    let ids : List FVarId := names.map fun n => { name := n ++ `_lcnf_fix }
     let fix := Std.HashMap.ofList (names.zip ids)
     let defs : List (@FixDef LBTerm) ← names.mapM fun n => do
       let some d := g[n]?.bind (·.decl)
