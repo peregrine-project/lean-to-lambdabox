@@ -9,9 +9,6 @@
 EraseProof.ErasesAlt.inst EraseProof.erases_correct
 EraseProof.Erases.ctor_inv EraseProof.erases_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
-EraseProof.Erases.quot_inv EraseProof.erases_correct
-EraseProof.Erases.rec_inv EraseProof.erases_correct
-EraseProof.RecLam.recLets_closed EraseProof.erases_correct
 EraseProof.ErasesDeps.construct_ind EraseProof.erases_correct
 EraseProof.ErasesInd.indIsPropAndPars EraseProof.erases_correct
 EraseProof.ErasesInd.lookupCtor EraseProof.erases_correct
@@ -36,4 +33,7 @@ EraseProof.SimCases.erases_correct_atom EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_etaLam EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozen EraseProof.erases_correct
 EraseProof.SimCases.erases_correct_frozenApp EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_quotMk EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_quotLift EraseProof.erases_correct
+EraseProof.SimCases.erases_correct_recIota EraseProof.erases_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct

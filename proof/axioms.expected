@@ -7,9 +7,6 @@ EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.Erases.cases_inv propext,Classical.choice,Quot.sound
 EraseProof.Erases.ctor_inv propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
-EraseProof.Erases.quot_inv propext,Classical.choice,Quot.sound
-EraseProof.Erases.rec_inv propext,Classical.choice,Quot.sound
-EraseProof.RecLam.recLets_closed propext,Classical.choice,Quot.sound
 EraseProof.ErasesDeps.construct_ind propext,Classical.choice,Quot.sound
 EraseProof.ErasesInd.indIsPropAndPars propext,Classical.choice,Quot.sound
 EraseProof.ErasesInd.lookupCtor propext,Classical.choice,Quot.sound
@@ -28,6 +25,9 @@ EraseProof.SimCases.erases_correct_etaLam propext,Classical.choice,Quot.sound
 EraseProof.SimCases.erases_correct_frozen propext,Classical.choice,Quot.sound
 EraseProof.SimCases.erases_correct_frozenApp propext,Classical.choice,Quot.sound
 EraseProof.SimCases.erases_correct_zeta propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_quotMk propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_quotLift propext,Classical.choice,Quot.sound
+EraseProof.SimCases.erases_correct_recIota propext,Classical.choice,Quot.sound
 EraseProof.unmark_instLevels propext,Classical.choice,Quot.sound
 EraseProof.unmark_instantiate1' propext,Classical.choice,Quot.sound
 EraseProof.toCL?_hasFvar propext,Quot.sound
