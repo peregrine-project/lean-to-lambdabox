@@ -10,6 +10,7 @@ EraseProof.Erases.inst propext,Classical.choice,Quot.sound
 EraseProof.Erases.instLevels propext,Classical.choice,Quot.sound
 EraseProof.Erases.inst_let propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.inst propext,Classical.choice,Quot.sound
+EraseProof.AbsFV.LBV_of_toCL? propext,Quot.sound
 EraseProof.unmark_instLevels propext,Classical.choice,Quot.sound
 EraseProof.unmark_instantiate1' propext,Classical.choice,Quot.sound
 EraseProof.toCL?_hasFvar propext,Quot.sound

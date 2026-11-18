@@ -13,6 +13,7 @@ EraseProof.Erases.instLevels EraseProof.erases_correct
 EraseProof.Erases.app_inv EraseProof.erases_correct
 EraseProof.Erases.ctor_inv EraseProof.erases_correct
 EraseProof.Erases.cases_inv EraseProof.erases_correct
+EraseProof.AbsFV.LBV_of_toCL? EraseProof.erases_correct
 EraseProof.unmark_instantiate1' EraseProof.srcEval_sound
 EraseProof.unmark_instLevels EraseProof.srcEval_sound
 EraseProof.toCL?_instantiate1'_closed EraseProof.srcEval_sound

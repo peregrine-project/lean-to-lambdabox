@@ -215,6 +215,35 @@ theorem AbsFV.LBV_mkAppN {k : Nat} {c : Name} {us : List Level} {as : List Expr}
     LBV k (mkAppN (.const c us) as.toArray) ↔ ∀ a ∈ as, LBV k a := by
   rw [mkAppN_toArray, LBV_foldl]; simp [LBV]
 
+/-- A term whose con-leche reading has no loose bound variable from `k` on has none
+(`CL ConLeche/Kernel/ExprOps.lean:46 looseBVarsBounded`; `toCL?` reads indices as indices and
+metadata transparently): with `CLTyped.closed`, every term con-leche types satisfies `LBV 0`, the
+premise of `Erases.inst`. -/
+theorem AbsFV.LBV_of_toCL? : ∀ {e : Expr} {c : ConLeche.Expr} {k : Nat}, toCL? e = some c →
+    c.looseBVarsBounded k = true → LBV k e
+  | .bvar _, _, _, h, hb => by
+    simp only [toCL?, Option.some.injEq] at h; subst h
+    simpa [ConLeche.Expr.looseBVarsBounded, LBV] using hb
+  | .sort _, _, _, _, _ | .const .., _, _, _, _ | .lit _, _, _, _, _ => trivial
+  | .app f a, _, _, h, hb | .lam _ f a _, _, _, h, hb | .forallE _ f a _, _, _, h, hb => by
+    simp only [toCL?, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨_, hf, _, ha, rfl⟩ := h
+    simp only [ConLeche.Expr.looseBVarsBounded, Bool.and_eq_true] at hb
+    exact ⟨LBV_of_toCL? hf hb.1, LBV_of_toCL? ha hb.2⟩
+  | .letE _ t v b _, _, _, h, hb => by
+    simp only [toCL?, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+      Option.some.injEq] at h
+    obtain ⟨_, ht, _, hv, _, hb', rfl⟩ := h
+    simp only [ConLeche.Expr.looseBVarsBounded, Bool.and_eq_true] at hb
+    exact ⟨LBV_of_toCL? ht hb.1.1, LBV_of_toCL? hv hb.1.2, LBV_of_toCL? hb' hb.2⟩
+  | .mdata _ e, _, _, h, hb => LBV_of_toCL? (e := e) h hb
+  | .proj _ _ e, _, _, h, hb => by
+    simp only [toCL?, Option.map_eq_map, Option.map_eq_some_iff] at h
+    obtain ⟨_, hp, rfl⟩ := h
+    exact LBV_of_toCL? (e := e) hp hb
+  | .fvar _, _, _, h, _ | .mvar _, _, _, h, _ => nomatch h
+
 /-- The pointwise premise of a list rule gives the property on every element of the target list.
 Copy of `ML-V Relation/Basic.lean:283`. -/
 theorem forall_mem_of_getElem {α β : Type} {as : List α} {bs : List β} {R : α → β → Prop}
