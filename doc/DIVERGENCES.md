@@ -619,7 +619,8 @@ What the statements and the checks rely on without proof:
 - **What differs:** the source semantics evaluates the marked term, not the input. `MarkOf` is a
   function of the input and the closure (`markOf_det_statement`: for a closure whose types and
   values mention no free variable, and a closed input at no locals, two markings of the input are
-  equal), defined wherever the traversal runs (`markOf_exists_statement`); every node the traversal asks the oracle about is marked `erase` when
+  equal), defined wherever the traversal runs on the closure of a program con-leche accepts
+  (`markOf_exists_statement`); every node the traversal asks the oracle about is marked `erase` when
   the oracle answers `true`. A frozen subterm is a value (`frozen`), no rule evaluates inside it, a
   frozen function applied is frozen (`frozenApp`, λ□'s `eval_box`), a projection of a frozen proof
   is frozen (`projFrozen`), a `casesOn` reduced at erasure time continues at frozen projections
@@ -816,10 +817,13 @@ What the statements and the checks rely on without proof:
   (CL ConLeche/Kernel/Inductives/RecCheck.lean:463 recKExpected), which con-leche checks at install
   and does not state of the accepted environment. It also requires that every recursor's level
   parameters be distinct (CL ConLeche/Kernel/CheckerBase.lean:112, checked at install and not
-  stated of the accepted environment) and that every inductive hypothesis of a rule be a call of a
-  stored recursor of the block at the recursor's own level parameters, with as many arguments as
-  that recursor's major premise position plus one, on the fields that the binders of the
-  constructor's minor premise name, in order (`EraseProof.IHShape`, `EraseProof.RuleSelects`).
+  stated of the accepted environment) and that every inductive hypothesis of a rule be a call of the
+  recursor `t.rec` of a member `t` of the block (the recursor itself for a one-member block) at the
+  recursor's own level parameters, with as many arguments as that recursor's major premise position
+  plus one, under as many `λ`s as the minor premise's binder at its position has leading `Π`s, on
+  the fields that the binders of the constructor's minor premise name, in order
+  (`EraseProof.IHShape`, `EraseProof.RuleSelects`; the generator's callee `rec_t`,
+  CL ConLeche/Kernel/Inductives/GenRec.lean:189 `classGenRule`).
   It also requires that every rule of a recursor `T.rec` of a stored family fire `.plain`
   (CL ConLeche/Kernel/Env.lean:118 `RecRuleFire`, the installer's mode at a member major; the other
   modes are for auxiliary and quotient recursors) and that every stored definition's level
