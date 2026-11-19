@@ -327,17 +327,33 @@ def clBvar? : ConLeche.Expr → Option Nat
   | .bvar i => some i
   | _ => none
 
+/-- The leading `Π`s of a type: their number and the body. -/
+def clPiBody : ConLeche.Expr → Nat × ConLeche.Expr
+  | .forallE _ b => let r := clPiBody b; (r.1 + 1, r.2)
+  | e => (0, e)
+
+/-- The field that the last argument of a term names: after `k` binders and an application spine
+whose last argument is a bound variable applied to the `k` binders in order, that variable's
+position among the `n` field variables in scope outside the binders. -/
+def clFieldOf (n k : Nat) (body : ConLeche.Expr) : Option Nat :=
+  match (clSpine body).2.getLast? with
+  | none => none
+  | some l => match clBvar? (clSpine l).1 with
+    | some b => if k ≤ b ∧ b - k < n then some (n - 1 - (b - k)) else none
+    | none => none
+
 /-- `ih` has the shape of an inductive hypothesis of a stored rule with `nF` fields and prefix
-length `rP`: `λ xs, rec_t p⃗ idx⃗ (f xs)`, that is `k` leading `λ`s over a recursor of the
-environment applied to the `rP` prefix variables, the index arguments and the field `f` applied to
-the `k` bound variables. -/
-def IHShape (env : ConLeche.Env) (rP nF : Nat) (ih : ConLeche.Expr) : Bool :=
+length `rP`, of a recursor with level parameters `lps`: `λ xs, rec_t.{lps} p⃗ idx⃗ (f xs)`, that is
+`k` leading `λ`s over a recursor of the environment at the levels `lps` (as parameters), applied to
+the `rP` prefix variables, the index arguments and the field `f` applied to the `k` bound
+variables: `numIndices + rP + 1` arguments in all. -/
+def IHShape (env : ConLeche.Env) (lps : List ConLeche.Name) (rP nF : Nat) (ih : ConLeche.Expr) : Bool :=
   let r := clLams ih
   let k := r.1
   let s := clSpine r.2
   (match s.1 with
-   | .const n _ => env.consts.any fun
-       | .recInfo v .. => v.name == n
+   | .const n us => us == lps.map ConLeche.Level.param && env.consts.any fun
+       | .recInfo v mI _ _ _ => v.name == n && s.2.length == mI + 1
        | _ => false
    | _ => false) &&
   s.2.length > rP &&
@@ -353,8 +369,9 @@ def IHShape (env : ConLeche.Env) (rP nF : Nat) (ih : ConLeche.Expr) : Bool :=
 
 /-- The stored rule `r` of a recursor with prefix length `rP` has the generated shape: `rP + nfields`
 leading `λ`s over a bound variable of the prefix (the constructor's minor premise) applied to the
-`nfields` field variables, in order, and then to inductive hypotheses (`IHShape`). -/
-def RuleShape (env : ConLeche.Env) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
+`nfields` field variables, in order, and then to inductive hypotheses (`IHShape`, at the recursor's
+level parameters `lps`). -/
+def RuleShape (env : ConLeche.Env) (lps : List ConLeche.Name) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
   let l := clLams r.rhs
   let s := clSpine l.2
   l.1 == rP + r.nfields &&
@@ -362,7 +379,7 @@ def RuleShape (env : ConLeche.Env) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
    | some h => r.nfields ≤ h && h < rP + r.nfields
    | none => false) &&
   (s.2.take r.nfields).map clBvar? == (List.range r.nfields).map (fun i => some (r.nfields - 1 - i)) &&
-  (s.2.drop r.nfields).all (IHShape env rP r.nfields)
+  (s.2.drop r.nfields).all (IHShape env lps rP r.nfields)
 
 /-- The constructors of the block of a stored family with capabilities `caps`, in order: the
 recorded constructors of each member of `caps.all`, the order of a recursor's minor premises. -/
@@ -371,12 +388,18 @@ def blockCtors (env : ConLeche.Env) (caps : ConLeche.IndCaps) : List ConLeche.Na
     | some (.indInfo _ c) => c.ctors
     | _ => []
 
+/-- The field that the `j`-th binder of a minor premise `A` (an inductive hypothesis) recurses on,
+among the `j` binders before it. -/
+def minorIHField (A : ConLeche.Expr) (j : Nat) : Option Nat :=
+  (ConLeche.Expr.binderDom j A).bind fun T => let r := clPiBody T; clFieldOf j r.1 r.2
+
 /-- The stored rule `rl` of a recursor with type `ty` and prefix length `rP`, of the block with the
 constructors `bc`, is the rule of its own constructor: the constructor is in the block and is
 stored with `rl.nfields` fields, the head of the right-hand side is the constructor's minor premise
 (the prefix variable at position `rP - bc.length + g`, `g` the constructor's position in `bc`), and
 the head has as many arguments as that minor premise (the domain of `ty` at that position) has
-leading `Π`s: the fields, then the inductive hypotheses. -/
+leading `Π`s: the fields, then the inductive hypotheses, and the hypotheses recurse, in order, on
+the fields that the binders of the minor premise name (`clFieldOf`). -/
 def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc : List ConLeche.Name)
     (rl : ConLeche.RecRule) : Bool :=
   let q := rP - bc.length + bc.idxOf rl.ctor
@@ -387,7 +410,10 @@ def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc : List 
    | _ => false) &&
   clBvar? s.1 == some (rl.nfields + (rP - 1 - q)) &&
   (match ConLeche.Expr.binderDom q ty with
-   | some A => s.2.length == clPis A
+   | some A => s.2.length == clPis A &&
+       (s.2.drop rl.nfields).map (fun ih => let r := clLams ih; clFieldOf rl.nfields r.1 r.2) ==
+         (List.range' rl.nfields (clPis A - rl.nfields)).map (minorIHField A) &&
+       (List.range' rl.nfields (clPis A - rl.nfields)).all fun j => (minorIHField A j).isSome
    | none => false)
 
 /-- The K flag con-leche's block check expects of the recursor of a stored family with type `cvT`
@@ -433,7 +459,8 @@ install but states nothing of it at the fold, so the shape and the selection the
 part of `ConLecheAccepts`. Reference: none (DV-38). -/
 def RulesCanonical (env : ConLeche.Env) : Bool :=
   env.consts.all fun
-    | .recInfo v mI rP isK rules => clPis v.type == mI + 1 && rules.all (RuleShape env rP) &&
+    | .recInfo v mI rP isK rules => clPis v.type == mI + 1 && ConLeche.Name.nodup v.levelParams &&
+        rules.all (RuleShape env v.levelParams rP) &&
         RulesSelected env v.name v.type rP isK rules
     | _ => true
 
@@ -1171,6 +1198,9 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
       findDecl σ.decls c' = some (.quotInfo qv') → qv'.kind = .ctor →
       CLOk env (mkAppN (.const c us)
         [α, r, β, .lam x A b bi, h, mkAppN (.const c' us') [α', r', a].toArray].toArray) →
+      (∃ l F, us.head?.bind Level.toCL = some l ∧
+        ConLeche.iotaCaseAt (ConLeche.pureFns .verified false env F).whnf env.find? false
+          (Name.toCL ``Quot) [l] = .ok false) →
       SrcEval env σ (b.instantiate1' a) v →
       SrcEval env σ (mkAppN (.const c us) [α, r, β, f, h, q].toArray) v
   /-- The recursor ι under call by value (port of `ML-V Spec.lean:999`; DV-30). -/
@@ -1185,9 +1215,11 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
       SrcEval env σ maj mj → CtorValue σ T (natLitCtor mj) k fs → minors[k]? = some mi →
       mvs[k]? = some mk →
       CLOk env (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [mj]).toArray) →
+      IotaNoCertAt env T (natLitCtor mj) →
       (mi.ihs.mapM fun h => fs[h.field]?) = some rfs → rfs.length = ihvs.length →
       (∀ (i : Nat) f w, rfs[i]? = some f → ihvs[i]? = some w →
         SrcEval env σ (mkAppN (.const c us) (ps ++ ms ++ mvs ++ [f]).toArray) w) →
+      CLOk env (mkAppN mk (fs ++ ihvs).toArray) →
       SrcEval env σ (mkAppN mk (fs ++ ihvs).toArray) v →
       SrcEval env σ (mkAppN (.const c us) (ps ++ ms ++ mins ++ [maj]).toArray) v
   /-- `eval_proj` (`:264`). -/

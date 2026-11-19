@@ -12,7 +12,8 @@
 #   tokens    C2   no sorry, admit, axiom, opaque, native_decide, native, bv_decide, unsafe,
 #                  implemented_by, extern (and the other tokens of scripts/scan_tokens.py) in
 #                  proof/**/*.lean outside comments and strings, also quoted as «sorry».
-#   replay         the kernel replay of the library: `leanchecker LeanToLambdaBox EraseProof` (the
+#   replay         (stale artifacts of removed modules are deleted first, see `prune_stale`)
+#                  the kernel replay of the library: `leanchecker LeanToLambdaBox EraseProof` (the
 #                  toolchain's lean4checker) adds every declaration of every module
 #                  LeanToLambdaBox.* and EraseProof.* again through the kernel, over the
 #                  environment of the module's imports, and compares constructors and recursors
@@ -116,7 +117,23 @@ build_proof() ( cd "$PROOF" && lake build )
 # leanchecker replays every module in a task of its own, each over a fresh import of the module's
 # dependencies; the thread count bounds how many such environments are live at once, and so the
 # replay's memory.
-replay() ( cd "$PROOF" && LEAN_NUM_THREADS="${REPLAY_THREADS:-3}" lake env leanchecker LeanToLambdaBox EraseProof )
+# leanchecker takes its arguments as module-name prefixes and replays every .olean of the build
+# directory under them, so an .olean left by a module that has since been removed would be
+# replayed too. Before the replay, the build artifacts (.olean, .ilean, .hash, .trace, .ir) of
+# modules with no source file are deleted: the replay then covers exactly the current modules.
+prune_stale() {
+  local base src
+  for spec in "$ROOT:LeanToLambdaBox" "$PROOF:EraseProof"; do
+    base=${spec%%:*}; src=${spec##*:}
+    for f in $(cd "$base/.lake/build/lib/lean" 2>/dev/null && find "$src" -name '*.olean'); do
+      [ -f "$base/${f%.olean}.lean" ] || {
+        echo "stale: $base/.lake/build/lib/lean/$f"
+        rm -f "$base/.lake/build/lib/lean/${f%.olean}".{olean,ilean,ilean.hash,olean.hash,trace,ir}
+      }
+    done
+  done
+}
+replay() ( prune_stale && cd "$PROOF" && LEAN_NUM_THREADS="${REPLAY_THREADS:-3}" lake env leanchecker LeanToLambdaBox EraseProof )
 report() (
   cd "$PROOF" &&
     lake env lean --run tools/Report.lean ${final[@]+"${final[@]}"} ${metarocq[@]+"${metarocq[@]}"}

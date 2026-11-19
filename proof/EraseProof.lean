@@ -26,6 +26,7 @@ import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
+import EraseProof.Test.RecIH
 import EraseProof.Oracle.Rename
 import EraseProof.Oracle.Det
 import EraseProof.Core.State
