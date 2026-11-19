@@ -7,4 +7,13 @@
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
 EraseProof.erase_correct FINAL
-EraseProof.Steps.travMonoAt EraseProof.markOf_exists
+EraseProof.Steps.exists_fvar_step EraseProof.markOf_exists
+EraseProof.Steps.exists_fail_step EraseProof.markOf_exists
+EraseProof.Steps.exists_mdata_step EraseProof.markOf_exists
+EraseProof.Steps.exists_lam_step EraseProof.markOf_exists
+EraseProof.Steps.exists_letE_step EraseProof.markOf_exists
+EraseProof.Steps.exists_proj_step EraseProof.markOf_exists
+EraseProof.Steps.exists_lit_step EraseProof.markOf_exists
+EraseProof.Steps.exists_app_step EraseProof.markOf_exists
+EraseProof.Steps.exists_ctor_step EraseProof.markOf_exists
+EraseProof.Steps.exists_quot_step EraseProof.markOf_exists
