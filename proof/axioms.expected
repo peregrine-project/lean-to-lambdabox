@@ -120,8 +120,12 @@ EraseProof.Test.NV1.hnopre propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hty propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hview propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.iota_f propext
-EraseProof.Test.NV1.lookup_casesOn propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.mark_casesOnVal propext,Quot.sound
+EraseProof.Test.NV1.mark_cb1 propext,Quot.sound
+EraseProof.Test.NV1.mark_cb2 propext,Quot.sound
+EraseProof.Test.NV1.mark_cb3 propext,Quot.sound
 EraseProof.Test.NV1.mark_ctor propext,Quot.sound
+EraseProof.Test.NV1.mark_lam_self propext
 EraseProof.Test.NV1.mark_neg propext,Quot.sound
 EraseProof.Test.NV1.negL_eq propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.not_short propext
@@ -132,6 +136,7 @@ EraseProof.Test.NV1.ok_f propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.ok_t propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.preDef_none propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.sub propext
+EraseProof.Test.NV1.typedAt_casesOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.typedAt_e propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.typedAt_neg propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.altsMap_all propext,Classical.choice,Quot.sound
@@ -194,6 +199,7 @@ EraseProof.Test.NV2.stBox_Box propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.sub propext
 EraseProof.Test.NV2.t_e propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.toCL_e -
+EraseProof.Test.NV2.typedAt_casesOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.typedAt_eM propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.visitAlt1_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.visitAlt2_run propext,Classical.choice,Quot.sound
