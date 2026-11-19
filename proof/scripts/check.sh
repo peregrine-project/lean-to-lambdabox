@@ -64,8 +64,7 @@
 #                  with PEREGRINE set, also their `-- peregrine:` lines.
 #   peregrine C11  proof/scripts/c11.sh: `peregrine validate` and `peregrine eval` on the emitted
 #                  programs, and on every output the regression tests write under `nat := .peano`;
-#                  each value must be the Lean program's. Runs only once proof/scripts/c11.sh
-#                  exists and with PEREGRINE=<peregrine binary> in the environment, so GitHub CI
+#                  each value must be the Lean program's. Runs only with PEREGRINE=<peregrine binary> in the environment, so GitHub CI
 #                  skips it; skipped with --no-peregrine.
 #
 # Logs go to proof/.check/<step>.log; the report also writes proof/.check/footprints.txt and
@@ -162,8 +161,6 @@ if [ $regress = 1 ]; then
 fi
 if [ $peregrine = 0 ]; then
   echo "== peregrine: skipped (--no-peregrine)"
-elif [ ! -x "$PROOF/scripts/c11.sh" ]; then
-  echo "== peregrine: skipped (scripts/c11.sh has not landed)"
 elif [ -z "${PEREGRINE:-}" ]; then
   echo "== peregrine: skipped (PEREGRINE is not set)"
 elif run peregrine c11; then
