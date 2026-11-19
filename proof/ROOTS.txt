@@ -6,10 +6,8 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
-EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
 EraseProof.RecLam.hasFVar_recLetTerm EraseProof.erasePure_erases
-EraseProof.ErasesDeps.toBvar EraseProof.erasePure_erases
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
 EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.SemCases.srcEval_sound_value EraseProof.srcEval_sound
@@ -32,9 +30,7 @@ EraseProof.SemCases.zeta_hpt EraseProof.srcEval_sound
 EraseProof.markOf_read EraseProof.srcEval_sound
 EraseProof.markOf_read_delta EraseProof.srcEval_sound
 EraseProof.collectDeps_spec EraseProof.erase_correct
-EraseProof.Pure.isErasable_ren EraseProof.markOf_det
 EraseProof.Pure.typeLevel_ren EraseProof.markOf_det
-EraseProof.MarkOf.fvarsIn EraseProof.markOf_det
 EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotMk EraseProof.srcEval_sound
@@ -45,6 +41,11 @@ EraseProof.addAxiom_ok EraseProof.erasePure_erases
 EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
 EraseProof.register_inductive_ok EraseProof.erasePure_erases
 EraseProof.eraseEntry_pure EraseProof.erase_correct
+EraseProof.Steps.visitExpr_fvar_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_fail_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_mdata_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_lam_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_letE_step EraseProof.erasePure_erases
 EraseProof.CLOk.gradedU EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_former EraseProof.srcEval_sound
