@@ -24,31 +24,6 @@ open Lean Erasure
 
 namespace EraseProof
 
-/-! ## Environment conditions -/
-
-/-- Lean's constructors ``Nat.zero`` and ``Nat.succ``, if `σ` has them, are the constructors `0`
-and `1` of ``Nat``: the constructor forms of the Nat literals (`natLitCtor`) are the constructors of
-the λ□ numerals (`Erases.litZero`, `Erases.litSucc`). con-leche checks a program's `Nat` block
-against Lean's (`CL ConLeche/Kernel/Basis/Nat.lean:68 natBasis`). Reference: none (λ□ has no Nat
-literals; DV-30). -/
-def NatCtors (σ : EvalEnv) : Prop :=
-  (∀ cv, findDecl σ.decls ``Nat.zero = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 0) ∧
-    ∀ cv, findDecl σ.decls ``Nat.succ = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 1
-
-/-- Every recursor of `decls` of one inductive without indices has the shape Lean's kernel gives
-it: its inductive's parameter count, and one motive, whose type binds the major premise only (the
-motives `recShape` reads off the recursor's type). The fixpoint `recFix` is then one λ over the
-major premise, and its `case` has the inductive's parameter count. `DeclsOf?` checks the counts
-(`blockShapeOK`); con-leche compares a recursor's type with the generated one up to definitional
-equality only (`CL ConLeche/Kernel/Inductives/GenRec.lean:386 classRecTyCheck`), so the syntactic
-shape of the motive is a condition of its own. Reference: the recursor as Lean's kernel builds it
-(`mk_rec_infos`, `declare_recursors` in `src/kernel/inductive.cpp`). -/
-def RecsShaped (decls : List ConstantInfo) : Prop :=
-  ∀ c rv T iv, findDecl decls c = some (.recInfo rv) → rv.all = [T] →
-    findDecl decls T = some (.inductInfo iv) → rv.numIndices = 0 →
-    rv.numParams = iv.numParams ∧ ∀ ns motives minors,
-      recShape rv.numParams rv.numMotives rv.type ns = some (motives, minors) → ∃ x, motives = [[x]]
-
 namespace SimRec
 
 open TargetSubst TargetLift RecEval RecFix
