@@ -1,6 +1,6 @@
 import EraseProof.Simulation.Cases
 import EraseProof.Relation.Lookup
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 
 /-!
 # Constructor, `casesOn`, projection and literal cases of the relation-level simulation
@@ -734,7 +734,7 @@ theorem erases_correct_casesIota (hbinj : BlockNamesInj σ.decls) (hcl : CtorsLi
   obtain ⟨iid', as', hid', rfl, hlen', hall, hpI, -⟩ := Erases.ctor_inv hC hmb
   rw [hind', hid] at hid'
   cases hid'
-  have hiv := Restrict.casesOnOf?_ind hco
+  have hiv := Decls.casesOnOf?_ind hco
   obtain ⟨iv₀, hiv₀, hk, hnp⟩ := hcl C cv hC
   rw [hind', hiv] at hiv₀
   cases hiv₀
@@ -770,7 +770,7 @@ theorem erases_correct_casesLitZero (hbinj : BlockNamesInj σ.decls) (hnat : Nat
   obtain ⟨iid, maj', brs, hid, rfl, hmaj, hdmaj, hind, halts⟩ :=
     cases_split hbinj hco hlen hm hmv her hdeps
   obtain ⟨mb, hmb, hevmb⟩ := ihm hmaj hdmaj
-  have hiv := Restrict.casesOnOf?_ind hco
+  have hiv := Decls.casesOnOf?_ind hco
   rw [hn] at hid hind hiv
   obtain ⟨hnp, hpN, z, s, hcs, hz, -⟩ := hnat iv hiv
   have hmb0 : mb = .construct iid 0 [] := by
@@ -811,7 +811,7 @@ theorem erases_correct_casesLitSucc (hbinj : BlockNamesInj σ.decls) (hnat : Nat
   obtain ⟨iid, maj', brs, hid, rfl, hmaj, hdmaj, hind, halts⟩ :=
     cases_split hbinj hco hlen hm hmv her hdeps
   obtain ⟨mb, hmb, hevmb⟩ := ihm hmaj hdmaj
-  have hiv := Restrict.casesOnOf?_ind hco
+  have hiv := Decls.casesOnOf?_ind hco
   rw [hn] at hid hind hiv
   obtain ⟨hnp, hpN, z, s, hcs, -, hs⟩ := hnat iv hiv
   obtain ⟨t', rfl, ht'⟩ : ∃ t', mb = .app (.construct iid 1 []) t' ∧

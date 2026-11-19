@@ -1,5 +1,5 @@
 import EraseProof.Relation.Lookup
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 
 /-!
 # The traversal's state invariant
@@ -129,7 +129,7 @@ theorem lookupConst_cons {k kn : Kername} {d : GlobalDecl} {l : GlobalDeclaratio
 
 end StateLemmas
 
-open StateLemmas Restrict
+open StateLemmas Decls
 
 section
 variable {cert : BoxCert} {σ : EvalEnv}

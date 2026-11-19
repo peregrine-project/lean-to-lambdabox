@@ -35,13 +35,13 @@ theorem erases_correct : erases_correct_statement := by
   | delta hu hm _ ih => exact erases_correct_delta hinj hu hm ih
   | constAtom ha => exact erases_correct_constAtom ha
   | ctor hc hl hlv _ _ ih => exact erases_correct_ctor hbinj hcl hc hl hlv ih
-  | casesIota hco hlen hm hmv hcv hok halt _ ihm ihalt =>
+  | casesIota hco hlen hm hmv hcv hok _ halt _ ihm ihalt =>
     exact erases_correct_casesIota hbinj hcl hco hlen hm hmv hcv hok halt ihm ihalt
-  | casesLitZero hco hn hlen hm hmv halt _ ihm ihalt =>
+  | casesLitZero hco hn hlen hm hmv _ _ halt _ ihm ihalt =>
     exact erases_correct_casesLitZero hbinj hnat hco hn hlen hm hmv halt ihm ihalt
-  | casesLitSucc hco hn hlen hm hmv halt _ ihm ihalt =>
+  | casesLitSucc hco hn hlen hm hmv _ _ halt _ ihm ihalt =>
     exact erases_correct_casesLitSucc hbinj hnat hco hn hlen hm hmv halt ihm ihalt
-  | casesFrozen hco hlen hcs hcn hm _ halt _ ih =>
+  | casesFrozen hco hlen hcs hcn hm _ _ halt _ ih =>
     exact erases_correct_casesFrozen hco hlen hcs hcn hm halt ih
   | quotMk hc hk _ _ iha => exact erases_correct_quotMk hc hk iha
   | quotLift hc hk _ _ hc' hk' hok _ ihf ihq ihb =>

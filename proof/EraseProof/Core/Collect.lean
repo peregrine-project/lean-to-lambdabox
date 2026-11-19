@@ -1,5 +1,5 @@
 import EraseProof.Bridge.CLNames
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 import EraseProof.Statements
 
 /-!
@@ -20,7 +20,7 @@ namespace EraseProof
 
 namespace CollectSub
 
-open Restrict
+open Decls
 
 /-- A successful `Except` bind ran its first part successfully. Port of
 `ML-V Oracle/Whnf.lean:71`. -/
