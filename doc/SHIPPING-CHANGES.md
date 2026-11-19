@@ -3991,6 +3991,41 @@ the calls at which the two oracles answer differently. It must equal
   `PEREGRINE`, with unchanged goldens. `LeanToLambdaBox/ConLeche.lean` fails to build if the pinned
   axioms change.
 
+## S-58: A recursor's fixpoint reduces its `case` itself only if the inductive's declared sort may be `Prop`
+
+- **Commit:** the commit whose subject starts with `S-58:` (`git log --grep='^S-58:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `visitRec`, its test `direct` and its docstring.
+  - new `tests/regress/rec_direct_pure.lean` with its goldens `recDirect.ast` and
+    `recDirect.ast.validate`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** `visitRec` chose the `direct` form of the fixpoint (S-40: the function of the
+  only member applies its alternative to □ for the fields instead of a `case`) from the oracle's
+  level of the major premise's type alone. The fragment test and the pure path do not type their
+  input, so on a major premise that is a proof, of an inductive declared in `Type` with one
+  constructor with a field, the pure path emitted the `direct` form, which is correct only for an
+  inductive declared in `Prop` or whose constructor has no fields; the correctness proof of the
+  pure path relates a recursor application to its fixpoint only in these cases.
+- **Behaviour before:** with `inductive RD.S : Type | mk : True → RD.S`, `collectDeps` and
+  `erasePure` on the ill-typed `@RD.S.rec.{1} (fun _ => RD.S) (fun h => RD.S.mk h) True.intro`
+  (in the fragment) give `let mk := λ h. RD.S.mk □ in (fix [RD.S.rec := λ t. (λ a. mk a) □]) □`.
+- **Behaviour after:** `direct` also requires that the declared sort of the major premise's
+  inductive may be `Prop`, the test `sortMayBeProp` of `recStaysConstant` (its type, after its Π
+  binders, is not a sort that is syntactically never zero). The same input gives
+  `let mk := λ h. RD.S.mk □ in (fix [RD.S.rec := λ t. case t of RD.S.mk a => mk a]) □`. The oracle
+  is still asked for the level of every major premise, so the oracle's calls are unchanged. On a
+  well-typed major premise of an inductive whose declared sort is never zero, the level of its
+  type is that sort instantiated, which is not zero under any assignment, so `isNeverZero` of
+  the oracle's answer is true (it is false only for a level that is zero when every parameter is
+  zero) and `direct` was false already: the output on typed inputs is unchanged. The `Meta` path
+  shares `visitRec` and erases elaborated terms only, so its output is unchanged.
+- **Effect on emitted .ast (corpus):** byte-identical for all 708 files (`scripts/corpus.sh
+  --check` passes). `scripts/pure-harness.sh` passes with its expected summary unchanged (9949
+  oracle calls).
+- **Regression test:** `rec_direct_pure` writes `recDirect.ast`, the input above, which peregrine
+  validates; before this commit it is the `direct` form. `scripts/regress.sh` passes (33
+  tests) with `PEREGRINE`, the other goldens unchanged.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an
