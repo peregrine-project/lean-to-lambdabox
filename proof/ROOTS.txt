@@ -6,8 +6,4 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
-EraseProof.erases_correct EraseProof.erase_correct
-EraseProof.srcEval_sound EraseProof.erase_correct
-EraseProof.collectDeps_spec EraseProof.erase_correct
-EraseProof.eraseEntry_pure EraseProof.erase_correct
-EraseProof.erasePure_erases EraseProof.erase_correct
+EraseProof.erase_correct FINAL
