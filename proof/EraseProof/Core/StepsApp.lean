@@ -319,6 +319,11 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
     ∀ n ∈ iv.all, ∀ ivn, findDecl decls n = some (.inductInfo ivn) →
       ivn.all = iv.all ∧ ivn.numParams = iv.numParams
   ctors : CtorsListed decls
+  /-- An inductive lists each constructor at the constructor's index, with the inductive's
+  parameter count (`blockShapeOK`'s `cidx`, `numParams`), so its constructors are distinct. -/
+  ctorIdx : ∀ T iv, findDecl decls T = some (.inductInfo iv) → ∀ (j : Nat) cn,
+    iv.ctors[j]? = some cn → ∃ cv, findDecl decls cn = some (.ctorInfo cv) ∧ cv.cidx = j ∧
+      cv.numParams = iv.numParams
   /-- The type of a constructor of `T` binds the parameters and the fields with `Π`s over an
   application of `T` (`blockShapeOK`). -/
   ctorShape : ∀ T iv, findDecl decls T = some (.inductInfo iv) → ∀ cn ∈ iv.ctors, ∀ cv,
