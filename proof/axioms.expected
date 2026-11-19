@@ -21,7 +21,6 @@ EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.markOf_det propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -230,22 +229,7 @@ EraseProof.Test.DeclOf.unsafe_rejected propext
 EraseProof.SemCases.srcEval_sound_recIota propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_quotLift propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_quotMk propext,Classical.choice,Quot.sound
-EraseProof.StateOK.empty propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_fvar_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_fail_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_mdata_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_lam_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_letE_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_app_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_const_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitMutual_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_ctor_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_cases_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_proj_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_lit_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_quot_step propext,Classical.choice,Quot.sound
-EraseProof.Steps.visitExpr_rec_step propext,Classical.choice,Quot.sound
 EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
@@ -262,5 +246,4 @@ EraseProof.Test.RecIH.wrong_head propext
 EraseProof.Test.RecIH.wrong_lams propext
 EraseProof.Test.RecIH.wrong_levels propext
 EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound
-EraseProof.ctorPropBoxed_of propext,Classical.choice,Quot.sound
-EraseProof.coreEnv_of propext,Classical.choice,Quot.sound
+EraseProof.erasePure_erases propext,Classical.choice,Quot.sound
