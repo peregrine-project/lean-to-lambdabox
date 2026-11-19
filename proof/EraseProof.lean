@@ -4,6 +4,7 @@ import EraseProof.Semantics.Iota
 import EraseProof.Semantics.Rec
 import EraseProof.Semantics.Decode
 import EraseProof.Semantics.Frozen
+import EraseProof.Semantics.DecodeAt
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -89,11 +90,13 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.Iota`: its cases `casesOn` ι (on a constructor value and on a `Nat`
   literal), projection and frozen projection, and the premise of its `let` case.
 * `EraseProof.Semantics.Rec`: its cases recursor ι, quotient lift and quotient constructor.
-* `EraseProof.Semantics.Decode`: the stored records of a recognized `casesOn` (its value, recursor
-  and constructors), of a one-member block's former and of the quotient constants; the grading of a
-  certified term.
+* `EraseProof.Semantics.Decode`: the syntax a recognized `casesOn` is read through, a block's
+  constructor records and the stored quotient constants; the grading of a certified term.
 * `EraseProof.Semantics.Frozen`: its case `casesOn` on a frozen discriminant (a proof), reduced
   by con-leche's semantic ι at a constructor application built for the step.
+* `EraseProof.Semantics.DecodeAt`: the stored former and constructors of a member of a block of any
+  size, the stored rule of a constructor, and the stored records the ι steps of a recognized
+  `casesOn`, of a projection and of a recursor read.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
