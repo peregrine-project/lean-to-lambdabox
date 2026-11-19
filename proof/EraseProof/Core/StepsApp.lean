@@ -319,6 +319,15 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
     ∀ n ∈ iv.all, ∀ ivn, findDecl decls n = some (.inductInfo ivn) →
       ivn.all = iv.all ∧ ivn.numParams = iv.numParams
   ctors : CtorsListed decls
+  /-- The type of a constructor of `T` binds the parameters and the fields with `Π`s over an
+  application of `T` (`blockShapeOK`). -/
+  ctorShape : ∀ T iv, findDecl decls T = some (.inductInfo iv) → ∀ cn ∈ iv.ctors, ∀ cv,
+    findDecl decls cn = some (.ctorInfo cv) → piLen cv.type = iv.numParams + cv.numFields ∧
+      appHeadConst (piResult (iv.numParams + cv.numFields) cv.type) = some T
+  /-- `Nat`, if declared, has Lean's shape, and ``Nat.zero``, ``Nat.succ`` are its constructors
+  (con-leche's `natBasis`). -/
+  natShaped : NatShaped (evalEnvOf view cfg decls)
+  natCtors : NatCtors (evalEnvOf view cfg decls)
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of
