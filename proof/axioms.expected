@@ -41,6 +41,12 @@ EraseProof.SemCases.srcEval_sound_appCong propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_ctor propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_frozenApp propext,Classical.choice,Quot.sound
 EraseProof.Sound.of_semSim propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_casesIota propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_casesLitZero propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_casesLitSucc propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
+EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_defn propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound

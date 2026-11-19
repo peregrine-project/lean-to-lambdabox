@@ -50,3 +50,9 @@ EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_axiom EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_rec EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_single EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_casesIota EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_casesLitZero EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_casesLitSucc EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_proj EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_projFrozen EraseProof.srcEval_sound
+EraseProof.SemCases.zeta_hpt EraseProof.srcEval_sound
