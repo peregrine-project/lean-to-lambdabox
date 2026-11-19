@@ -32,22 +32,7 @@ EraseProof.collectDeps_spec EraseProof.erase_correct
 EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotMk EraseProof.srcEval_sound
-EraseProof.StateOK.empty EraseProof.erasePure_erases
 EraseProof.eraseEntry_pure EraseProof.erase_correct
-EraseProof.Steps.visitExpr_fvar_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_fail_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_mdata_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_lam_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_letE_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_app_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_const_step EraseProof.erasePure_erases
-EraseProof.Steps.visitMutual_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_ctor_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_cases_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_proj_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_lit_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_quot_step EraseProof.erasePure_erases
-EraseProof.Steps.visitExpr_rec_step EraseProof.erasePure_erases
 EraseProof.CLOk.gradedU EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_quot EraseProof.srcEval_sound
@@ -57,3 +42,4 @@ EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound
 EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
+EraseProof.Steps.erasePure_erases_of EraseProof.erasePure_erases
