@@ -1132,7 +1132,9 @@ theorem foldlM_nodupNames {F : Nat} {pins : List ConLeche.NatOpPinSet} :
       refine ⟨(List.reverse_perm _).nodup_iff.mpr (checkDecl_nodup hd), hn,
         fun a ha b hb hab => ?_⟩
       obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_reverse.mp ha)
-      exact ConLeche.Cached.Env.find?_none_notin (hfr c hc) (hab ▸ hb)
+      obtain ⟨c', hc', hc'n⟩ := List.mem_map.mp hb
+      have h0 : env.consts.find? (·.name == c.name) = none := hfr c hc
+      exact (List.find?_eq_none.mp h0 c' hc') (by simp [hc'n, hab])
 
 /-- A stored constant is the one its name finds: con-leche's environment has distinct names. -/
 theorem _root_.EraseProof.ConLecheAccepts.find?_of_mem {P : List ConstantInfo} {env : ConLeche.Env}
