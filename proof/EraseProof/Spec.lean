@@ -1768,13 +1768,12 @@ def Sound.{w} (env : ConLeche.Env) (e v : Expr) : Prop :=
     X ≠ ConLeche.SetTheory.pt →
     ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval env φ ρ c' X
 
-/-- A con-leche type whose members are never the proof point: a sort (its members are types,
-`CL ConLeche/SetTheory/Derive/TypeU.lean:98 IsTy.ne_pt`), or an application of an inductive whose
-sort is never zero (its carrier is a tagged sum at a nonzero level, strict,
-`CL ConLeche/SetModel/TaggedSum.lean:135 strict_sumSet`). Reference: none (DV-34). -/
-def CLStrictType (env : ConLeche.Env) (W : ConLeche.Expr) : Prop :=
-  (∃ u, W = .sort u) ∨ ∃ I us cv caps, W.getAppFn = .const I us ∧
-    env.find? I = some (.indInfo cv caps) ∧ caps.neverZero = true
+/-- A con-leche type whose members are never the proof point in every model: a sort (its members
+are types, `CL ConLeche/SetTheory/Derive/Univ.lean:45 ne_pt_of_mem_univ`). An inductive's carrier is
+not one: `EnvModelM` does not state that it excludes the proof point (DV-34). Reference: none
+(DV-34). -/
+def CLStrictType (W : ConLeche.Expr) : Prop :=
+  ∃ u, W = .sort u
 
 /-- A first-order value of `σ`: a tree of saturated constructor applications whose leaves are
 frozen terms or Nat literals. Port of `ML-V FirstOrder.lean:34`, whose proof and atom leaves are
