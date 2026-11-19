@@ -178,7 +178,9 @@ def erase_correct_statement.{w} : Prop :=
       Sound.{w} env e v
 
 /-- The statement of `erase_correct_firstorder`: under the hypotheses of `erase_correct` other
-than `hcert`, with the closure `decls` free of mark keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
+than `hcert`, with a marking of every value of the closure (`hvals`, the part of `hcert` that is
+not a con-leche check; `erasePure_erases_statement` takes it) and the closure `decls` free of mark
+keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
 leaves), the main term of the emitted program evaluates in λ□ to its structural erasure `foErase`
 (frozen leaves ↦ `□`, literals ↦ Peano numerals), con-leche types `v`, every leaf erased to `□`
 is a subterm that con-leche types as a proof or a type former, and `v` means what `e` means in
@@ -196,6 +198,7 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hnopre : NoPreDefs view cfg decls) →
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
+    (hvals  : ValuesMarkedOf decls cfg) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
     (hfo    : FirstOrderValue (evalEnvOf view cfg decls) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧
@@ -203,16 +206,17 @@ def erase_correct_firstorder_statement.{w} : Prop :=
       CLTyped env v ∧ (∀ s, FrozenLeaf v s → CLErasable env s) ∧ Sound.{w} env e v
 
 /-- The statement of `sound_nonvacuous`: `Sound`'s antecedent has content. If con-leche accepts
-`P` and types an application of `e` to closed arguments with a type whose whnf has members that
-are never the proof point (`CLStrictType`), then in every model `e` has a reading that is not the
-proof point (the proof point applied is the proof point, `CL ConLeche/SetTheory/Derive/Graphs.lean:79
-app_pt`). Reference: none (DV-34). -/
+`P` and types an application of `e` to closed arguments with a type whose whnf is a sort
+(`CLStrictType`: its members are types, never the proof point), then in every model `e` has a
+reading that is not the proof point (the proof point applied is the proof point,
+`CL ConLeche/SetTheory/Derive/Graphs.lean:79 app_pt`). A data-typed input is not covered (DV-34).
+Reference: none (DV-34). -/
 def sound_nonvacuous_statement.{w} : Prop :=
   ∀ {P : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {as : List Expr}
     {c c₁ T W : ConLeche.Expr} {F : Nat},
     ConLecheAccepts P env → toCL? e = some c → toCL? (mkAppN e as.toArray) = some c₁ →
     ConLeche.inferTypeCore .verified false env F 0 c₁ = .ok T →
-    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType env W →
+    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType W →
     ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V env)
       (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
       ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval env φ ρ c X ∧
