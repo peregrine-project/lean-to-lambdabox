@@ -6,6 +6,7 @@ import EraseProof.Semantics.Decode
 import EraseProof.Semantics.Frozen
 import EraseProof.Semantics.DecodeAt
 import EraseProof.Semantics.Sound
+import EraseProof.Semantics.Cert
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -103,6 +104,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.Sound`: `srcEval_sound`, the induction on source evaluation, with the
   program's records behind the closure's, the safety of a stored definition and `Nat`'s pinned
   constructors.
+* `EraseProof.Semantics.Cert`: `clCert_proof_pt`, the proof verdict of a certificate denotes the
+  proof point.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.

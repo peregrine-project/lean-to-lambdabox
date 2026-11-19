@@ -172,7 +172,6 @@ def unproved : Array Name := #[
   `EraseProof.erase_correct,
   `EraseProof.erase_correct_firstorder,
   `EraseProof.sound_nonvacuous,
-  `EraseProof.clCert_proof_pt,
   `EraseProof.markOf_exists]
 
 /-- The statement definitions, whose definitions C12b pins. -/
