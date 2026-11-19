@@ -4026,6 +4026,34 @@ the calls at which the two oracles answer differently. It must equal
   validates; before this commit it is the `direct` form. `scripts/regress.sh` passes (33
   tests) with `PEREGRINE`, the other goldens unchanged.
 
+## S-59: The declared sort of `visitRec`'s `direct` test is read through `mdata`
+
+- **Commit:** the commit whose subject starts with `S-59:` (`git log --grep='^S-59:'`).
+- **Files and functions:**
+  - `LeanToLambdaBox/Erasure.lean`: `visitRec` (the test `sortMayBeProp`); `arityShape` moved here
+    from `LeanToLambdaBox/Erasure/Entry.lean` (which imports `Erasure.lean`, so `Erasure.lean`
+    cannot import it from there), unchanged.
+  - `tests/regress/rec_direct_pure.lean` with the new goldens `recDirectMData.ast` and
+    `recDirectMData.ast.validate`.
+  - `doc/SHIPPING-CHANGES.md`: this entry.
+- **Why necessary:** S-58 read the declared sort with `piBinders`, which stops at `mdata`, while
+  the fragment test and the pure path's inductive declaration read it with `arityShape`, which sees
+  through `mdata`. An inductive whose declared type carries metadata was therefore in the fragment
+  but still read as "may be `Prop`", so the `direct` form was chosen again on an ill-typed major
+  premise.
+- **Behaviour before:** with `RD.M : mdata Type`, one constructor with a field of type `True`,
+  and `@RD.M.rec.{1} (fun _ => RD.M) (fun h => RD.M.mk h) True.intro`, `erasePure` emits the
+  fixpoint `λ t. (λ a. #3 a) □` (the `direct` form).
+- **Behaviour after:** `sortMayBeProp` is `arityShape` of the inductive's type: `!u.isNeverZero`
+  for `some (_, u)`, `true` for `none`. It differs from the `piBinders` form only when `mdata`
+  occurs in the type, so typed inputs without `mdata` are unaffected. The same input gives the
+  fixpoint over `case t of RD.M.mk a => mk a`. `recStaysConstant` is untouched.
+- **Effect on emitted .ast (corpus):** byte-identical for all 708 files (`scripts/corpus.sh
+  --check`); `scripts/pure-harness.sh` passes with its summary unchanged (9949 oracle calls).
+- **Regression test:** `rec_direct_pure` also writes `recDirectMData.ast` (the type of `RD.M` is
+  wrapped in `mdata` through the view), which peregrine validates; before this commit it is the
+  `direct` form. `scripts/regress.sh` passes (33 tests) with `PEREGRINE`.
+
 ## Reported, not fixed
 
 Each entry below was reproduced on this branch. Unless stated otherwise, the reproduction is an

@@ -720,6 +720,14 @@ def name_occurs (name: Name) (e: Expr): Bool :=
   | .lam _ _ e _ | .mdata _ e | .proj _ _ e => name_occurs name e
   | .app a b | .letE _ _ a b _ => name_occurs name a || name_occurs name b
 
+/-- The syntactic arity `Π x₁…xₙ, Sort u` of a type: `n` and `u`. Reference: `isArity`
+(`MR P/PCUICTyping.v:29`). -/
+def arityShape : Expr → Option (Nat × Level)
+  | .sort u => some (0, u)
+  | .forallE _ _ b _ => (arityShape b).map fun (n, u) => (n + 1, u)
+  | .mdata _ e => arityShape e
+  | _ => none
+
 /-- The names and domains of the leading `Π`s of a type, syntactically, and its body. -/
 def piBinders : Expr → List (Name × Expr) × Expr
   | .forallE x d b _ => let (bs, r) := piBinders b; ((x, d) :: bs, r)
@@ -1027,9 +1035,9 @@ mutual
     let arity := first + r.numMinors + r.numIndices + 1
     withAppEtaToMinArity fuel e arity fun _ args => do
       let maj ← getOrFail args[arity - 1]? "visitRec: no major premise"
-      let sortMayBeProp := match (ivs.find? (·.name == T)).map (piBinders ·.type |>.2) with
-        | some (.sort u) => !u.isNeverZero
-        | _ => true
+      let sortMayBeProp := match (ivs.find? (·.name == T)).bind (arityShape ·.type) with
+        | some (_, u) => !u.isNeverZero
+        | none => true
       let direct := sortMayBeProp &&
         !(← Backend.typeLevel (m := m) (← read).lctx (← read).locals maj).isNeverZero
       let ms ← (args.extract first (first + r.numMinors)).toList.mapM (visitExpr fuel)
