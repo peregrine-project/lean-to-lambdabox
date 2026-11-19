@@ -319,6 +319,11 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
     ∀ n ∈ iv.all, ∀ ivn, findDecl decls n = some (.inductInfo ivn) →
       ivn.all = iv.all ∧ ivn.numParams = iv.numParams
   ctors : CtorsListed decls
+  /-- An inductive lists each constructor at the constructor's index, with the inductive's
+  parameter count (`blockShapeOK`'s `cidx`, `numParams`), so its constructors are distinct. -/
+  ctorIdx : ∀ T iv, findDecl decls T = some (.inductInfo iv) → ∀ (j : Nat) cn,
+    iv.ctors[j]? = some cn → ∃ cv, findDecl decls cn = some (.ctorInfo cv) ∧ cv.cidx = j ∧
+      cv.numParams = iv.numParams
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of

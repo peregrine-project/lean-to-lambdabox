@@ -39,6 +39,8 @@ import EraseProof.Core.Steps
 import EraseProof.Core.StepsApp
 import EraseProof.Core.StepsRun
 import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsCases
+import EraseProof.Core.StepsCasesSat
 import EraseProof.Core.NonRec
 /-!
 # Verification of the eraser
@@ -112,6 +114,10 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.StepsRun`: runs of the traversal's environment helpers at the pure backend.
 * `EraseProof.Core.StepsCtor`: the η-expansion of a spine to its head's arity, and the step for
   constructor spines.
+* `EraseProof.Core.StepsCases`: a `casesOn` alternative erased under its fields' binders
+  (`visitAlt`), and the λ□ `case` (`visitCasesOn`).
+* `EraseProof.Core.StepsCasesSat`: the step for `casesOn` spines: the `□`, reduced and `case`
+  branches of `visitCases`.
 * `EraseProof.Core.NonRec`: a value `visitMutual` erases is of a one-member block and has a scope
   without its own constant, by the order of con-leche's fold (`coreEnv_value`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
