@@ -44,7 +44,7 @@ structure CLAccepted (env : ConLeche.Env) : Prop where
 `MR P/PCUICTyping.v:507 wf_ext`; DV-3. -/
 theorem ConLecheAccepts.accepted {P : List ConstantInfo} {env : ConLeche.Env}
     (h : ConLecheAccepts P env) : CLAccepted.{w} env := by
-  obtain ⟨ds, -, hf⟩ := h
+  obtain ⟨ds, -, hf, -⟩ := h
   exact ⟨ConLeche.Semantics.checkDeclsPure_envWF hf,
     fun _ _ => ConLeche.Model.checkDeclsPure_sound_of hf,
     fun _ _ m φ => ConLeche.Model.Rules.checkSoundAtP5 (ConLeche.Model.Rules.RulesInputs.ofSem m φ)⟩

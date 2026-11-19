@@ -144,6 +144,16 @@ def appHeadConst : Lean.Expr → Option Name
   | .const c _ => some c
   | _ => none
 
+/-- The recursor's type has one motive, whose type binds one variable (the major premise of an
+inductive without indices): the motives `recShape` reads off the type (`recShape` returns them from
+the binders after the parameters, whatever the minors). Reference: the recursor as Lean's kernel
+builds it (`mk_rec_infos` in `src/kernel/inductive.cpp`). -/
+def recMotivesOK (r : Lean.RecursorVal) : Bool :=
+  match ((Erasure.piBinders r.type).1.drop r.numParams |>.take r.numMotives).map
+      fun (_, d) => (Erasure.piBinders d).1.map (·.1) with
+  | [[_]] => true
+  | _ => false
+
 /-- The Lean records of the block headed by `H` agree with one another as Lean's kernel generates
 them: the fields con-leche's frontend checks (`CL ConLeche/Frontend/ExportC.lean:241
 validateIndF`: one parameter count, a constructor's `cidx` its position in its type's `ctors`, its
@@ -151,16 +161,22 @@ validateIndF`: one parameter count, a constructor's `cidx` its position in its t
 the fields the traversal reads and con-leche does not: each type's `all` and `numIndices`; the
 head of each constructor's result type is the type that lists it (con-leche groups the constructors
 by that head, `CL ConLeche/Kernel/Inductives/BlockShape.lean:324 blockGroups`, and ignores the
-record's `induct`, `:237`); and, for a block without nested occurrences, `isRec` is whether a
+record's `induct`, `:237`); and `isRec` is whether a
 constructor has a `Π`-domain mentioning a member, and the recursors are exactly the `T.rec` of its
 members, each eliminating the type it is named after (con-leche assigns a recursor to a member by
 its major premise and checks only the set of names,
 `CL ConLeche/Kernel/Inductives/BlockShape.lean:357 blockRecNameSetOk`; `collectDeps` looks the
 recursors up by name). `tys` are the block's types, `cvs` their constructors, `rs` the recursors
-of `P` with the block's `all`. Reference: none (DV-3). -/
+of `P` with the block's `all`. Every recursor also has the block's parameter count, and a recursor of
+a block of one type without indices has one motive binding the major premise only (`recMotivesOK`;
+con-leche compares a recursor's type with the generated one up to definitional equality, so the
+syntactic shape is a check of its own, as `RulesCanonical` is). No member has nested occurrences (`numNested = 0`: nested inductives are outside the fragment,
+so a recursor's major premise names a member of its block). Reference: none (DV-3, DV-38). -/
 def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
     (cvs : List (List Lean.ConstructorVal)) (rs : List Lean.RecursorVal) : Bool :=
-  tys.all (fun t => t.all == H.all && t.numParams == H.numParams &&
+  rs.all (fun r => r.numParams == H.numParams &&
+      (H.all.length != 1 || r.numIndices != 0 || recMotivesOK r)) &&
+    tys.all (fun t => t.all == H.all && t.numParams == H.numParams &&
       match Erasure.arityShape t.type with
       | some (n, _) => n == H.numParams + t.numIndices
       | none => true) &&
@@ -168,12 +184,12 @@ def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
       c.induct == t.name && c.cidx == j && c.numParams == H.numParams &&
         piLen c.type == H.numParams + c.numFields &&
         appHeadConst (piResult (H.numParams + c.numFields) c.type) == some t.name) &&
-    (tys.any (·.numNested != 0) ||
-      (tys.all (·.isRec == (cvs.flatten.any fun c => hasDomainMentioning H.all c.type)) &&
-        rs.length == tys.length && tys.all fun t => rs.any fun r =>
-          r.name == mkRecName t.name && r.numParams == H.numParams &&
-            r.numMotives == tys.length && r.numMinors == (cvs.map List.length).sum &&
-            r.numIndices == t.numIndices && r.getMajorInduct == t.name))
+    tys.all (·.numNested == 0) &&
+    tys.all (·.isRec == (cvs.flatten.any fun c => hasDomainMentioning H.all c.type)) &&
+      rs.length == tys.length && tys.all fun t => rs.any fun r =>
+        r.name == mkRecName t.name && r.numParams == H.numParams &&
+          r.numMotives == tys.length && r.numMinors == (cvs.map List.length).sum &&
+          r.numIndices == t.numIndices && r.getMajorInduct == t.name
 
 /-- The block whose first member is `H`, as one `indDecl` (`CL ConLeche/Frontend/ExportC.lean:377
 indBlockOfF`), if its records pass `blockShapeOK`: the formers in `all` order with `IndCaps` left
@@ -200,10 +216,10 @@ def blockOf? (P : List Lean.ConstantInfo) (H : Lean.InductiveVal) : Option ConLe
   return .indDecl (types ++ ctors.flatten ++ recs) H.numParams
 
 /-- One Lean constant's records (`CL ConLeche/Frontend/ExportC.lean:398 declOfF`). Unsafe and
-partial constants are left out, as lean4export leaves them out
+partial constants (not inductives: an unsafe inductive rejects the program) are left out, as lean4export leaves them out
 (`CL ConLeche/Frontend/Olean/Reads.lean:18 CKindF.skipped`); an inductive block is emitted at its
 first member, and its other members, constructors and recursors are part of it: each must be
-listed by its block (an inductive in its head's `all`, a constructor in its `induct`'s `ctors`, a
+listed by its block (an inductive in its head's `all`, and in its own `all`, a constructor in its `induct`'s `ctors`, a
 recursor's `all` that of the inductive at its head), so that every record of `P` is checked. -/
 def declOf? (P : List Lean.ConstantInfo) : Lean.ConstantInfo → Option (List ConLeche.Declaration)
   | .axiomInfo v =>
@@ -216,10 +232,10 @@ def declOf? (P : List Lean.ConstantInfo) : Lean.ConstantInfo → Option (List Co
     if v.isUnsafe then some [] else return [.opaqueDecl (← cvOf? v.toConstantVal) (← toCL? v.value)]
   | .quotInfo v => return [.quotDecl (quotKindOf v.kind) (← cvOf? v.toConstantVal)]
   | .inductInfo v =>
-    if v.isUnsafe then some []
+    if v.isUnsafe then none
     else if v.all.head? == some v.name then return [← blockOf? P v]
     else match v.all.head?.bind (Erasure.findConst P) with
-      | some (.inductInfo h) => if h.all == v.all then some [] else none
+      | some (.inductInfo h) => if h.all == v.all && v.all.contains v.name then some [] else none
       | _ => none
   | .ctorInfo c => match Erasure.findConst P c.induct with
     | some (.inductInfo t) => if t.ctors.contains c.name then some [] else none
@@ -237,6 +253,11 @@ def NoMarkKeys : Lean.Expr → Bool
   | .letE _ t v b _ => NoMarkKeys t && NoMarkKeys v && NoMarkKeys b
   | .proj _ _ e => NoMarkKeys e
   | _ => true
+
+/-- No type and no value of the declarations has an `mdata` with the marks' key (the condition
+`DeclsOf?` puts on the program). Reference: none (DV-32). -/
+def NoMarkKeysDecls (ds : List ConstantInfo) : Bool :=
+  ds.all fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys
 
 /-- The expression mentions a free variable (`Expr.hasFVar`, structurally, so that the kernel
 computes it). -/
@@ -265,16 +286,91 @@ def DeclsOf? (P : List Lean.ConstantInfo) : Option (List ConLeche.Declaration) :
   if (P.map (·.name)).Nodup ∧ P.all (fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys) then
     (P.reverse.mapM (declOf? P)).map List.flatten else none
 
+/-- The head and the arguments, in order, of an application spine. -/
+def clSpine : ConLeche.Expr → ConLeche.Expr × List ConLeche.Expr
+  | e => go e []
+where
+  go : ConLeche.Expr → List ConLeche.Expr → ConLeche.Expr × List ConLeche.Expr
+    | .app f a, acc => go f (a :: acc)
+    | e, acc => (e, acc)
+
+/-- The leading `λ`s of a term: their number and the body. -/
+def clLams : ConLeche.Expr → Nat × ConLeche.Expr
+  | .lam _ b => let r := clLams b; (r.1 + 1, r.2)
+  | e => (0, e)
+
+/-- The number of leading `Π`s of a term. -/
+def clPis : ConLeche.Expr → Nat
+  | .forallE _ b => clPis b + 1
+  | _ => 0
+
+/-- The index of a bound variable. -/
+def clBvar? : ConLeche.Expr → Option Nat
+  | .bvar i => some i
+  | _ => none
+
+/-- `ih` has the shape of an inductive hypothesis of a stored rule with `nF` fields and prefix
+length `rP`: `λ xs, rec_t p⃗ idx⃗ (f xs)`, that is `k` leading `λ`s over a recursor of the
+environment applied to the `rP` prefix variables, the index arguments and the field `f` applied to
+the `k` bound variables. -/
+def IHShape (env : ConLeche.Env) (rP nF : Nat) (ih : ConLeche.Expr) : Bool :=
+  let r := clLams ih
+  let k := r.1
+  let s := clSpine r.2
+  (match s.1 with
+   | .const n _ => env.consts.any fun
+       | .recInfo v .. => v.name == n
+       | _ => false
+   | _ => false) &&
+  s.2.length > rP &&
+  (s.2.take rP).map clBvar? == (List.range rP).map (fun i => some (k + nF + rP - 1 - i)) &&
+  (match s.2.getLast? with
+   | none => false
+   | some l =>
+     let t := clSpine l
+     (match clBvar? t.1 with
+      | some j => k ≤ j && j < k + nF
+      | none => false) &&
+     t.2.map clBvar? == (List.range k).map (fun i => some (k - 1 - i)))
+
+/-- The stored rule `r` of a recursor with prefix length `rP` has the generated shape: `rP + nfields`
+leading `λ`s over a bound variable of the prefix (the constructor's minor premise) applied to the
+`nfields` field variables, in order, and then to inductive hypotheses (`IHShape`). -/
+def RuleShape (env : ConLeche.Env) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
+  let l := clLams r.rhs
+  let s := clSpine l.2
+  l.1 == rP + r.nfields &&
+  (match clBvar? s.1 with
+   | some h => r.nfields ≤ h && h < rP + r.nfields
+   | none => false) &&
+  (s.2.take r.nfields).map clBvar? == (List.range r.nfields).map (fun i => some (r.nfields - 1 - i)) &&
+  (s.2.drop r.nfields).all (IHShape env rP r.nfields)
+
+/-- Every recursor stored in `env` has `majorIdx + 1` leading `Π`s in its type, and every one of its
+stored rules has the generated shape (`RuleShape`). It is decidable, and the kernel evaluates it on
+an environment literal. con-leche stores the rules its generator writes
+(`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`, stored by `classRuleOk`, `:444`) and
+proves their syntax only at install (`CL ConLeche/Model/Inductives/GenRuleSyn.lean:292
+classGenRule_spec`); the facts it states of the accepted environment's rules are their scoping and
+the number of their leading `λ`s (`CL ConLeche/Verify/EnvWF.lean:217`), so the shape the ι step
+reads is part of `ConLecheAccepts`. Reference: none (DV-38). -/
+def RulesCanonical (env : ConLeche.Env) : Bool :=
+  env.consts.all fun
+    | .recInfo v mI rP _ rules => clPis v.type == mI + 1 && rules.all (RuleShape env rP)
+    | _ => true
+
 /-- con-leche's pure fold accepts `P` with environment `env`, at the standard fuel
 (`CL ConLeche/Kernel/CheckerBase.lean:44 pureOps`) and the empty `Nat.div`/`Nat.mod` pin list
 (`CL ConLeche/MainTheorem.lean:70`); the form of `CL ConLeche/Model/Fold.lean:373
 checkDeclsPure_sound_of`, which gives a model `EnvModelM V env` in every `[SetTheory V]`. No
 prelude: the fold starts from the empty environment (`CL ConLeche/Kernel/CheckDecl.lean:180`), so
 `P` contains, in dependency order, everything its records use; basis declarations in `P` are
-checked against their pins. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3. -/
+checked against their pins. The third conjunct is `RulesCanonical`, which con-leche's generator makes
+true of every environment it accepts. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3, DV-38. -/
 def ConLecheAccepts (P : List Lean.ConstantInfo) (env : ConLeche.Env) : Prop :=
   ∃ ds, DeclsOf? P = some ds ∧
-    ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) [] ds = .ok env
+    ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) [] ds = .ok env ∧
+    RulesCanonical env = true
 
 /-! ## 2. The con-leche checks -/
 
@@ -284,11 +380,6 @@ Reference: `welltyped Σ [] t` (`MR P/PCUICTyping.v`); `InferClaim`
 (`CL ConLeche/Model/Claims.lean:112`) turns it into `WellDenoted` and membership; DV-1. -/
 def CLTyped (env : ConLeche.Env) (t : Lean.Expr) : Prop :=
   ∃ c F T, toCL? t = some c ∧ ConLeche.inferTypeCore .verified false env F 0 c = .ok T
-
-/-- The run-time certificate of a source evaluation rule: con-leche infers a type for the closed
-redex the rule forms from evaluated parts; it takes the place of subject reduction, which
-con-leche does not have. Reference: none (DV-33). -/
-def CLOk (env : ConLeche.Env) (t : Lean.Expr) : Prop := CLTyped env t
 
 /-- con-leche's full-grade inference accepts the closed term `t` at the checker's own fuel
 `checkFuel` (`CLTyped` at a fixed fuel, so that it is a computation, decidable and refutable by
@@ -607,6 +698,12 @@ def unmark : Expr → Expr
   | .proj s i e => .proj s i (unmark e)
   | e => e
 
+/-- The run-time certificate of a source evaluation rule: con-leche infers a type for the closed
+redex the rule forms from evaluated parts, and for its `unmark`ed reading (the η-marks contracted,
+which is the reading `Sound` speaks of); it takes the place of subject reduction, which con-leche
+does not have. For a term without η-marks the two runs coincide. Reference: none (DV-33). -/
+def CLOk (env : ConLeche.Env) (t : Lean.Expr) : Prop := CLTyped env t ∧ CLTyped env (unmark t)
+
 /-- `x` becomes the bound variable `d` (under binders, `d` plus their number); loose indices from
 `d` on move up by one; the inverse of `instantiate1' (.fvar x) d`. Port of
 `ML-V Bridge/Abstract.lean:23 absFV`; the traversal's `abstract` on λ□ terms
@@ -862,7 +959,7 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
       SrcEval env σ a a' → CLOk env (.app (markEta (.lam n A b bi)) a') →
       SrcEval env σ (b.instantiate1' a') v → SrcEval env σ (.app f a) v
   /-- `eval_zeta` (`:241`). -/
-  | zeta : SrcEval env σ val val' → CLOk env (.letE n T val' b nd) →
+  | zeta : SrcEval env σ val val' → CLOk env (.letE n T val b nd) → CLOk env (.letE n T val' b nd) →
       SrcEval env σ (b.instantiate1' val') v → SrcEval env σ (.letE n T val b nd) v
   /-- `eval_delta` (`:247`): the value marked as the traversal erases it, at its own levels. -/
   | delta : σ.unfold? c = some (ci, body) → MarkOf σ.decls σ.cfg [] body bM →
@@ -954,7 +1051,8 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
   | frozen : CLErasable env s → SrcEval env σ (markErase s) (markErase s)
   /-- `eval_box` (`MR E/EWcbvEval.v:121`): a frozen function applied to a value is frozen. -/
   | frozenApp : ¬ ShortSpine σ (.app f a) → SrcEval env σ f (markErase s) → SrcEval env σ a a' →
-      CLErasable env (.app s a') → SrcEval env σ (.app f a) (markErase (.app s a'))
+      CLErasable env (.app s a') → CLTyped env (unmark (.app s a')) →
+      SrcEval env σ (.app f a) (markErase (.app s a'))
 
 /-! ## 6. Closures, views, the fragment -/
 
@@ -1131,6 +1229,49 @@ def ctorFields (σ : EvalEnv) (c : Name) : Option Nat :=
   match findDecl σ.decls c with
   | some (.ctorInfo cv) => some cv.numFields
   | _ => none
+
+/-- Every constructor of `decls` is listed by its inductive at its index `cidx`, with the
+inductive's parameter count, as Lean's kernel generates the records. con-leche's frontend checks
+these fields (`CL ConLeche/Frontend/ExportC.lean:241 validateIndF`), and so does `DeclsOf?`
+(`blockShapeOK`, `declOf?`; DV-3). Reference: `declared_constructor`
+(`MR common/theories/EnvironmentTyping.v:36`). -/
+def CtorsListed (decls : List ConstantInfo) : Prop :=
+  ∀ c cv, findDecl decls c = some (.ctorInfo cv) → ∃ iv,
+    findDecl decls cv.induct = some (.inductInfo iv) ∧ iv.ctors[cv.cidx]? = some c ∧
+    iv.numParams = cv.numParams
+
+/-- The inductive `Nat` of `σ`, if there is one, has Lean's shape: no parameters, not declared in
+`Prop`, and the constructors `zero`, without a field, and `succ`, with one, in that order: the
+λ□ constructors `0` and `1` of the Peano numerals (`Erases.litZero`, `Erases.litSucc`) are its.
+con-leche checks a program's `Nat` against this shape (`CL ConLeche/Kernel/Basis/Nat.lean:68
+natBasis`). Reference: none (λ□ has no Nat literals; DV-30). -/
+def NatShaped (σ : EvalEnv) : Prop :=
+  ∀ iv, findDecl σ.decls ``Nat = some (.inductInfo iv) → iv.numParams = 0 ∧
+    σ.propInd ``Nat = false ∧
+    ∃ z s, iv.ctors = [z, s] ∧ ctorFields σ z = some 0 ∧ ctorFields σ s = some 1
+
+/-- Lean's constructors ``Nat.zero`` and ``Nat.succ``, if `σ` has them, are the constructors `0`
+and `1` of ``Nat``: the constructor forms of the Nat literals (`natLitCtor`) are the constructors of
+the λ□ numerals (`Erases.litZero`, `Erases.litSucc`). con-leche checks a program's `Nat` block
+against Lean's (`CL ConLeche/Kernel/Basis/Nat.lean:68 natBasis`). Reference: none (λ□ has no Nat
+literals; DV-30). -/
+def NatCtors (σ : EvalEnv) : Prop :=
+  (∀ cv, findDecl σ.decls ``Nat.zero = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 0) ∧
+    ∀ cv, findDecl σ.decls ``Nat.succ = some (.ctorInfo cv) → cv.induct = ``Nat ∧ cv.cidx = 1
+
+/-- Every recursor of `decls` of one inductive without indices has the shape Lean's kernel gives
+it: its inductive's parameter count, and one motive, whose type binds the major premise only (the
+motives `recShape` reads off the recursor's type). The fixpoint `recFix` is then one λ over the
+major premise, and its `case` has the inductive's parameter count. `DeclsOf?` checks the counts
+(`blockShapeOK`); con-leche compares a recursor's type with the generated one up to definitional
+equality only (`CL ConLeche/Kernel/Inductives/GenRec.lean:386 classRecTyCheck`), so the syntactic
+shape of the motive is a condition of its own. Reference: the recursor as Lean's kernel builds it
+(`mk_rec_infos`, `declare_recursors` in `src/kernel/inductive.cpp`). -/
+def RecsShaped (decls : List ConstantInfo) : Prop :=
+  ∀ c rv T iv, findDecl decls c = some (.recInfo rv) → rv.all = [T] →
+    findDecl decls T = some (.inductInfo iv) → rv.numIndices = 0 →
+    rv.numParams = iv.numParams ∧ ∀ ns motives minors,
+      recShape rv.numParams rv.numMotives rv.type ns = some (motives, minors) → ∃ x, motives = [[x]]
 
 /-- The members of a recursor's block as `visitRec` builds them for `recFix`. Port of
 `ML-V Spec.lean:1324`. -/

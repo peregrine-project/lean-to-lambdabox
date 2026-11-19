@@ -80,7 +80,7 @@ theorem decls : DeclsOf? P = some nv1full := by krfl
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv1full = .ok envNV1) : ConLecheAccepts P envNV1 :=
-  ⟨nv1full, decls, hfold⟩
+  ⟨nv1full, decls, hfold, by krfl⟩
 
 /-! ## `hty`: con-leche infers a type for `e` at `envNV1` -/
 
@@ -219,18 +219,19 @@ theorem hcert : ProgCert envNV1 D cfg p0 e := by
 `envNV1` (none needs ι: the motive is constant) -/
 
 /-- `CLOk` of a constructor value -/
-theorem ok_f : CLOk envNV1 cF := ⟨kF, 100, kB, by krfl, by krfl⟩
-theorem ok_t : CLOk envNV1 cT := ⟨kT, 100, kB, by krfl, by krfl⟩
+theorem ok_f : CLOk envNV1 cF := ⟨⟨kF, 100, kB, by krfl, by krfl⟩, kF, 100, kB, by krfl, by krfl⟩
+theorem ok_t : CLOk envNV1 cT := ⟨⟨kT, 100, kB, by krfl, by krfl⟩, kT, 100, kB, by krfl, by krfl⟩
 
 /-- the β-redex `(fun b => B.casesOn.{1} (fun x => B) b B.t B.f) B.f` -/
 theorem ok_beta : CLOk envNV1 (.app negVal cF) :=
-  ⟨.app kNegVal kF, 100, .app (.lam kB kB) kF, by krfl, by krfl⟩
+  ⟨⟨.app kNegVal kF, 100, .app (.lam kB kB) kF, by krfl, by krfl⟩, .app kNegVal kF, 100, .app (.lam kB kB) kF, by krfl, by krfl⟩
 
 /-- the `casesIota` redex `B.casesOn.{1} (fun x => B) B.f B.t B.f` -/
 def casesRedex : Expr := mkAppN (.const `B.casesOn [.succ .zero]) #[motNeg, cF, cT, cF]
 
 theorem ok_cases : CLOk envNV1 casesRedex :=
-  ⟨.app (.app (.app (.app (.const (nm2 "B" "casesOn") [.succ .zero]) (.lam kB kB)) kF) kT) kF, 100,
+  ⟨⟨.app (.app (.app (.app (.const (nm2 "B" "casesOn") [.succ .zero]) (.lam kB kB)) kF) kT) kF, 100,
+    .app (.lam kB kB) kF, by krfl, by krfl⟩, .app (.app (.app (.app (.const (nm2 "B" "casesOn") [.succ .zero]) (.lam kB kB)) kF) kT) kF, 100,
     .app (.lam kB kB) kF, by krfl, by krfl⟩
 
 /-- A constructor without arguments evaluates to itself (`SrcEval.ctor`). -/

@@ -598,7 +598,7 @@ abbrev σ : EvalEnv := evalEnvOf view cfg P
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv2full = .ok envNV2) : ConLecheAccepts P envNV2 :=
-  ⟨nv2full, decls, hfold⟩
+  ⟨nv2full, decls, hfold, by krfl⟩
 
 theorem hty : CLTyped envNV2 e := ⟨kE, 100, .app kMotB kT, toCL_e, t_e⟩
 
@@ -774,8 +774,8 @@ theorem find_f : findDecl P `B.f = some (.ctorInfo Bf_ctor) := by krfl
 theorem find_t : findDecl P `B.t = some (.ctorInfo Bt_ctor) := by krfl
 theorem find_mk : findDecl P `Box.mk = some (.ctorInfo Boxmk_ctor) := by krfl
 
-theorem ok_f : CLOk envNV2 cF := ⟨kF, 100, kB, by krfl, by krfl⟩
-theorem ok_t : CLOk envNV2 cT := ⟨kT, 100, kB, by krfl, by krfl⟩
+theorem ok_f : CLOk envNV2 cF := ⟨⟨kF, 100, kB, by krfl, by krfl⟩, kF, 100, kB, by krfl, by krfl⟩
+theorem ok_t : CLOk envNV2 cT := ⟨⟨kT, 100, kB, by krfl, by krfl⟩, kT, 100, kB, by krfl, by krfl⟩
 
 theorem ev_f : SrcEval envNV2 σ cF cF :=
   SrcEval.ctor (c := `B.f) (us := []) (as := []) (vs := []) find_f rfl rfl (by simp) ok_f
@@ -792,7 +792,7 @@ def vM : Expr := .app (.app cMk (markErase (markErase tB))) cF
 /-- the η-λ of `val` after the β-step on `α := □B` -/
 def etaVal : Expr := markEta (.lam `val (markErase tB) (.app (.app cMk (markErase (markErase tB))) (.bvar 0)) .default)
 
-theorem ok_v : CLOk envNV2 vM := ⟨.app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩
+theorem ok_v : CLOk envNV2 vM := ⟨⟨.app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩, .app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩
 theorem ev_v : SrcEval envNV2 σ vM vM :=
   SrcEval.ctor (c := `Box.mk) (us := []) (cv := Boxmk_ctor) (as := [markErase (markErase tB), cF])
     (vs := [markErase (markErase tB), cF]) find_mk rfl rfl (by
@@ -807,12 +807,12 @@ theorem not_short {x : Expr} (h : ∀ c us, x.getAppFn ≠ .const c us) : ¬ Sho
 
 /-- `CLOk` of `(fun α val => Box.mk α val) B` -/
 theorem ok_eta1 : CLOk envNV2 (.app mkM (markErase tB)) :=
-  ⟨.app (.lam (.sort k1) (.lam (.bvar 0) (.app (.app kMk (.bvar 1)) (.bvar 0)))) kB, 100,
-    .forallE kB (kBox kB), by krfl, by krfl⟩
+  ⟨⟨.app (.lam (.sort k1) (.lam (.bvar 0) (.app (.app kMk (.bvar 1)) (.bvar 0)))) kB, 100,
+    .forallE kB (kBox kB), by krfl, by krfl⟩, .app kMk kB, 100, .forallE kB (kBox kB), by krfl, by krfl⟩
 
 /-- `CLOk` of `(fun val : B => Box.mk B val) B.f` -/
 theorem ok_eta2 : CLOk envNV2 (.app etaVal cF) :=
-  ⟨.app (.lam kB (.app (.app kMk kB) (.bvar 0))) kF, 100, kBox kB, by krfl, by krfl⟩
+  ⟨⟨.app (.lam kB (.app (.app kMk kB) (.bvar 0))) kF, 100, kBox kB, by krfl, by krfl⟩, .app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩
 
 theorem ev_inner : SrcEval envNV2 σ (.app mkM (markErase tB)) etaVal :=
   SrcEval.etaBeta (n := `α) (A := .sort l1)
@@ -827,15 +827,15 @@ theorem ev_body : SrcEval envNV2 σ (.app (.app mkM (markErase tB)) cF) vM :=
 
 /-- `CLOk` of `(fun k => k B B.f) (fun α val => Box.mk α val)` -/
 theorem ok_beta : CLOk envNV2 (.app lamKM mkM) :=
-  ⟨.app kLamK (.lam (.sort k1) (.lam (.bvar 0) (.app (.app kMk (.bvar 1)) (.bvar 0)))), 100,
-    kBox kB, by krfl, by krfl⟩
+  ⟨⟨.app kLamK (.lam (.sort k1) (.lam (.bvar 0) (.app (.app kMk (.bvar 1)) (.bvar 0)))), 100,
+    kBox kB, by krfl, by krfl⟩, .app kLamK kMk, 100, kBox kB, by krfl, by krfl⟩
 
 theorem ev_alt2 : SrcEval envNV2 σ alt2M vM :=
   SrcEval.beta (n := `k) (A := kTy) (b := .app (.app (.bvar 0) (markErase tB)) cF) (bi := .default)
     (not_short (by intro c us h; cases h)) (SrcEval.atom trivial) SrcEval.etaLam ok_beta ev_body
 
 /-- `CLOk` of the saturated `casesOn` with its evaluated major. -/
-theorem ok_cases : CLOk envNV2 eM := ⟨kEM, 100, .app kMotB kT, by krfl, by krfl⟩
+theorem ok_cases : CLOk envNV2 eM := ⟨⟨kEM, 100, .app kMotB kT, by krfl, by krfl⟩, kE, 100, .app kMotB kT, by krfl, by krfl⟩
 
 theorem hev : SrcEval envNV2 σ eM vM :=
   SrcEval.casesIota (c := `B.casesOn) (us := [l1]) (iv := B_ind) (as := [motB, cT, alt1M, alt2M])
