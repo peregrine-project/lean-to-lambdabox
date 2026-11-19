@@ -91,7 +91,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   by con-leche's semantic ι at a constructor application built for the step.
 * `EraseProof.Semantics.DecodeAt`: the stored former and constructors of a member of a block of any
   size, the stored rule of a constructor, and the stored records the ι steps of a recognized
-  `casesOn` and of a projection read.
+  `casesOn`, of a projection and of a recursor read.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.

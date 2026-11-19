@@ -54,3 +54,4 @@ EraseProof.coreEnv_value EraseProof.erasePure_erases
 EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound

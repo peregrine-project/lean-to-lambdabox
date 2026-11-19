@@ -12,7 +12,8 @@ are the block's constructor records (`CL ConLeche/Kernel/Inductives/RecCheck.lea
 targetRecPins`). Read back through `DeclsOf?`, a member's former lists the block and its own
 constructors, and a constructor is stored under its own inductive (`ConLecheAccepts.blockStored`),
 in a block of any size. With `RulesCanonical`, the stored rule of a constructor has the shape the ι
-steps read (`rule_decode`): the decodes `CasesIotaAt`, `CasesFrozenAt` and `ProjAt`.
+steps read (`rule_decode`): the decodes `CasesIotaAt`, `CasesFrozenAt` and `ProjAt`; with the
+minor premises `recShape` reads (`recShape_minor`) and con-leche's distinct names, `RecIotaAt`.
 -/
 open Lean Erasure
 
@@ -373,8 +374,9 @@ theorem nodup_of_nodup : ∀ {l : List ConLeche.Name}, ConLeche.Name.nodup l = t
 count, fires `.plain`, and its right-hand side is `rP + nF` λs over the minor premise at position
 `q` (`C`'s position among the block's constructors, after the parameters and the motives) applied
 to the field variables and to inductive hypotheses: as many as the minor premise's domain `A` has
-leading `Π` past the fields, each of `IHShape`, recursing on the fields `A`'s binders name. Also:
-the recursor's type has `mI + 1` leading `Π` and distinct level parameters. -/
+leading `Π` past the fields, each of `IHShape`, a call of a recursor `t.rec` of a member `t` of the
+block under as many λs as its binder in `A` has leading `Π`, recursing on the fields `A`'s binders
+name. Also: the recursor's type has `mI + 1` leading `Π` and distinct level parameters. -/
 theorem rule_decode {env : ConLeche.Env} (hrc : RulesCanonical env = true) {T : ConLeche.Name}
     {cvR : ConLeche.ConstantVal} {mI rP : Nat} {isK : Bool} {rules : List ConLeche.RecRule}
     (hR : env.find? (.str T "rec") = some (.recInfo cvR mI rP isK rules))
@@ -389,9 +391,12 @@ theorem rule_decode {env : ConLeche.Env} (hrc : RulesCanonical env = true) {T : 
       clLams rl.rhs = (rP + nF, ConLeche.Expr.mkAppN
         (.bvar (nF + (rP - 1 - (rP - (blockCtors env caps).length + (blockCtors env caps).idxOf C))))
         (SemCases.fbv nF nF ++ ihs)) ∧
-      (∀ ih ∈ ihs, IHShape env cvR.levelParams rP nF ih = true) ∧
+      (∀ ih ∈ ihs, IHShape env cvR.levelParams rP nF ih = true ∧
+        ∃ n us, (clSpine (clLams ih).2).1 = .const n us ∧ n ∈ caps.all.map (·.str "rec")) ∧
       ihs.map (fun ih => clFieldOf nF (clLams ih).1 (clLams ih).2) =
-        (List.range' nF (clPis A - nF)).map (minorIHField A) := by
+        (List.range' nF (clPis A - nF)).map (minorIHField A) ∧
+      ihs.map (fun ih => some (clLams ih).1) = (List.range' nF (clPis A - nF)).map fun j =>
+        (ConLeche.Expr.binderDom j A).map fun T => (clPiBody T).1 := by
   have hmem := ConLeche.Env.find?_mem hR
   have hname : cvR.name = .str T "rec" := ConLeche.Env.find?_name hR
   have hcan := List.all_eq_true.mp hrc _ hmem
@@ -411,16 +416,16 @@ theorem rule_decode {env : ConLeche.Env} (hrc : RulesCanonical env = true) {T : 
   simp only [RuleShape, Bool.and_eq_true, beq_iff_eq] at hsh
   obtain ⟨⟨⟨hl1, -⟩, htake⟩, hihs⟩ := hsh
   simp only [RuleSelects, hrlc, hfC, Bool.and_eq_true, beq_iff_eq] at hse
-  obtain ⟨⟨⟨-, hnf⟩, hhd⟩, hA⟩ := hse
+  obtain ⟨⟨⟨⟨-, hnf⟩, hhd⟩, hheads⟩, hA⟩ := hse
   cases hAq : ConLeche.Expr.binderDom (rP - (blockCtors env caps).length + (blockCtors env caps).idxOf C)
     cvR.type with
   | none => simp [hAq] at hA
   | some A =>
   simp only [hAq, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hA
-  obtain ⟨⟨hlen, hfld⟩, -⟩ := hA
+  obtain ⟨⟨⟨hlen, hfld⟩, -⟩, hlams⟩ := hA
   subst hnf
   refine ⟨hpis, nodup_of_nodup hnd, rl, A, _, hrl, rfl, of_decide_eq_true (by simpa using hfire rl hrlm),
-    rfl, ?_, ?_, fun ih hih => List.all_eq_true.mp hihs ih hih, hfld⟩
+    rfl, ?_, ?_, fun ih hih => ⟨List.all_eq_true.mp hihs ih hih, ?_⟩, hfld, hlams⟩
   · have := congrArg List.length htake
     simp only [List.length_map, List.length_take, List.length_range] at this
     simp only [List.length_drop]; omega
@@ -428,6 +433,11 @@ theorem rule_decode {env : ConLeche.Env} (hrc : RulesCanonical env = true) {T : 
     rw [← List.take_append_drop rl.nfields (clSpine (clLams rl.rhs).2).2] at he
     rw [eq_fbv htake, clBvar?_eq hhd] at he
     exact Prod.ext hl1 he.symm
+  · have hh := List.all_eq_true.mp hheads ih hih
+    revert hh
+    split
+    · rename_i n us heq; intro hh; exact ⟨n, us, heq, List.contains_iff_mem.mp hh⟩
+    · intro hh; exact nomatch hh
 
 /-- **A block of `P` stores every member's former and constructors**: the former of each member
 `n` under its translated name and record, with the block as its `all` and its own constructors as
@@ -1072,6 +1082,530 @@ theorem _root_.EraseProof.ConLecheAccepts.projAt {P : List ConstantInfo} {env : 
   simp only [Bool.and_eq_true, beq_iff_eq] at htcC
   obtain ⟨⟨⟨hnP, hnF⟩, hlp⟩, hpp⟩ := htcC
   refine ⟨_, cvj, _, _, _, hfp0, htC, hnP.symm, hnF.symm, hlp.symm, hfC, hpp⟩
+
+/-! ## The recursor's own rule -/
+
+/-- A step of con-leche's fold installs its constants under distinct names (a block's by
+`blockRun_nodup`). -/
+theorem checkDecl_nodup {F : Nat} {pins : List ConLeche.NatOpPinSet} {env env₂ : ConLeche.Env}
+    {d : ConLeche.Declaration}
+    (h : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pins env d = .ok env₂) :
+    ((ConLeche.declConstants d).map (·.name)).Nodup := by
+  cases d with
+  | indDecl block nP =>
+    obtain ⟨-, hk⟩ := ConLeche.Semantics.checkDeclRun_ofEnvFactsK h
+    have hk' : ConLeche.Semantics.DeclIndRunDispatchK F env block nP env₂ := hk
+    unfold ConLeche.Semantics.DeclIndRunDispatchK at hk'
+    cases hdf : ConLeche.readBlock nP block with
+    | error _ => simp [ConLeche.declConstants, hdf]
+    | ok p =>
+      rw [hdf] at hk'
+      simpa [ConLeche.declConstants, hdf] using blockRun_nodup (ConLeche.readBlock_declared hdf) hk'
+  | axiomDecl cv =>
+    simp only [ConLeche.declConstants]
+    by_cases h1 : cv.name = ConLeche.quotSoundName
+    · simp only [h1, ↓reduceIte]; simp
+    · simp only [h1, ↓reduceIte]
+      by_cases h2 : cv.name = ConLeche.sorryAxName
+      · simp only [h2, ↓reduceIte]; simp
+      · simp only [h2, ↓reduceIte]; simp
+  | defnDecl | thmDecl | opaqueDecl | quotDecl => simp [ConLeche.declConstants]
+
+/-- con-leche's pure fold keeps the names of its environment distinct. -/
+theorem foldlM_nodupNames {F : Nat} {pins : List ConLeche.NatOpPinSet} :
+    ∀ (ds : List ConLeche.Declaration) {env env' : ConLeche.Env},
+      ds.foldlM (ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pins) env = .ok env' →
+      (env.consts.map (·.name)).Nodup → (env'.consts.map (·.name)).Nodup
+  | [], env, env', h, hn => by
+    simp only [List.foldlM, pure, Except.pure, Except.ok.injEq] at h
+    subst h; exact hn
+  | d :: ds, env, env', h, hn => by
+    simp only [List.foldlM, Bind.bind, Except.bind] at h
+    cases hd : ConLeche.checkDecl .verified (ConLeche.fueledOps .verified F) pins env d with
+    | error e => rw [hd] at h; exact nomatch h
+    | ok env₁ =>
+      rw [hd] at h
+      refine foldlM_nodupNames ds h ?_
+      obtain ⟨rfl, hfr⟩ := checkDecl_pushes hd
+      show (((ConLeche.declConstants d).reverse ++ env.consts).map (·.name)).Nodup
+      rw [List.map_append, List.nodup_append, List.map_reverse]
+      refine ⟨(List.reverse_perm _).nodup_iff.mpr (checkDecl_nodup hd), hn,
+        fun a ha b hb hab => ?_⟩
+      obtain ⟨c, hc, rfl⟩ := List.mem_map.mp (List.mem_reverse.mp ha)
+      exact ConLeche.Cached.Env.find?_none_notin (hfr c hc) (hab ▸ hb)
+
+/-- A stored constant is the one its name finds: con-leche's environment has distinct names. -/
+theorem _root_.EraseProof.ConLecheAccepts.find?_of_mem {P : List ConstantInfo} {env : ConLeche.Env}
+    (h : ConLecheAccepts P env) {c : ConLeche.ConstantInfo} (hc : c ∈ env.consts) :
+    env.find? c.name = some c := by
+  obtain ⟨ds, -, hf, -⟩ := h
+  have hnd := foldlM_nodupNames ds hf (by simp [ConLeche.Env.empty])
+  cases hfc : env.find? c.name with
+  | none => exact absurd (List.find?_eq_none.mp hfc c hc) (by simp)
+  | some y =>
+    rw [eq_of_nodup_map hnd (ConLeche.Env.find?_mem hfc) hc (ConLeche.Env.find?_name hfc)]
+
+/-! ## A recursor's minor premises, read -/
+
+/-- `getAppArgs`, by the equations of its loop (`Lean.Expr.getAppArgs`, whose loop is private to
+its module). -/
+theorem getAppArgs_loop : ∃ F : Expr → Array Expr → Nat → Array Expr,
+    (∀ e, e.getAppArgs = F e (Array.replicate e.getAppNumArgs (mkSort Level.zero))
+      (e.getAppNumArgs - 1)) ∧
+    (∀ f a as i, F (.app f a) as i = F f (as.set! i a) (i - 1)) ∧
+    (∀ e as i, e.isApp = false → F e as i = as) :=
+  ⟨_, fun _ => rfl, fun _ _ _ _ => rfl, fun e as i h => by cases e <;> first | rfl | cases h⟩
+
+/-- The last argument `getAppArgs` reads is the spine's last argument. -/
+theorem getAppArgs_back {e a : Expr} (h : e.getAppArgs.back? = some a) : ∃ f, e = .app f a := by
+  obtain ⟨F, h1, h2, h3⟩ := getAppArgs_loop
+  have inv : ∀ (e : Expr) (as : Array Expr) (i : Nat), (F e as i).size = as.size ∧
+      ∀ j, i < j → (F e as i)[j]? = as[j]? := by
+    intro e
+    induction e with
+    | app f x ihf _ =>
+      intro as i
+      rw [h2]
+      obtain ⟨hs, hj⟩ := ihf (as.set! i x) (i - 1)
+      refine ⟨by rw [hs]; simp, fun j hij => ?_⟩
+      rw [hj j (by omega)]
+      simp [Array.set!, show i ≠ j by omega]
+    | _ => intro as i; rw [h3 _ _ _ rfl]; exact ⟨rfl, fun _ _ => rfl⟩
+  rw [h1] at h
+  cases e with
+  | app f x =>
+    refine ⟨f, ?_⟩
+    rw [h2, Array.back?_eq_getElem?] at h
+    have hn : (Expr.app f x).getAppNumArgs = f.getAppNumArgs + 1 := getAppNumArgs_app f x
+    rw [hn] at h
+    simp only [Nat.add_sub_cancel] at h
+    cases hf : f.isApp with
+    | false =>
+      rw [h3 _ _ _ hf] at h
+      simp [Array.set!] at h
+      rw [h]
+    | true =>
+      have hpos : 0 < f.getAppNumArgs := by
+        cases f <;> simp_all [Expr.isApp, getAppNumArgs_app]
+      obtain ⟨hs, hj⟩ := inv f ((Array.replicate (f.getAppNumArgs + 1) (mkSort Level.zero)).set!
+        f.getAppNumArgs x) (f.getAppNumArgs - 1)
+      rw [hs, hj _ (by simp; omega)] at h
+      simp [Array.set!] at h
+      rw [h]
+  | _ => rw [h3 _ _ _ rfl, show Expr.getAppNumArgs _ = 0 from rfl] at h; simp at h
+
+/-- A spine's accumulated arguments follow its own. -/
+theorem clSpine_go_acc : ∀ (e : ConLeche.Expr) (acc : List ConLeche.Expr),
+    clSpine.go e acc = ((clSpine.go e []).1, (clSpine.go e []).2 ++ acc) := by
+  intro e
+  induction e with
+  | app f a ihf _ =>
+    intro acc
+    show clSpine.go f (a :: acc) = ((clSpine.go f [a]).1, (clSpine.go f [a]).2 ++ acc)
+    rw [ihf (a :: acc), ihf [a]]; simp
+  | _ => intro acc; rfl
+
+/-- The head of an `mdata`-free spine, read. -/
+theorem getAppFn_toCL : ∀ {e : Expr} {ce : ConLeche.Expr}, NoMData e = true → toCL? e = some ce →
+    toCL? e.getAppFn = some (clSpine ce).1 := by
+  intro e
+  induction e with
+  | app f a ihf _ =>
+    intro ce hn hc
+    simp only [NoMData, Bool.and_eq_true] at hn
+    simp only [toCL?, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+      Option.some.injEq] at hc
+    obtain ⟨cf, hcf, ca, -, rfl⟩ := hc
+    show toCL? f.getAppFn = some (clSpine.go cf [ca]).1
+    rw [ihf hn.1 hcf, clSpine_go_acc cf [ca]]; rfl
+  | mdata => intro ce hn; simp [NoMData] at hn
+  | lit l =>
+    intro ce _ hc
+    cases l <;> (simp only [toCL?, Option.some.injEq] at hc; subst hc; rfl)
+  | _ =>
+    intro ce _ hc
+    cases ce <;> first | exact hc |
+      simp [toCL?, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hc
+
+/-- `piBinders` on a `Π`. -/
+theorem piBinders_forallE (y : Name) (t b : Expr) (bi : BinderInfo) :
+    piBinders (.forallE y t b bi) = ((y, t) :: (piBinders b).1, (piBinders b).2) := by
+  show (match piBinders b with | (bs, r) => ((y, t) :: bs, r)) = _
+  cases piBinders b; rfl
+
+/-- An entry of `piBinders` is a leading `Π`-domain. -/
+theorem piBinders_get : ∀ (j : Nat) {e : Expr} {x : Name} {d : Expr},
+    (piBinders e).1[j]? = some (x, d) → forallDom? j e = some d := by
+  intro j
+  induction j with
+  | zero =>
+    intro e x d h
+    cases e with
+    | forallE y t b bi => rw [piBinders_forallE] at h; simp at h; simp [forallDom?, h.2]
+    | _ => simp [piBinders] at h
+  | succ j ih =>
+    intro e x d h
+    cases e with
+    | forallE y t b bi => rw [piBinders_forallE] at h; exact ih (by simpa using h)
+    | _ => simp [piBinders] at h
+
+/-- `piBinders` reads the leading `Π`s. -/
+theorem piBinders_length (e : Expr) : (piBinders e).1.length = forallArity e := by
+  induction e with
+  | forallE y t b bi _ ihb => rw [piBinders_forallE]; simp [forallArity, ihb]
+  | _ => rfl
+
+/-- An `mdata`-free type without leading `Π` reads as one without leading `Π`. -/
+theorem clPiBody_toCL {e : Expr} {ce : ConLeche.Expr} (hn : NoMData e = true)
+    (hc : toCL? e = some ce) (h : (piBinders e).1 = []) :
+    clPiBody ce = (0, ce) ∧ (piBinders e).2 = e := by
+  have h0 : forallArity e = 0 := by rw [← piBinders_length, h]; rfl
+  have hp : clPis ce = 0 := by rw [← forallArity_toCL hn hc, h0]
+  refine ⟨by cases ce <;> simp_all [clPis, clPiBody], ?_⟩
+  cases e with
+  | forallE y t b bi => rw [piBinders_forallE] at h; simp at h
+  | _ => rfl
+
+/-- A leading `Π`-domain of an `mdata`-free type is `mdata`-free. -/
+theorem noMData_forallDom : ∀ (j : Nat) {e d : Expr}, NoMData e = true → forallDom? j e = some d →
+    NoMData d = true := by
+  intro j
+  induction j with
+  | zero =>
+    intro e d hn h
+    cases e <;> simp only [forallDom?, reduceCtorEq, Option.some.injEq] at h
+    subst h; simp only [NoMData, Bool.and_eq_true] at hn; exact hn.1
+  | succ j ih =>
+    intro e d hn h
+    cases e <;> simp only [forallDom?, reduceCtorEq] at h
+    simp only [NoMData, Bool.and_eq_true] at hn; exact ih hn.2 h
+
+/-- `mapM` in `Option`, at an index. -/
+theorem mapM_getElem? {α β : Type} {f : α → Option β} {l : List α} {l' : List β}
+    (h : l.mapM f = some l') {k : Nat} {b : β} (hk : l'[k]? = some b) :
+    ∃ a, l[k]? = some a ∧ f a = some b := by
+  have := congrArg (·[k]?) (mapM_eq_some h)
+  simp only [List.getElem?_map, hk, Option.map_some] at this
+  cases hl : l[k]? with
+  | none => rw [hl] at this; simp at this
+  | some a => rw [hl] at this; exact ⟨a, rfl, by simpa using this⟩
+
+/-- **The shape `recShape` reads of a minor premise** (`LeanToLambdaBox/Erasure.lean:754`): the
+`k`-th minor premise is the domain `D` of the `P + M + k`-th leading `Π` of the recursor's type;
+its constructor's field count `nf` is the number of its first `Π`s it names as fields, the rest
+are its inductive hypotheses; the `i`-th of them binds the `Π`s of its domain `d` and recurses on
+the field the head of the last argument of `d`'s body names. -/
+theorem recShape_minor {P M : Nat} {type : Expr} {nfs : List Nat} {motives : List (List Name)}
+    {minors : List RecMinor} (h : recShape P M type nfs = some (motives, minors)) {k : Nat}
+    {mi : RecMinor} (hk : minors[k]? = some mi) :
+    ∃ x D nf, (piBinders type).1[P + M + k]? = some (x, D) ∧ nfs[k]? = some nf ∧
+      mi.fields.length = nf ∧ nf + mi.ihs.length = (piBinders D).1.length ∧
+      ∀ (i : Nat) (ih : RecIH), mi.ihs[i]? = some ih → ∃ y d last hf,
+        (piBinders D).1[nf + i]? = some (y, d) ∧ ih.binders = (piBinders d).1.map (·.1) ∧
+        (piBinders d).2.getAppArgs.back? = some last ∧ last.getAppFn = .bvar hf ∧
+        (piBinders d).1.length + i ≤ hf ∧ hf < (piBinders d).1.length + i + nf ∧
+        ih.field = nf - 1 - (hf - (piBinders d).1.length - i) := by
+  unfold recShape at h
+  simp only [bind, Option.bind_eq_some_iff, pure, Option.some.injEq, guard] at h
+  obtain ⟨u, hu, ms, hms, he⟩ := h
+  split at hu
+  rotate_left; · exact nomatch hu
+  simp only [Prod.mk.injEq] at he
+  obtain ⟨-, rfl⟩ := he
+  obtain ⟨a, ha, hF⟩ := mapM_getElem? hms hk
+  rw [List.getElem?_zipIdx] at ha
+  obtain ⟨z, hz, rfl⟩ := Option.map_eq_some_iff.mp ha
+  obtain ⟨⟨x, D⟩, nf⟩ := z
+  obtain ⟨hxD, hnf⟩ := List.getElem?_zip_eq_some.mp hz
+  have hkl : k < nfs.length := (List.getElem?_eq_some_iff.mp hnf).1
+  rw [List.getElem?_take_of_lt hkl, List.getElem?_drop] at hxD
+  simp only [Nat.zero_add, Option.bind_eq_some_iff, Option.some.injEq] at hF
+  obtain ⟨u', hu', ihs, hihs, rfl⟩ := hF
+  split at hu'
+  rotate_left; · exact nomatch hu'
+  rename_i hle
+  refine ⟨x, D, nf, hxD, hnf, by simp; omega, ?_, fun i ih hi => ?_⟩
+  · have := congrArg List.length (mapM_eq_some hihs)
+    simp only [List.length_map, List.length_zipIdx, List.length_drop] at this
+    simp only; omega
+  obtain ⟨b, hb, hG⟩ := mapM_getElem? hihs hi
+  rw [List.getElem?_zipIdx] at hb
+  obtain ⟨⟨y, d⟩, hyd, rfl⟩ := Option.map_eq_some_iff.mp hb
+  rw [List.getElem?_drop] at hyd
+  simp only [Nat.zero_add] at hG
+  rcases hpb : piBinders d with ⟨ys, body⟩
+  rw [hpb] at hG
+  simp only at hG
+  split at hG
+  · rename_i hm hhm
+    simp only [Option.bind_eq_some_iff] at hG
+    obtain ⟨last, hlast, hG⟩ := hG
+    split at hG
+    · rename_i hf hhf
+      split at hG
+      · rename_i hok
+        have hG' := Option.some.inj hG
+        subst hG'
+        simp only [Bool.and_eq_true, decide_eq_true_eq] at hok
+        refine ⟨y, d, last, hf, hyd, by rw [hpb], by rw [hpb]; exact hlast, hhf, by simp only [hpb]; omega,
+          by simp only [hpb]; omega, by rw [hpb]⟩
+      · exact nomatch hG
+    · exact nomatch hG
+  · exact nomatch hG
+
+/-- A spine of a head with arguments. -/
+theorem clSpine_mkAppN_args (f : ConLeche.Expr) (as : List ConLeche.Expr) :
+    clSpine (ConLeche.Expr.mkAppN f as) = ((clSpine f).1, (clSpine f).2 ++ as) := by
+  induction as generalizing f with
+  | nil => simp [ConLeche.Expr.mkAppN]
+  | cons a as ih =>
+    show clSpine (ConLeche.Expr.mkAppN (.app f a) as) = _
+    rw [ih]
+    show ((clSpine.go f [a]).1, (clSpine.go f [a]).2 ++ as) = _
+    rw [clSpine_go_acc f [a]]; simp [clSpine]
+
+/-- A term with no leading `λ`. -/
+theorem clLams_of_zero {e : ConLeche.Expr} (h : (clLams e).1 = 0) : clLams e = (0, e) := by
+  cases e <;> simp_all [clLams]
+
+/-- Arguments read as given bound variables. -/
+theorem eq_bvars {xs : List ConLeche.Expr} {n : Nat} {g : Nat → Nat}
+    (h : xs.map clBvar? = (List.range n).map fun i => some (g i)) :
+    xs = (List.range n).map fun i => .bvar (g i) := by
+  have hl : xs.length = n := by simpa using congrArg List.length h
+  refine List.ext_getElem (by simp [hl]) fun i h1 h2 => ?_
+  have := congrArg (·[i]?) h
+  simp only [List.getElem?_map, List.getElem?_eq_getElem h1, List.getElem?_range (hl ▸ h1),
+    Option.map_some, Option.some.injEq] at this
+  simp [clBvar?_eq this]
+
+/-- **A recursive call of a stored rule, read** (`IHShape` under no λ): the recursor `R` found at
+its name, at its level parameters, applied to the `rP` prefix variables and to the field variable
+`j`. -/
+theorem ihShape_zero {P : List ConstantInfo} {env : ConLeche.Env} (h : ConLecheAccepts P env)
+    {R : ConLeche.Name} {cvR : ConLeche.ConstantVal} {rP nF : Nat} {isK : Bool}
+    {rules : List ConLeche.RecRule} (hR : env.find? R = some (.recInfo cvR rP rP isK rules))
+    {ih : ConLeche.Expr} (hsh : IHShape env cvR.levelParams rP nF ih = true)
+    (hl : (clLams ih).1 = 0) {us : List ConLeche.Level} (hhd : (clSpine ih).1 = .const R us) :
+    ∃ j, j < nF ∧ clFieldOf nF 0 ih = some (nF - 1 - j) ∧
+      ih = ConLeche.Expr.mkAppN (.const R (cvR.levelParams.map .param))
+        (SemCases.fbv rP (rP + nF) ++ [.bvar j]) := by
+  have hl0 := clLams_of_zero hl
+  simp only [IHShape, hl0, hhd, Bool.and_eq_true, beq_iff_eq, List.any_eq_true,
+    decide_eq_true_eq, Nat.zero_add] at hsh
+  obtain ⟨⟨⟨⟨hus, x, hx, hxr⟩, hgt⟩, htake⟩, hlast⟩ := hsh
+  cases x <;> simp only [Bool.false_eq_true, Bool.and_eq_true, beq_iff_eq] at hxr
+  rename_i v mI' rP' isK' rules'
+  obtain ⟨hvn, hlen⟩ := hxr
+  have hfx : env.find? v.name = some (.recInfo v mI' rP' isK' rules') := h.find?_of_mem hx
+  rw [hvn, hR, Option.some.injEq, ConLeche.ConstantInfo.recInfo.injEq] at hfx
+  obtain ⟨-, rfl, -, -, -⟩ := hfx
+  cases hgl : (clSpine ih).2.getLast? with
+  | none => rw [hgl] at hlast; exact nomatch hlast
+  | some l =>
+  rw [hgl] at hlast
+  simp only [Bool.and_eq_true, beq_iff_eq] at hlast
+  obtain ⟨hb, hargs⟩ := hlast
+  cases hbl : clBvar? (clSpine l).1 with
+  | none => rw [hbl] at hb; exact nomatch hb
+  | some j =>
+  rw [hbl] at hb
+  simp only [Nat.zero_le, decide_true, Bool.true_and, decide_eq_true_eq] at hb
+  have hl2 : (clSpine l).2 = [] := by
+    simpa using congrArg List.length hargs
+  have hlj : l = .bvar j := by
+    have := clSpine_mkAppN l
+    rw [hl2, clBvar?_eq hbl] at this
+    exact this.symm
+  refine ⟨j, hb, ?_, ?_⟩
+  · simp [clFieldOf, hgl, hbl, hb]
+  · have he := clSpine_mkAppN ih
+    rw [hhd] at he
+    rw [← he, hus]
+    congr 1
+    have hne : (clSpine ih).2 ≠ [] := by intro h0; rw [h0] at hgl; exact nomatch hgl
+    have hsl : (clSpine ih).2 = (clSpine ih).2.take rP ++ [l] := by
+      have h1 := List.dropLast_concat_getLast hne
+      rw [List.getLast?_eq_some_getLast hne, Option.some.injEq] at hgl
+      rw [hgl, List.dropLast_eq_take, hlen, Nat.add_sub_cancel] at h1
+      exact h1.symm
+    rw [hsl, hlj, eq_bvars htake]
+    congr 1
+    simp only [SemCases.fbv]
+    refine List.map_congr_left fun i hi => ?_
+    simp at hi; congr 1; omega
+
+/-- **The stored records of the ι step of a recursor** (`RecIotaAt`), at the constructor `C` of
+the major's value (`hm`), for the recursor `T.rec` of an inductive alone in its block and without
+indices: con-leche stores the recursor with its counts (`ConLecheAccepts.find?_rec`) and `C` under
+`T` (`ConLecheAccepts.blockStored`); `RulesCanonical` gives the rule for `C` (`rule_decode`), its
+recursive calls of `IHShape`, recursing on the fields the minor premise's binders name
+(`minorIHField`), which are the fields `recShape` reads off the same `mdata`-free minor premise
+(`recShape_minor`, `blockShapeOK`); each recursive call calls `T.rec` under as many λs as the
+domain of its binder in the minor premise has `Π`, which `recShape` reads as none, and con-leche's
+names are distinct, so each call is the stored `T.rec` at its own level parameters and argument
+count. The ι case split's case 2 by the stored facts (`IotaNoCertAt`). Reference: the rule shape of
+`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`. -/
+theorem _root_.EraseProof.ConLecheAccepts.recIotaAt {P : List ConstantInfo} {env : ConLeche.Env}
+    (h : ConLecheAccepts P env) (hcl : CtorsListed P) {T : Name} {rv : RecursorVal}
+    (hr : findDecl P (mkRecName T) = some (.recInfo rv)) (hall : rv.all = [T])
+    {iv : InductiveVal} {cvs : List ConstructorVal} (hblk : recBlockOf? P rv = some ([iv], cvs))
+    (hidx : rv.numIndices = 0) {motives : List (List Name)} {minors : List RecMinor}
+    (hshape : recShape rv.numParams rv.numMotives rv.type (cvs.map (·.numFields)) =
+      some (motives, minors))
+    (hbind : ∀ mi ∈ minors, mi.ihs.map (fun h => (h.field, h.binders)) =
+      (List.range' (mi.fields.length - mi.ihs.length) mi.ihs.length).map fun f => (f, []))
+    {C : Name} {cv : ConstructorVal} (hC : findDecl P C = some (.ctorInfo cv)) (hCT : cv.induct = T)
+    {mi : RecMinor} (hmi : minors[cv.cidx]? = some mi)
+    {m : Expr} {usC : List Level} (hm : m.getAppFn = .const C usC) (hnc : IotaNoCertAt env T m) :
+    SemCases.RecIotaAt env (Name.toCL (mkRecName T)) (Name.toCL C)
+      (rv.numParams + rv.numMotives + rv.numMinors) (rv.numParams + rv.numMotives + cv.cidx)
+      cv.numParams cv.numFields (mi.ihs.map (·.field)) := by
+  obtain ⟨ds, hds, hfold, hrc, -⟩ := id h
+  have hnd := DeclsOf?.nodup hds
+  have hrm := (findDecl_mem hr).1
+  have hrn : rv.name = mkRecName T := (findDecl_mem hr).2
+  -- the block of `T`
+  simp only [recBlockOf?, hall, List.mapM_cons, List.mapM_nil, bind, Option.bind_eq_some_iff,
+    pure, Option.some.injEq] at hblk
+  obtain ⟨ivs, ⟨iv₀, hiv', _, rfl, rfl⟩, cvs₀, hcvs, hpe⟩ := hblk
+  simp only [Prod.mk.injEq, List.cons.injEq, and_true] at hpe
+  obtain ⟨h1, h2⟩ := hpe
+  subst iv₀ cvs₀
+  have hivT : findDecl P T = some (.inductInfo iv) := by
+    split at hiv'
+    · rename_i t ht; cases hiv'; exact ht
+    · exact nomatch hiv'
+  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil] at hcvs
+  have hivT' : findConst P T = some (.inductInfo iv) := hivT
+  have hivall : iv.all = [T] := by
+    obtain ⟨L, hL, -⟩ := DeclsOf?.mem hds hrm
+    simp only [declOf?, hall, List.head?_cons, Option.bind_some, hivT', beq_iff_eq] at hL
+    split at hL
+    · rename_i he; exact he
+    · exact nomatch hL
+  have hhead : iv.all.head? = some T := by rw [hivall]; rfl
+  have hTm : T ∈ iv.all := by rw [hivall]; exact List.mem_singleton_self _
+  have hivs := h.ind_safe (findDecl_mem hivT).1
+  obtain ⟨iv'', hiv'', hCidx, -⟩ := hcl C cv hC
+  rw [hCT, hivT, Option.some.injEq, ConstantInfo.inductInfo.injEq] at hiv''
+  subst iv''
+  -- the constructor's minor premise, as `recShape` reads it
+  have hcvk : cvs[cv.cidx]? = some cv := by
+    have := congrArg (·[cv.cidx]?) (mapM_eq_some hcvs)
+    simp only [List.getElem?_map, hCidx, Option.map_some, hC] at this
+    cases hk : cvs[cv.cidx]? with
+    | none => rw [hk] at this; simp at this
+    | some c' => rw [hk] at this; simpa using this.symm
+  obtain ⟨x, D, nf, hxD, hnf, hfl, hlenD, hIH⟩ := recShape_minor hshape hmi
+  rw [List.getElem?_map, hcvk, Option.map_some, Option.some.injEq] at hnf
+  subst hnf
+  -- the stored records
+  obtain ⟨hbnd, hbc, hst⟩ := h.blockStored hivT hhead
+  obtain ⟨⟨cvT, caps, -, hfT, hcall, hcc⟩, hctor⟩ := hst T hTm iv hivT'
+  obtain ⟨cvj, -, hfC⟩ := hctor C (List.mem_of_getElem? hCidx) cv hC
+  obtain ⟨blk, p, hbH, -, -⟩ := h.block hivT hhead hivs
+  obtain ⟨hrsh, hmem⟩ := blockOf?_shape hbH
+  obtain ⟨-, -, -, r, hrm', -, hrname, -, hrmin, -⟩ := hmem T hTm iv hivT'
+  have hrr : r = rv := by
+    have h1 : findDecl P r.name = some (.recInfo r) := findDecl_self hnd hrm'
+    have hivn : iv.name = T := (findDecl_mem hivT).2
+    rw [hrname, hivn, hr] at h1; simpa using h1.symm
+  subst r
+  obtain ⟨-, hRnm⟩ := hrsh rv hrm (hall.trans hivall.symm)
+  obtain ⟨cvR, rules, f, hcvR, -, hfR⟩ := h.find?_rec hivT hhead hivs hrm (hall.trans hivall.symm)
+  rw [hrn, hidx, Nat.add_zero] at hfR
+  obtain ⟨hpis, hlpnd, rl, A, ihs, hrl, hnf, -, hA, hlA, hrhs, hIHs, hfld, hlams⟩ :=
+    rule_decode hrc hfR hfT (by rw [hcc]; exact List.mem_map_of_mem (List.mem_of_getElem? hCidx)) hfC
+  rw [hivall] at hbnd
+  have hbcl := hbc caps hcall
+  rw [hivall] at hbcl
+  obtain ⟨hposlt, hidxC⟩ := ctorsOf_idxOf (j := 0) (before := 0) hbnd rfl hivT' hCidx rfl
+  have hminl := blockCtorCount_length hrmin
+  rw [hivall] at hminl
+  have hq : rv.numParams + rv.numMotives + rv.numMinors - (blockCtors env caps).length +
+      (blockCtors env caps).idxOf (Name.toCL C) = rv.numParams + rv.numMotives + cv.cidx := by
+    rw [hbcl, List.length_map, hminl, hidxC]; omega
+  rw [hq] at hA hrhs
+  -- the minor premise's domain, read
+  have hD := piBinders_get _ hxD
+  obtain ⟨D', hD', hDnm⟩ := hRnm cv.cidx (by omega)
+  rw [hD, Option.some.injEq] at hD'
+  subst hD'
+  obtain ⟨tyR, htyR, rfl⟩ := cvOf?_eq_some hcvR
+  obtain ⟨cD, hcD, hbD⟩ := forallDom?_toCL _ hD htyR
+  rw [hA, Option.some.injEq] at hbD
+  subst hbD
+  have hclA : clPis A = (piBinders D).1.length := by
+    rw [← forallArity_toCL hDnm hcD, piBinders_length]
+  have hlen : ihs.length = mi.ihs.length := by omega
+  have hsp : (clSpine (clLams rl.rhs).2).2 = SemCases.fbv cv.numFields cv.numFields ++ ihs := by
+    rw [hrhs, clSpine_mkAppN_args]; rfl
+  have hb := hbind mi (List.mem_of_getElem? hmi)
+  -- each recursive call
+  have hcall : ∀ (i : Nat) (hi : i < mi.ihs.length), ihs[i]? = some (ConLeche.Expr.mkAppN
+      (.const (Name.toCL (mkRecName T)) ((rv.levelParams.map Name.toCL).map .param))
+      (SemCases.fbv (rv.numParams + rv.numMotives + rv.numMinors)
+        (rv.numParams + rv.numMotives + rv.numMinors + cv.numFields) ++
+        [.bvar (cv.numFields - 1 - (mi.ihs[i]'hi).field)])) := by
+    intro i hi
+    have hmi_i : mi.ihs[i]? = some (mi.ihs[i]'hi) := List.getElem?_eq_getElem hi
+    obtain ⟨y, d, last, hf, hyd, hbnd', hlast, hhf, hle1, hlt1, hfield⟩ := hIH i _ hmi_i
+    have hbi := congrArg (·[i]?) hb
+    simp only [List.getElem?_map, hmi_i, Option.map_some, List.getElem?_range' hi,
+      Option.some.injEq, Prod.mk.injEq, Nat.one_mul] at hbi
+    obtain ⟨hfi, hbi⟩ := hbi
+    have hys : (piBinders d).1 = [] := by
+      rw [hbi] at hbnd'; exact List.map_eq_nil_iff.mp hbnd'.symm
+    rw [hys, List.length_nil] at hle1 hlt1 hfield
+    have hdD := piBinders_get _ hyd
+    have hdn := noMData_forallDom _ hDnm hdD
+    obtain ⟨cd, hcd, hbd⟩ := forallDom?_toCL _ hdD hcD
+    obtain ⟨hpbody, hpd⟩ := clPiBody_toCL hdn hcd hys
+    have hil : i < ihs.length := by omega
+    obtain ⟨hIHsh, n, us, hhd, hnm⟩ := hIHs _ (List.getElem_mem hil)
+    rw [hcall, hivall] at hnm
+    simp only [List.map_cons, List.map_nil, List.mem_singleton] at hnm
+    subst hnm
+    have hk0 := congrArg (·[i]?) hlams
+    simp only [List.getElem?_map, List.getElem?_eq_getElem hil, Option.map_some,
+      List.getElem?_range' (show i < clPis A - cv.numFields by omega), Nat.one_mul, Option.some.injEq,
+      hbd, hpbody] at hk0
+    rw [clLams_of_zero hk0] at hhd
+    obtain ⟨j, hj, hfo, hih⟩ := ihShape_zero h hfR hIHsh hk0 hhd
+    have hfld_i := congrArg (·[i]?) hfld
+    simp only [List.getElem?_map, List.getElem?_eq_getElem hil, Option.map_some,
+      List.getElem?_range' (show i < clPis A - cv.numFields by omega), Nat.one_mul,
+      clLams_of_zero hk0, Option.some.injEq] at hfld_i
+    rw [hfo] at hfld_i
+    simp only [minorIHField, hbd, Option.bind_some, hpbody] at hfld_i
+    rw [hpd] at hlast
+    obtain ⟨g, rfl⟩ := getAppArgs_back hlast
+    simp only [toCL?, Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff,
+      Option.some.injEq] at hcd
+    obtain ⟨cg, -, cl, hcl, rfl⟩ := hcd
+    simp only [NoMData, Bool.and_eq_true] at hdn
+    have hhl := getAppFn_toCL hdn.2 hcl
+    rw [hhf] at hhl
+    simp only [toCL?, Option.some.injEq] at hhl
+    have hsp2 : (clSpine (.app cg cl)).2.getLast? = some cl := by
+      show (clSpine.go cg [cl]).2.getLast? = _
+      rw [clSpine_go_acc]; simp
+    simp only [clFieldOf, hsp2, ← hhl, clBvar?, Nat.zero_le, true_and, Nat.sub_zero] at hfld_i
+    rw [if_pos (by omega), Option.some.injEq] at hfld_i
+    have hjv : j = cv.numFields - 1 - (mi.ihs[i]'hi).field := by rw [hfield]; omega
+    rw [List.getElem?_eq_getElem hil, hih, hjv]
+  have hihs : ihs = (mi.ihs.map (·.field)).map fun f => ConLeche.Expr.mkAppN
+      (.const (Name.toCL (mkRecName T)) ((rv.levelParams.map Name.toCL).map .param))
+      (SemCases.fbv (rv.numParams + rv.numMotives + rv.numMinors)
+        (rv.numParams + rv.numMotives + rv.numMinors + cv.numFields) ++
+        [.bvar (cv.numFields - 1 - f)]) := by
+    refine List.ext_getElem? fun i => ?_
+    by_cases hi : i < mi.ihs.length
+    · rw [hcall i hi, List.getElem?_map, List.getElem?_map, List.getElem?_eq_getElem hi]; rfl
+    · rw [List.getElem?_eq_none (by omega), List.getElem?_eq_none (by simp; omega)]
+  refine ⟨_, rv.k, _, cvj, _, rl, hfR, hlpnd, hpis, by omega, hfC, hrl, hnf, by rw [hrhs, hihs],
+    iotaNoCert_of hm hnc hfR hrl hfC⟩
 
 end Decode
 
