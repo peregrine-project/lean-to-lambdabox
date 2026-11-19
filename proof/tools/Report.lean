@@ -171,7 +171,6 @@ def unproved : Array Name := #[
   `EraseProof.erase_correct,
   `EraseProof.erasePure_erases,
   `EraseProof.srcEval_sound,
-  `EraseProof.collectDeps_ok_of,
   `EraseProof.erase_correct_firstorder,
   `EraseProof.sound_nonvacuous,
   `EraseProof.clCert_proof_pt,
