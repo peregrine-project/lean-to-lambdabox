@@ -295,31 +295,6 @@ theorem ConLecheAccepts.find?_thm {P : List ConstantInfo} {env : ConLeche.Env}
   rw [← hn]
   exact find?_of_single rfl hst
 
-/-- **A safe opaque of `P` is stored as an axiom** of its translated name, level parameters and
-type (`CL ConLeche/Kernel/Checker.lean:89 checkOpaqueVal`: the value is checked and discarded;
-DV-10). -/
-theorem ConLecheAccepts.find?_opaque {P : List ConstantInfo} {env : ConLeche.Env}
-    (h : ConLecheAccepts P env) {c : Name} {v : OpaqueVal}
-    (hv : findDecl P c = some (.opaqueInfo v)) (hs : v.isUnsafe = false) :
-    ∃ cv, cvOf? v.toConstantVal = some cv ∧ (toCL? v.value).isSome ∧
-      env.find? (Name.toCL c) = some (.axiomInfo cv) := by
-  obtain ⟨hmem, hn⟩ := findDecl_mem hv
-  obtain ⟨ds, hds, -⟩ := id h
-  obtain ⟨L, hL, -⟩ := DeclsOf?.mem hds hmem
-  cases hcv : cvOf? v.toConstantVal with
-  | none => simp [declOf?, hs, hcv] at hL
-  | some cv =>
-  cases hval : toCL? v.value with
-  | none => simp [declOf?, hs, hcv, hval] at hL
-  | some value =>
-  have hd : declOf? P (.opaqueInfo v) = some [.opaqueDecl cv value] := by
-    simp [declOf?, hs, hcv, hval]
-  obtain ⟨-, hst⟩ := h.stored hmem hd
-  obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
-  refine ⟨_, rfl, rfl, ?_⟩
-  rw [← hn]
-  exact find?_of_single rfl hst
-
 /-- The quotient package's `Quot.sound` record, matched to its pin, stores itself
 (`CL ConLeche/Kernel/Basis.lean:169 quotAt`, `:175 quotPinHit`). -/
 theorem quotAt_sound {cv : ConLeche.ConstantVal} (h : ConLeche.quotPinHit .sound cv = true) :

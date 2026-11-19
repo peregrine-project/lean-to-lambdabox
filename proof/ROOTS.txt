@@ -6,35 +6,4 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
-EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
-EraseProof.erases_correct EraseProof.erase_correct
-EraseProof.SemCases.srcEval_sound_value EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_beta EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_etaBeta EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_zeta EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_delta EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_appCong EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_ctor EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_frozenApp EraseProof.srcEval_sound
-EraseProof.Sound.of_semSim EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_casesIota EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_casesLitZero EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_casesLitSucc EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_proj EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_projFrozen EraseProof.srcEval_sound
-EraseProof.SemCases.zeta_hpt EraseProof.srcEval_sound
-EraseProof.markOf_read EraseProof.srcEval_sound
-EraseProof.markOf_read_delta EraseProof.srcEval_sound
-EraseProof.collectDeps_spec EraseProof.erase_correct
-EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_quotMk EraseProof.srcEval_sound
-EraseProof.eraseEntry_pure EraseProof.erase_correct
-EraseProof.CLOk.gradedU EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
-EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound
-EraseProof.erasePure_erases EraseProof.erase_correct
+EraseProof.erase_correct FINAL

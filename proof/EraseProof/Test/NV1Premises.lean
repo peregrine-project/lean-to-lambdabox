@@ -1,4 +1,5 @@
 import EraseProof.Statements
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV1Run
 import EraseProof.Test.CasesOnVal
 
@@ -316,5 +317,18 @@ the one constant of `p0`: the witness half of `ErasesDecl` (its `∀` half follo
 `MarkOf.det`). -/
 theorem decl_neg : MarkOf σ.decls σ.cfg [] negVal negVal ∧ Erases (CLCert envNV1) σ [] negVal negL :=
   ⟨mark_neg (.inl rfl), coincide_neg⟩
+
+/-! ## `sound_nonvacuous` on NV-1: the type `B` has the type `Type`, a sort, so in every model it has
+a reading that is not the proof point -/
+
+theorem nonvacuous.{w} (hfold : ConLeche.checkDeclsPure .verified
+    (ConLeche.fueledOps .verified ConLeche.checkFuel) [] nv1full = .ok envNV1) :
+    ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V envNV1)
+      (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
+      ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval envNV1 φ ρ kB X ∧
+        X ≠ ConLeche.SetTheory.pt :=
+  EraseProof.sound_nonvacuous (e := tB) (as := []) (c₁ := kB) (T := .sort (.succ .zero))
+    (W := .sort (.succ .zero)) (F := 100) (hacc hfold) (by krfl) (by krfl) (by krfl) (by krfl)
+    ⟨_, rfl⟩
 
 end EraseProof.Test.NV1

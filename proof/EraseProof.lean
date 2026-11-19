@@ -5,6 +5,9 @@ import EraseProof.Semantics.Rec
 import EraseProof.Semantics.Decode
 import EraseProof.Semantics.Frozen
 import EraseProof.Semantics.DecodeAt
+import EraseProof.Semantics.Sound
+import EraseProof.Semantics.Cert
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -55,6 +58,7 @@ import EraseProof.Core.CtorProp
 import EraseProof.Core.StepsProj
 import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
+import EraseProof.Final
 /-!
 # Verification of the eraser
 
@@ -104,6 +108,13 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.DecodeAt`: the stored former and constructors of a member of a block of any
   size, the stored rule of a constructor, and the stored records the ι steps of a recognized
   `casesOn`, of a projection and of a recursor read.
+* `EraseProof.Semantics.Sound`: `srcEval_sound`, the induction on source evaluation, with the
+  program's records behind the closure's, the safety of a stored definition and `Nat`'s pinned
+  constructors.
+* `EraseProof.Semantics.Cert`: `clCert_proof_pt`, the proof verdict of a certificate denotes the
+  proof point.
+* `EraseProof.Semantics.NonVacuous`: `sound_nonvacuous`, an input typed at a sort through an
+  application does not denote the proof point.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
@@ -144,5 +155,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   pure traversal's correctness (`erasePure_erases`).
 * `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
   of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
+* `EraseProof.Final`: the final theorem `erase_correct`, composed of the milestones over the
+  fragment test's closure, with the certified erasure from the program's certificates.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
