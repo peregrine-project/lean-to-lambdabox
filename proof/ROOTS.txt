@@ -32,6 +32,9 @@ EraseProof.markOf_read EraseProof.srcEval_sound
 EraseProof.markOf_read_delta EraseProof.srcEval_sound
 EraseProof.collectDeps_spec EraseProof.erase_correct
 EraseProof.Pure.typeLevel_ren EraseProof.markOf_det
+EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
+EraseProof.SemCases.srcEval_sound_quotMk EraseProof.srcEval_sound
 EraseProof.StateOK.empty EraseProof.erasePure_erases
 EraseProof.StateOK.kername EraseProof.erasePure_erases
 EraseProof.knNotBlock_of_emits EraseProof.erasePure_erases
