@@ -1,5 +1,6 @@
 import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
+import EraseProof.Semantics.Iota
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -23,6 +24,10 @@ import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
+import EraseProof.Oracle.Rename
+import EraseProof.Core.State
+import EraseProof.Core.RegisterInd
+import EraseProof.Core.Glue
 /-!
 # Verification of the eraser
 
@@ -62,6 +67,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.Cases`: the invariant of the meaning of source evaluation in con-leche's
   model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
   application and the value rules.
+* `EraseProof.Semantics.Iota`: its cases `casesOn` ι (on a constructor value and on a `Nat`
+  literal), projection and frozen projection, and the premise of its `let` case.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
@@ -69,5 +76,11 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (`collectDeps_sub`).
 * `EraseProof.Core.CollectSpec`: the closure of the fragment test is closed under what the source
   semantics and the traversal read, with distinct kernames and block names (`collectDeps_spec`).
+* `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
+  its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
+* `EraseProof.Core.State`: the traversal's state invariant and the registration of constants.
+* `EraseProof.Core.RegisterInd`: the registration of an inductive block keeps the invariant.
+* `EraseProof.Core.Glue`: a returning run of `#erase`'s entry point on an input inside the
+  fragment is a run of the pure path.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
