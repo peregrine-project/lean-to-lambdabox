@@ -25,12 +25,8 @@ EraseProof.SemCases.srcEval_sound_casesLitSucc propext,Classical.choice,Quot.sou
 EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_defn propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_axiom propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_rec propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
 EraseProof.markOf_det propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
@@ -223,11 +219,15 @@ EraseProof.Test.NV2.withApp_bodyK propext
 EraseProof.Test.NV2.withApp_e propext
 EraseProof.markOf_read propext,Classical.choice,Quot.sound
 EraseProof.markOf_read_delta propext,Classical.choice,Quot.sound
+EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound
 EraseProof.Test.DeclOf.inBlock_accepted propext
 EraseProof.Test.DeclOf.nv1_head_accepted propext
 EraseProof.Test.DeclOf.nested_rejected propext
 EraseProof.Test.DeclOf.stray_rejected propext
 EraseProof.Test.DeclOf.unsafe_rejected propext
+EraseProof.SemCases.srcEval_sound_recIota propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotLift propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotMk propext,Classical.choice,Quot.sound
 EraseProof.StateOK.empty propext,Classical.choice,Quot.sound
 EraseProof.StateOK.kername propext,Classical.choice,Quot.sound
 EraseProof.knNotBlock_of_emits propext,Classical.choice,Quot.sound
@@ -235,3 +235,7 @@ EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound
 EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound
 EraseProof.register_inductive_ok propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
+EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
