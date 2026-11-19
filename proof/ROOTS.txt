@@ -26,8 +26,7 @@ EraseProof.Sound.of_semSim EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_defn EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_thm EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_axiom EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_rec EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_single EraseProof.srcEval_sound
 EraseProof.markOf_read EraseProof.srcEval_sound
 EraseProof.markOf_read_delta EraseProof.srcEval_sound
+EraseProof.collectDeps_spec EraseProof.erase_correct

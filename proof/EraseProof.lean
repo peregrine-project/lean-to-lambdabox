@@ -4,6 +4,7 @@ import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
 import EraseProof.Core.Collect
+import EraseProof.Core.CollectSpec
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -66,5 +67,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   declaration of the program the fragment test may scan reads only names of the program.
 * `EraseProof.Core.Collect`: the closure of the fragment test is part of the program
   (`collectDeps_sub`).
+* `EraseProof.Core.CollectSpec`: the closure of the fragment test is closed under what the source
+  semantics and the traversal read, with distinct kernames and block names (`collectDeps_spec`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
