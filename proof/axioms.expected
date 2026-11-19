@@ -248,4 +248,5 @@ EraseProof.Test.RecIH.not_plain propext
 EraseProof.Test.RecIH.wrong_arity propext
 EraseProof.Test.RecIH.wrong_field propext
 EraseProof.Test.RecIH.wrong_levels propext
+EraseProof.coreEnv_value propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound

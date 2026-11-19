@@ -1,5 +1,6 @@
 import EraseProof.Core.Steps
 import EraseProof.Source.Value
+import EraseProof.Oracle.Atom
 
 /-!
 # Steps of the shipping core's correctness: applications, constants, `visitMutual`
@@ -16,8 +17,8 @@ its erasure (`StateOK.register`), its erasure being an erasure of every marking 
 induction hypothesis of every step; `CoreEnv` collects the facts about the closure the steps read.
 
 The constant head of a spine the oracle keeps is no atom (`AtomBoxed`, the oracle's answer on atom
-spines) and the value `visitMutual` erases has a marking (`ValuesMarked`): both are facts about the
-shipping traversal over the closure, hypotheses of the steps that read them.
+spines, proved in `atomBoxed`); the value `visitMutual` erases has a marking (`ValuesMarked`), a
+fact about the shipping traversal over the closure, a hypothesis of the step that reads it.
 
 Reference: the `tApp` and `tConst` cases of `erases_erase` (`MR E/ErasureFunction.v:1228`), with
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and `erase_global_erases_deps`
@@ -321,6 +322,11 @@ def AtomBoxed (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
   ∀ ls e b, AtomSpine (evalEnvOf view cfg decls) e →
     Pure.isErasable ⟨decls⟩ oracleFuel ls e = .ok b → b = true
 
+/-- The oracle never answers `false` on an atom spine of the closure. Reference: as `AtomBoxed`. -/
+theorem atomBoxed (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
+    AtomBoxed view cfg decls :=
+  fun _ _ _ hs h => EraseProof.Pure.isErasable_atom rfl hs h
+
 /-- A value that `visitMutual` erases, when the run of `visitExpr` on it returns, has a marking in
 the empty context: the hypothesis `∃ vM, MarkOf …` of `ErasesDecl`. Reference: none (DV-32). -/
 def ValuesMarked (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop :=
@@ -473,7 +479,7 @@ theorem markArity?_none {c : Name} (h : markArity? decls cfg c = none) :
 /-- The head of a constant spine that the oracle keeps and that has no rule of its own: no atom
 (`AtomBoxed`), no special arity, no recursor (`RecShaped`), and a declaration that `MutualSpec`
 registers. -/
-theorem constHead_ok (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg decls)
+theorem constHead_ok (hG : CoreEnv view cfg decls)
     {Sc : Name → Prop} {ls : List Local} {c : Name} {us : List Level} {as : List Expr}
     (hsc : ScopeOK decls Sc) (hS : Sc c) (hma : markArity? decls cfg c = none)
     (hrc : ∀ rv, findDecl decls c = some (.recInfo rv) → RecInFragment cfg decls rv)
@@ -489,7 +495,7 @@ theorem constHead_ok (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg d
   have hat : (evalEnvOf view cfg decls).isAtom c = false := by
     cases ha : (evalEnvOf view cfg decls).isAtom c with
     | false => rfl
-    | true => cases hatom _ _ _ (AtomSpine.of_getAppFn ha (getAppFn_mkAppN_const c us _)) hor
+    | true => cases atomBoxed view cfg decls _ _ _ (AtomSpine.of_getAppFn ha (getAppFn_mkAppN_const c us _)) hor
   obtain ⟨ci, hci, -⟩ := hsc c hS
   have hci' : findDecl (evalEnvOf view cfg decls).decls c = some ci := hci
   have hco : (evalEnvOf view cfg decls).casesOn? c = none := by
@@ -543,7 +549,7 @@ marking `MarkOf.constApp` by `visitConst` on the head, which is no atom (`AtomBo
 and no recursor, and registered by `visitMutual` if it is new; then the arguments
 (`visitAppArgs_spec`). Adapted from `ML-V Core/Steps.lean:1487`. Reference: the `tApp` and
 `tConst` cases of `erases_erase` (`MR E/ErasureFunction.v:1228`). -/
-theorem visitApp_spec (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg decls) {k : Nat}
+theorem visitApp_spec (hG : CoreEnv view cfg decls) {k : Nat}
     (ih : StepIH view cfg decls k) {ρ : FVarId → FVarId} {S : FVarId → Prop} {ls : List Local}
     {Sc : Name → Prop} {e ê : Expr} {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState}
     {r : LBTerm} (hctx : CtxOK cfg tc) (hR : RenOK ρ S ls tc.locals ps.next) (he : FVarsIn S e)
@@ -591,7 +597,7 @@ theorem visitApp_spec (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg 
     have hren : renFV ρ (mkAppN (.const c us) as.toArray) =
         mkAppN (.const c us) (as.map (renFV ρ)).toArray := renFV_mkAppN ρ _ as
     obtain ⟨hat, hspec, hnr, hcs, hem⟩ :=
-      constHead_ok hG hatom hsc hS hma hrc (by rw [← hren]; exact hor)
+      constHead_ok hG hsc hS hma hrc (by rw [← hren]; exact hor)
     obtain ⟨hcs', hca, hcq, -⟩ := markArity?_none hma
     rw [hren, visitApp] at hrun
     simp only [getAppFn_mkAppN_const] at hrun
@@ -638,7 +644,7 @@ theorem visitApp_spec (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg 
 /-- The `app` step, through `visitApp_spec`, on a spine whose head is no constant with a rule of
 its own. Adapted from `ML-V Core/Steps.lean:1674`. Reference: the `tApp` case of `erases_erase`
 (`MR E/ErasureFunction.v:1228`), rule `erases_tApp` (`MR E/Extract.v:101`). -/
-theorem visitExpr_app_step (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg decls)
+theorem visitExpr_app_step (hG : CoreEnv view cfg decls)
     {fuel : Nat} (ih : StepIH view cfg decls fuel) {f a : Expr}
     (hplain : ∀ c us, (Expr.app f a).getAppFn = .const c us → markArity? decls cfg c = none) :
     ExprSpec view cfg decls (fuel + 1) (.app f a) := by
@@ -650,13 +656,13 @@ theorem visitExpr_app_step (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view
   cases fuel with
   | zero => rw [visitApp] at hrun; cases hrun
   | succ k =>
-  exact visitApp_spec hG hatom ⟨fun m hm => ih.expr m (by omega),
+  exact visitApp_spec hG ⟨fun m hm => ih.expr m (by omega),
     fun m hm => ih.mutDecl m (by omega)⟩ hctx hR he hsc hocc hnp hrs hok hm hor (.inl rfl) hplain hrun
 
 /-- The `const` step: a constant without a rule of its own is erased as an application to no
 argument (`visitApp_spec`). Adapted from `ML-V Core/Steps.lean:1694`. Reference: the `tConst` case
 of `erases_erase` (`MR E/ErasureFunction.v:1228`), rule `erases_tConst` (`MR E/Extract.v:104`). -/
-theorem visitExpr_const_step (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg decls)
+theorem visitExpr_const_step (hG : CoreEnv view cfg decls)
     {fuel : Nat} (ih : StepIH view cfg decls fuel) {c : Name} {us : List Level}
     (hplain : markArity? decls cfg c = none) :
     ExprSpec view cfg decls (fuel + 1) (.const c us) := by
@@ -668,7 +674,7 @@ theorem visitExpr_const_step (hG : CoreEnv view cfg decls) (hatom : AtomBoxed vi
   cases fuel with
   | zero => rw [visitApp] at hrun; cases hrun
   | succ k =>
-  exact visitApp_spec hG hatom ⟨fun m hm => ih.expr m (by omega),
+  exact visitApp_spec hG ⟨fun m hm => ih.expr m (by omega),
     fun m hm => ih.mutDecl m (by omega)⟩ hctx hR he hsc hocc hnp hrs hok hm hor (.inr ⟨c, us, rfl⟩)
     (fun c' us' h => by cases h; exact hplain) hrun
 
