@@ -40,6 +40,7 @@ import EraseProof.Core.StepsApp
 import EraseProof.Core.StepsRun
 import EraseProof.Core.StepsCtor
 import EraseProof.Core.NonRec
+import EraseProof.Core.StepsProj
 /-!
 # Verification of the eraser
 
@@ -114,5 +115,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
   constructor spines.
 * `EraseProof.Core.NonRec`: a value `visitMutual` erases is of a one-member block and has a scope
   without its own constant, by the order of con-leche's fold (`coreEnv_value`).
+* `EraseProof.Core.StepsProj`: the steps for projections and Nat literals.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
