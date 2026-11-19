@@ -344,22 +344,42 @@ def SatSpec (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) (
       ErasesDeps noCert (evalEnvOf view cfg decls) st'.gdecls r ∧
       Grows (evalEnvOf view cfg decls) Sc st st' ps ps'
 
+/-- `SatSpec` under a state invariant `I`: the continuation may assume `I` of the state it starts
+from, which `withAppEtaToMinArity` hands on unchanged (a rule that registers an inductive before
+η-expanding, `visitRec`, reads its registration). Reference: none (DV-23). -/
+def SatSpecI (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
+    (I : ErasureState → Prop) (ar : Nat) (c : Name) (us : List Level)
+    (kont : Expr → Array Expr → EraseT PureM LBTerm) : Prop :=
+  ∀ ⦃ρ : FVarId → FVarId⦄ ⦃S : FVarId → Prop⦄ ⦃ls : List Local⦄ ⦃Sc : Name → Prop⦄ ⦃ê : Expr⦄
+    ⦃st : ErasureState⦄ ⦃tc : TravCtx⦄ ⦃ps : PureState⦄ ⦃r : LBTerm⦄ ⦃st' : ErasureState⦄
+    ⦃ps' : PureState⦄ ⦃as : List Expr⦄,
+    CtxOK cfg tc → RenOK ρ S ls tc.locals ps.next → ScopeOK decls Sc →
+    (∀ a ∈ as, ArgOK S Sc cfg decls a) → ar ≤ as.length →
+    StateOK noCert (evalEnvOf view cfg decls) st → I st → MarkSat decls cfg ls c us as ê →
+    (kont (.const c us) (as.map (renFV ρ)).toArray).runPure st tc ⟨decls, view⟩ ps =
+      .ok ((r, st'), ps') →
+    Erases noCert (evalEnvOf view cfg decls) [] (renFV ρ ê) r ∧ closedn 0 r = true ∧
+      ErasesDeps noCert (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows (evalEnvOf view cfg decls) Sc st st' ps ps'
+
 /-- The η-expansion loop `withAppEtaToMinArity.go` at the arity `ar` on the renamed spine
-`c.{us} as` and the renamed type `T`, given what the continuation does on a saturated spine
-(`SatSpec`): each missing argument is the next variable of the counter, to which the marking's
-fresh variable is renamed (`RenOK.push`), at the leading `Π` that `forallView?` reads, and its λ is
-closed again by `abstract`, which erases the `eta`-marked λ of `MarkEta.intro` (`Erases.etaLam`,
-`Erases.abstract`); at the arity the continuation runs (`MarkEta.sat`). Adapted from
+`c.{us} as` and the renamed type `T`, from a state satisfying `I`, given what the continuation
+does on a saturated spine from such a state (`SatSpecI`): each missing argument is the next
+variable of the counter, to which the marking's fresh variable is renamed (`RenOK.push`), at the
+leading `Π` that `forallView?` reads, and its λ is closed again by `abstract`, which erases the
+`eta`-marked λ of `MarkEta.intro` (`Erases.etaLam`, `Erases.abstract`); at the arity the
+continuation runs (`MarkEta.sat`) from the state the loop started from. Adapted from
 `ML-V Core/StepsCtor.lean:725`. Reference: none (MetaRocq η-expands in λ□,
 `MR E/EEtaExpanded.v`; DV-23). -/
-theorem etaGo_spec (hcl : ClosedDecls decls = true) {ar : Nat} {c : Name} {us : List Level}
-    {kont : Expr → Array Expr → EraseT PureM LBTerm} (hk : SatSpec view cfg decls ar c us kont) :
+theorem etaGoI_spec (hcl : ClosedDecls decls = true) {I : ErasureState → Prop} {ar : Nat} {c : Name}
+    {us : List Level} {kont : Expr → Array Expr → EraseT PureM LBTerm}
+    (hk : SatSpecI view cfg decls I ar c us kont) :
     ∀ (fuel : Nat) {ρ : FVarId → FVarId} {S : FVarId → Prop} {ls : List Local} {Sc : Name → Prop}
       {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm} {T ê : Expr}
       {as : List Expr},
       CtxOK cfg tc → RenOK ρ S ls tc.locals ps.next → ScopeOK decls Sc →
       (∀ a ∈ as, ArgOK S Sc cfg decls a) → FVarsIn S T →
-      StateOK noCert (evalEnvOf view cfg decls) st → MarkEta decls cfg ls ar T c us as ê →
+    StateOK noCert (evalEnvOf view cfg decls) st → I st → MarkEta decls cfg ls ar T c us as ê →
       (withAppEtaToMinArity.go (m := PureM) ar kont fuel (renFV ρ T) (.const c us)
         (as.map (renFV ρ)).toArray).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
       Erases noCert (evalEnvOf view cfg decls) [] (renFV ρ ê) r ∧ closedn 0 r = true ∧
@@ -368,15 +388,15 @@ theorem etaGo_spec (hcl : ClosedDecls decls = true) {ar : Nat} {c : Name} {us : 
   intro fuel
   induction fuel with
   | zero =>
-    intro ρ S ls Sc st st' tc ps ps' r T ê as _ _ _ _ _ _ _ hrun
+    intro ρ S ls Sc st st' tc ps ps' r T ê as _ _ _ _ _ _ _ _ hrun
     rw [withAppEtaToMinArity.go] at hrun; cases hrun
   | succ fuel ihf =>
-    intro ρ S ls Sc st st' tc ps ps' r T ê as hctx hR hsc hargs hT hok hη hrun
+    intro ρ S ls Sc st st' tc ps ps' r T ê as hctx hR hsc hargs hT hok hI hη hrun
     rw [withAppEtaToMinArity.go] at hrun
     by_cases hge : (as.map (renFV ρ)).toArray.size ≥ ar
     · rw [ite_eq_left_of_eq_true _ _ (eq_true hge)] at hrun
       cases hη with
-      | sat hle hs => exact hk hctx hR hsc hargs hle hok hs hrun
+      | sat hle hs => exact hk hctx hR hsc hargs hle hok hI hs hrun
       | intro hlt => simp at hge; omega
     rw [ite_eq_right_of_eq_false _ _ (eq_false hge)] at hrun
     cases hη with
@@ -413,7 +433,7 @@ theorem etaGo_spec (hcl : ClosedDecls decls = true) {ar : Nat} {c : Name} {us : 
         subst ha
         exact ⟨Or.inr rfl, (fun _ h => nomatch h), trivial, trivial⟩
     have ⟨her, hc0, hdeps, hgr⟩ := ihf (by exact ⟨hctx.config, hctx.fixvars⟩) (by exact hR') hsc hargs'
-      (fvarsIn_open hC) hok hη hgo
+      (fvarsIn_open hC) hok hI hη hgo
     have hêS := MarkEta.fvarsIn hcl hη hR'.supp (fvarsIn_open hC) fun a ha => (hargs' a ha).1
     have habs := absFV_renExt (d := 0) (fun z hz => hR.fresh z hz ps.next (Nat.le_refl _)) hêS
     refine ⟨?_, closedn_toBvar _ r₀ 0 hc0, .lambda (ErasesDeps.toBvar hdeps 0),
@@ -424,19 +444,19 @@ theorem etaGo_spec (hcl : ClosedDecls decls = true) {ar : Nat} {c : Name} {us : 
     exact Erases.abstract hc0 her
 
 /-- `withAppEtaToMinArity f e ar kont` at the pure backend on the renamed spine of `c.{us} as`,
-whose marking is the η-expansion `MarkEta` on the type the oracle infers for the spine, given
-what `kont` does on a saturated spine (`SatSpec`): the result erases the renamed marking, closed,
-with erased dependencies, and `Grows`. The traversal infers the type of the renamed spine under
+whose marking is the η-expansion `MarkEta` on the type the oracle infers for the spine, from a
+state satisfying `I`, given what `kont` does on a saturated spine from such a state (`SatSpecI`):
+the result erases the renamed marking, closed, with erased dependencies, and `Grows`. The traversal infers the type of the renamed spine under
 its locals, the renamed type (`inferType_ren`). Adapted from `ML-V Core/StepsCtor.lean:841`.
 Reference: none (MetaRocq η-expands in λ□, `MR E/EEtaExpanded.v`; DV-23). -/
-theorem withAppEta_spec (hcl : ClosedDecls decls = true) {ar f : Nat} {c : Name}
-    {us : List Level} {kont : Expr → Array Expr → EraseT PureM LBTerm}
-    (hk : SatSpec view cfg decls ar c us kont)
+theorem withAppEtaI_spec (hcl : ClosedDecls decls = true) {I : ErasureState → Prop} {ar f : Nat}
+    {c : Name} {us : List Level} {kont : Expr → Array Expr → EraseT PureM LBTerm}
+    (hk : SatSpecI view cfg decls I ar c us kont)
     {ρ : FVarId → FVarId} {S : FVarId → Prop} {ls : List Local} {Sc : Name → Prop}
     {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm} {T ê : Expr}
     {as : List Expr} (hctx : CtxOK cfg tc) (hR : RenOK ρ S ls tc.locals ps.next)
     (hsc : ScopeOK decls Sc) (hargs : ∀ a ∈ as, ArgOK S Sc cfg decls a)
-    (hok : StateOK noCert (evalEnvOf view cfg decls) st)
+    (hok : StateOK noCert (evalEnvOf view cfg decls) st) (hI : I st)
     (hT : Pure.inferType ⟨decls⟩ oracleFuel ls [] (mkAppN (.const c us) as.toArray) = .ok T)
     (hη : MarkEta decls cfg ls ar T c us as ê)
     (hrun : (withAppEtaToMinArity (m := PureM) f (mkAppN (.const c us) (as.map (renFV ρ)).toArray)
@@ -459,7 +479,30 @@ theorem withAppEta_spec (hcl : ClosedDecls decls = true) {ar f : Nat} {c : Name}
   rw [ok_bind'] at hrun
   dsimp only at hrun
   rw [withApp_mkAppN rfl] at hrun
-  exact etaGo_spec hcl hk f hctx hR hsc hargs (fvarsIn_oracle_ty hcl hR.supp he hT) hok hη hrun
+  exact etaGoI_spec hcl hk f hctx hR hsc hargs (fvarsIn_oracle_ty hcl hR.supp he hT) hok hI hη hrun
+
+/-- `withAppEtaI_spec` without a state invariant: given what `kont` does on a saturated spine
+(`SatSpec`), the result erases the renamed marking, closed, with erased dependencies, and
+`Grows`. Adapted from `ML-V Core/StepsCtor.lean:841`. Reference: none (MetaRocq η-expands in λ□,
+`MR E/EEtaExpanded.v`; DV-23). -/
+theorem withAppEta_spec (hcl : ClosedDecls decls = true) {ar f : Nat} {c : Name}
+    {us : List Level} {kont : Expr → Array Expr → EraseT PureM LBTerm}
+    (hk : SatSpec view cfg decls ar c us kont)
+    {ρ : FVarId → FVarId} {S : FVarId → Prop} {ls : List Local} {Sc : Name → Prop}
+    {st st' : ErasureState} {tc : TravCtx} {ps ps' : PureState} {r : LBTerm} {T ê : Expr}
+    {as : List Expr} (hctx : CtxOK cfg tc) (hR : RenOK ρ S ls tc.locals ps.next)
+    (hsc : ScopeOK decls Sc) (hargs : ∀ a ∈ as, ArgOK S Sc cfg decls a)
+    (hok : StateOK noCert (evalEnvOf view cfg decls) st)
+    (hT : Pure.inferType ⟨decls⟩ oracleFuel ls [] (mkAppN (.const c us) as.toArray) = .ok T)
+    (hη : MarkEta decls cfg ls ar T c us as ê)
+    (hrun : (withAppEtaToMinArity (m := PureM) f (mkAppN (.const c us) (as.map (renFV ρ)).toArray)
+      ar kont).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps')) :
+    Erases noCert (evalEnvOf view cfg decls) [] (renFV ρ ê) r ∧ closedn 0 r = true ∧
+      ErasesDeps noCert (evalEnvOf view cfg decls) st'.gdecls r ∧
+      Grows (evalEnvOf view cfg decls) Sc st st' ps ps' :=
+  withAppEtaI_spec (I := fun _ => True) hcl
+    (fun _ _ _ _ _ _ _ _ _ _ _ _ hctx hR hsc hargs hle hok _ hs hrun =>
+      hk hctx hR hsc hargs hle hok hs hrun) hctx hR hsc hargs hok trivial hT hη hrun
 
 end
 
