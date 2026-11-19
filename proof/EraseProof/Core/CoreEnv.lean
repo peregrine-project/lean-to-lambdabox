@@ -213,11 +213,13 @@ theorem blockOf?_member {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche
   exact ⟨hind, hcidx, hnp, hpl, hhd⟩
 
 /-- What `blockOf?` checks of the recursors of a block of one type `H`: there is exactly one,
-named `H.rec`, with one minor premise per constructor of `H`. -/
+named `H.rec`, with one minor premise per constructor of `H` and `H`'s parameter count, and, without
+indices, its motives have Lean's shape (`recMotivesOK`). -/
 theorem blockOf?_one {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.Declaration}
     (h : blockOf? P H = some d) (hall : H.all = [H.name])
     (hH : findConst P H.name = some (.inductInfo H)) {r : RecursorVal} (hr : .recInfo r ∈ P)
-    (hra : r.all = H.all) : r.name = mkRecName H.name ∧ r.numMinors = H.ctors.length := by
+    (hra : r.all = H.all) : r.name = mkRecName H.name ∧ r.numMinors = H.ctors.length ∧
+      r.numParams = H.numParams ∧ (r.numIndices = 0 → recMotivesOK r = true) := by
   simp only [blockOf?, Option.bind_eq_some_iff, Option.some.injEq, bind, pure] at h
   obtain ⟨tys, htys, cvs, hcvs, _, hg, -⟩ := h
   simp only [guard] at hg
@@ -236,7 +238,7 @@ theorem blockOf?_one {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.De
   unfold blockShapeOK at hok
   simp only [Bool.and_eq_true, List.all_eq_true, List.any_eq_true, beq_iff_eq,
     List.mem_singleton, forall_eq, List.length_singleton] at hok
-  obtain ⟨⟨-, hrl⟩, r', hr'm, ⟨⟨⟨⟨⟨hn, -⟩, -⟩, hmin⟩, -⟩, -⟩⟩ := hok
+  obtain ⟨⟨⟨⟨⟨⟨hA, -⟩, -⟩, -⟩, -⟩, hrl⟩, r', hr'm, ⟨⟨⟨⟨⟨hn, -⟩, -⟩, hmin⟩, -⟩, -⟩⟩ := hok
   have hrm : r ∈ P.reverse.filterMap (fun
       | .recInfo r => if r.all = H.all then some r else none
       | _ => none) := List.mem_filterMap.mpr ⟨_, List.mem_reverse.mpr hr, by simp [hra]⟩
@@ -245,15 +247,18 @@ theorem blockOf?_one {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.De
   have h2 : r' ∈ [x] := by rw [← hx]; exact hr'm
   rw [List.mem_singleton] at h1 h2
   subst h1 h2
-  exact ⟨hn, by simpa [← hlen] using hmin⟩
+  obtain ⟨⟨⟨hnp, hor⟩, -⟩, -⟩ := hA r' (by rw [hx]; exact List.mem_singleton_self _)
+  exact ⟨hn, by simpa [← hlen] using hmin, hnp, fun h0 => by simpa [hall, h0] using hor⟩
 
 /-- A recursor of `P` of a block of one type `T` is `T.rec`, with one minor premise per
-constructor of `T` (`blockShapeOK` of the block `declOf?` puts it in). -/
-theorem _root_.EraseProof.ConLecheAccepts.rec_one {P : List ConstantInfo} {env : ConLeche.Env}
-    (hP : ConLecheAccepts P env) {R : RecursorVal} (hR : .recInfo R ∈ P) {T : Name}
+constructor of `T` and `T`'s parameter count, and without indices Lean's motives (`blockShapeOK`
+of the block `declOf?` puts it in). -/
+theorem _root_.EraseProof.ConLecheAccepts.rec_one {P : List ConstantInfo}
+    {env : ConLeche.Env} (hP : ConLecheAccepts P env) {R : RecursorVal} (hR : .recInfo R ∈ P) {T : Name}
     (hRall : R.all = [T]) :
     ∃ t, findConst P T = some (.inductInfo t) ∧ R.name = mkRecName T ∧
-      R.numMinors = t.ctors.length := by
+      R.numMinors = t.ctors.length ∧ R.numParams = t.numParams ∧
+      (R.numIndices = 0 → recMotivesOK R = true) := by
   obtain ⟨ds, hds, -⟩ := id hP
   obtain ⟨L, hL, -⟩ := DeclsOf?.mem hds hR
   simp only [declOf?, hRall, List.head?_cons, Option.bind_some] at hL
@@ -268,9 +273,26 @@ theorem _root_.EraseProof.ConLecheAccepts.rec_one {P : List ConstantInfo} {env :
     have hhead : t.all.head? = some T := by rw [htall]; rfl
     obtain ⟨block, p, hblk, -, -⟩ := hP.block ht hhead (hP.ind_safe htm)
     have ht' : findConst P t.name = some (.inductInfo t) := by rw [htn]; exact ht
-    obtain ⟨h1, h2⟩ := blockOf?_one hblk (by rw [htall, htn]) ht' hR (by rw [hRall, htall])
-    exact ⟨t, ht, by rw [h1, htn], h2⟩
+    obtain ⟨h1, h2, h3, h4⟩ := blockOf?_one hblk (by rw [htall, htn]) ht' hR (by rw [hRall, htall])
+    exact ⟨t, ht, by rw [h1, htn], h2, h3, h4⟩
   · cases hL
+
+/-- The motives the shipping `recShape` reads off a recursor's type are `recMotivesOK`'s. -/
+theorem recShape_motives {r : RecursorVal} (hm : recMotivesOK r = true) {ns : List Nat}
+    {motives : List (List Name)} {minors : List RecMinor}
+    (h : recShape r.numParams r.numMotives r.type ns = some (motives, minors)) :
+    ∃ x, motives = [[x]] := by
+  unfold recMotivesOK at hm
+  split at hm
+  · rename_i x hx
+    refine ⟨x, ?_⟩
+    unfold recShape at h
+    simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨_, -, _, -, he, -⟩ := h
+    rw [← he]
+    exact hx
+  · cases hm
 
 /-! ## A run of the fragment test -/
 
@@ -930,7 +952,8 @@ whose declarations erased by their values have no compiled pre-definition, `Step
 The fragment test's checks give the closure's facts (`collectDeps_spec_sub`, `Run.phase`,
 `Run.read`, `Run.rec_frag`, `coreEnv_value`); `blockShapeOK` and con-leche's pins give the
 program's (`blockOf?_member`, `ConLecheAccepts.all_nodup`, `ConLecheAccepts.quot_pins`,
-`ConLecheAccepts.natBlock`). Adapted from `ML-V Core/StepsB.lean:367 coreEnv_of_collectDeps`.
+`ConLecheAccepts.natBlock`, `ConLecheAccepts.rec_one`). Adapted from
+`ML-V Core/StepsB.lean:367 coreEnv_of_collectDeps`.
 Reference: the hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`) on
 `erase_global_deps`'s environment (`MR E/ErasureFunction.v:1602`). -/
 theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {view : EnvView}
@@ -1082,6 +1105,15 @@ theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
         obtain ⟨hind, hcidx, -⟩ := hcs j n hj cv hcP
         have htn' : t.name = cv.induct := htn
         exact ⟨hind.trans htN, hcidx⟩
-      exact ⟨fun cv hcv => one (.inl ⟨rfl, rfl⟩) hcv, fun cv hcv => one (.inr ⟨rfl, rfl⟩) hcv⟩ }
+      exact ⟨fun cv hcv => one (.inl ⟨rfl, rfl⟩) hcv, fun cv hcv => one (.inr ⟨rfl, rfl⟩) hcv⟩
+    recMinors := fun c rv T iv hc hall _ hT => by
+      obtain ⟨t, ht, -, hmin, -⟩ := ConLecheAccepts.rec_one hP (findDecl_mem (toP hc)).1 hall
+      have := (toP hT).symm.trans ht
+      cases this; exact hmin
+    recs := fun c rv T iv hc hall hT h0 => by
+      obtain ⟨t, ht, -, -, hnp, hmo⟩ := ConLecheAccepts.rec_one hP (findDecl_mem (toP hc)).1 hall
+      have := (toP hT).symm.trans ht
+      cases this
+      exact ⟨hnp, fun ns motives minors h => recShape_motives (hmo h0) h⟩ }
 
 end EraseProof
