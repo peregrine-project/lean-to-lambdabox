@@ -62,15 +62,18 @@ theorem ind_kinds {P : List ConstantInfo} {env : ConLeche.Env} (hP : ConLecheAcc
     exact ⟨c, hc'⟩
 
 /-- The inductive of a constructor of a program con-leche accepts is an inductive of the program
-(`declOf?`). Replaces `ML-V Core/CollectOk.lean:70 ProgEnv.kinds_closed` for constructors. -/
+that lists it (`declOf?`). Replaces `ML-V Core/CollectOk.lean:70 ProgEnv.kinds_closed` for
+constructors. -/
 theorem ctor_kind {P : List ConstantInfo} {env : ConLeche.Env} (hP : ConLecheAccepts P env)
     {cv : ConstructorVal} (hcv : .ctorInfo cv ∈ P) :
-    ∃ t, findDecl P cv.induct = some (.inductInfo t) := by
+    ∃ t, findDecl P cv.induct = some (.inductInfo t) ∧ cv.name ∈ t.ctors := by
   obtain ⟨ds, hds, -⟩ := id hP
   obtain ⟨L, hL, -⟩ := DeclsOf?.mem hds hcv
   simp only [declOf?] at hL
   split at hL
-  · rename_i t ht; exact ⟨t, ht⟩
+  · rename_i t ht
+    simp at hL
+    exact ⟨t, ht, hL.1⟩
   · cases hL
 
 /-! ## Expressions -/
@@ -418,6 +421,31 @@ theorem casesInfo?_of {X : List ConstantInfo} {n : Name} {iv : InductiveVal}
   · rename_i c hc; exact ⟨c, hc⟩
   · cases h
 
+/-- A `casesOn` recognized on a list of the view's declarations that holds the constructors of its
+inductives and the blocks of its recursors is recognized by the view: `casesInfo?` answers on the
+view's declarations as on the list. Port of `ML-V Core/CollectSpec.lean:1015 recog_of_ds_of`. -/
+theorem recog_of_dec_of {view : EnvView} {decls : List ConstantInfo}
+    (hvw : ∀ y ∈ decls, view.find? y.name = some y)
+    (hct : ∀ I, .inductInfo I ∈ decls → ∀ x ∈ I.ctors, (findDecl decls x).isSome)
+    (hrall : ∀ R, .recInfo R ∈ decls → ∀ x ∈ R.all, (findDecl decls x).isSome)
+    {d : DefinitionVal} (hd : .defnInfo d ∈ decls) {iv : InductiveVal}
+    (hcs : casesOnOf? decls d.name = some iv) :
+    ∃ I R ctors, recognizeCasesOn view (.defnInfo d) = some (I, R, ctors) := by
+  obtain ⟨c, hc⟩ := casesInfo?_of hcs
+  obtain ⟨T, -, I, R, -, -, -, hn, -, -, hI, hR, -⟩ := casesInfo?_reads hc
+  obtain ⟨hIm, hIn⟩ := findDecl_eq_some hI
+  obtain ⟨hRm, hRn⟩ := findDecl_eq_some hR
+  have hIv : viewFind view T = [.inductInfo I] := viewFind_of (hIn ▸ hvw _ hIm) hIn
+  have hRv : viewFind view (mkRecName T) = [.recInfo R] := viewFind_of (hRn ▸ hvw _ hRm) hRn
+  have hag := recog_agree hvw hd hn hIv hRv fun x hx => by
+    rcases hx with rfl | rfl | hx | hx
+    · exact findDecl_isSome_iff.1 (by rw [hI]; rfl)
+    · exact findDecl_isSome_iff.1 (by rw [hR]; rfl)
+    · exact findDecl_isSome_iff.1 (hct I hIm x hx)
+    · exact findDecl_isSome_iff.1 (hrall R hRm x hx)
+  refine ⟨I, R, _, recognize_iff.2 ⟨T, hn, hIv, hRv, rfl, ?_⟩⟩
+  exact Option.isSome_iff_exists.2 ⟨c, hag.symm.trans hc⟩
+
 /-! ## The premises, on the declarations of `decls` -/
 
 /-- The premises of `collectDeps_ok_of`, with the facts of the program they are used with. Port of
@@ -615,26 +643,13 @@ theorem recog_dec {d : DefinitionVal} {I : InductiveVal} {R : RecursorVal}
     mem_of_view hf.vw (findDecl_isSome_iff.1 (by rw [hR₀]; rfl)) hRf
   exact ⟨hcs, hId, hRd, by rw [hT', hIn'], hct⟩
 
-/-- A `casesOn` recognized on `decls` is recognized by the view: `casesInfo?` answers on the
-view's declarations as on `decls`, which holds the inductive's constructors (`ReadClosed`) and the
-recursor's block (`rall`). Port of `ML-V Core/CollectOk.lean:550`. -/
+/-- A `casesOn` recognized on `decls` is recognized by the view. Port of
+`ML-V Core/CollectOk.lean:550`. -/
 theorem recog_of_dec {d : DefinitionVal} (hd : .defnInfo d ∈ decls) {iv : InductiveVal}
     (hcs : casesOnOf? decls d.name = some iv) :
-    ∃ I R ctors, recognizeCasesOn view (.defnInfo d) = some (I, R, ctors) := by
-  obtain ⟨c, hc⟩ := casesInfo?_of hcs
-  obtain ⟨T, -, I, R, -, -, -, hn, -, -, hI, hR, -⟩ := casesInfo?_reads hc
-  obtain ⟨hIm, hIn⟩ := findDecl_eq_some hI
-  obtain ⟨hRm, hRn⟩ := findDecl_eq_some hR
-  have hIv : viewFind view T = [.inductInfo I] := viewFind_of (hIn ▸ hf.vw _ hIm) hIn
-  have hRv : viewFind view (mkRecName T) = [.recInfo R] := viewFind_of (hRn ▸ hf.vw _ hRm) hRn
-  have hag := recog_agree hf.vw hd hn hIv hRv fun x hx => by
-    rcases hx with rfl | rfl | hx | hx
-    · exact findDecl_isSome_iff.1 (by rw [hI]; rfl)
-    · exact findDecl_isSome_iff.1 (by rw [hR]; rfl)
-    · exact findDecl_isSome_iff.1 ((hf.rcd hIm).2.2.1 I rfl x hx)
-    · exact hf.rall hRm x hx
-  refine ⟨I, R, _, recognize_iff.2 ⟨T, hn, hIv, hRv, rfl, ?_⟩⟩
-  exact Option.isSome_iff_exists.2 ⟨c, hag.symm.trans hc⟩
+    ∃ I R ctors, recognizeCasesOn view (.defnInfo d) = some (I, R, ctors) :=
+  recog_of_dec_of hf.vw (fun I hI x hx => (hf.rcd hI).2.2.1 I rfl x hx)
+    (fun R hR x hx => findDecl_isSome_iff.2 (hf.rall hR x hx)) hd hcs
 
 /-- `declExclusion` accepts a declaration of `decls` that is not a recursor or is a recursor in the
 fragment's shape. Port of `ML-V Core/CollectOk.lean:559`. -/
@@ -1053,7 +1068,8 @@ theorem collectDeps_ok_of : collectDeps_ok_of_statement := by
   have hmem : ∀ ci ∈ decls, ci ∈ P := fun ci hci => (findDecl_mem (hsub ci hci)).1
   have hf : Frag P view cfg decls e :=
     ⟨fun y hy => (hview y (hmem y hy)).1, hsub, fun iv hiv => ind_kinds hP (hmem _ hiv),
-      fun cv hcv => ctor_kind hP (hmem _ hcv), fun R hR => recs_mention hP R (hmem _ hR), hrc, hph,
+      fun cv hcv => (ctor_kind hP (hmem _ hcv)).imp fun _ h => h.1,
+      fun R hR => recs_mention hP R (hmem _ hR), hrc, hph,
       hpl.1, hpl.2, hrf.1, hrf.2, hprd⟩
   obtain ⟨cs, hcs, hcsc⟩ := hf.term_names
   obtain ⟨⟨decls', cases⟩, hcl, hs, hnd, hcases⟩ :=

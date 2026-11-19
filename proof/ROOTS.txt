@@ -17,7 +17,6 @@ EraseProof.SemCases.srcEval_sound_appCong EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_ctor EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_frozenApp EraseProof.srcEval_sound
 EraseProof.Sound.of_semSim EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_thm EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_opaque EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_casesIota EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_casesLitZero EraseProof.srcEval_sound
@@ -50,7 +49,6 @@ EraseProof.Steps.visitExpr_quot_step EraseProof.erasePure_erases
 EraseProof.CLOk.gradedU EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_former EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_quot EraseProof.srcEval_sound
-EraseProof.coreEnv_value EraseProof.erasePure_erases
 EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
 EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
+EraseProof.coreEnv_of EraseProof.erasePure_erases
