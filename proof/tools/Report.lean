@@ -183,14 +183,22 @@ def finalTheorem : Name := `EraseProof.erase_correct
 
 /-- The instances of the final theorem on the non-vacuity programs, each with the terms of the
 hypotheses that it passes to the final theorem (C12). -/
-def finalInstances : Array (Name × Array Name) := #[]
+def finalInstances : Array (Name × Array Name) :=
+  #[`EraseProof.Test.NV0, `EraseProof.Test.NV1, `EraseProof.Test.NV2, `EraseProof.Test.NV3,
+    `EraseProof.Test.NV4].map
+    fun ns =>
+    (ns ++ `final,
+      #[`hacc, `hty, `hclean, `hview, `hfrag, `hnopre, `hrun, `hmark, `hcert, `hev].map (ns ++ ·))
 
 /-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
 proved theorems that derive a more specific conclusion from the final theorem. Like the theorems of
 `statements`, they are roots of C7; their statements are not pinned (C12b). The final form checks
 that each is a theorem whose footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, and
 that each instance is a theorem within them that mentions its corollary (C12). -/
-def corollaries : Array (Name × Array Name) := #[]
+def corollaries : Array (Name × Array Name) := #[
+  (`EraseProof.erase_correct_firstorder,
+    #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder,
+      `EraseProof.Test.NV3.firstorder, `EraseProof.Test.NV4.firstorder])]
 
 structure Config where
   imports : Array Name := #[]

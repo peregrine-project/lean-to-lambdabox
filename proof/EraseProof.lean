@@ -60,6 +60,11 @@ import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
 import EraseProof.Final
 import EraseProof.FirstOrder
+import EraseProof.Test.NV4Final
+import EraseProof.Test.NV3Final
+import EraseProof.Test.NV2Final
+import EraseProof.Test.NV1Final
+import EraseProof.Test.NV0Final
 /-!
 # Verification of the eraser
 

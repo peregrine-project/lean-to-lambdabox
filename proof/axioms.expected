@@ -326,3 +326,16 @@ EraseProof.Test.NV4.withApp_qm propext
 EraseProof.Test.NV0.nonvacuous propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.nonvacuous propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.nonvacuous propext,Classical.choice,Quot.sound
+EraseProof.Test.NV0.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.fo propext
+EraseProof.Test.NV2.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.fo propext
+EraseProof.Test.NV3.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV3.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV3.fo propext
+EraseProof.Test.NV4.final propext,Classical.choice,Quot.sound
+EraseProof.Test.NV4.firstorder propext,Classical.choice,Quot.sound
+EraseProof.Test.NV4.fo propext
