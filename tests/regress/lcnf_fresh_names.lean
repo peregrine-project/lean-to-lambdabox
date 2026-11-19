@@ -29,24 +29,26 @@ partial def lcnfFreshNamesVars : Code .pure → Array FVarId → Array FVarId
 
 elab "#check_lcnf_fresh_names " n:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverload n
-  let some d ← liftCoreM <| getBaseDecl? name
+  let some (d : Decl .pure) ← liftCoreM <| getBaseDecl? name
     | throwError "{name} has no base-phase LCNF code"
-  let vars := match d.value with
-    | .code c => lcnfFreshNamesVars c (d.params.map (·.fvarId))
-    | .extern _ => d.params.map (·.fvarId)
+  let ps : Array FVarId := d.params.map (fun (p : Param .pure) => p.fvarId)
+  let vars : Array FVarId := match d.value with
+    | .code c => lcnfFreshNamesVars c ps
+    | .extern _ => ps
   let erase : CommandElabM String := do
     let p ← liftCoreM <| Erasure.FromLCNF.eraseDecl name .base {}
     return p |> Serialize.to_sexpr |>.toString
-  let saved := (← get).ngen
+  let saved : NameGenerator := (← get).ngen
   let reference ← erase
   let mut differ : Array Name := #[]
   for x in vars do
     let .num pre i := x.name | continue
-    modify fun s => { s with ngen := { namePrefix := pre, idx := i } }
+    let g : NameGenerator := { namePrefix := pre, idx := i }
+    modify fun s => { s with ngen := g }
     if (← erase) != reference then differ := differ.push x.name
   modify fun s => { s with ngen := saved }
   unless differ.isEmpty do
-    throwError m!"{name}: the program depends on the name generator ({differ.size} of {vars.size} variables give another program, first {differ[0]!})"
+    throwError m!"{name}: the program depends on the name generator ({differ.size} of {vars.size} variables give another program, first {toString differ[0]!})"
   IO.FS.writeFile s!"{name}.result" "same program\n"
 
 def LcnfFreshNames.tri : Nat → Nat
