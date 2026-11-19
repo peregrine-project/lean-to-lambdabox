@@ -206,16 +206,17 @@ def erase_correct_firstorder_statement.{w} : Prop :=
       CLTyped env v ∧ (∀ s, FrozenLeaf v s → CLErasable env s) ∧ Sound.{w} env e v
 
 /-- The statement of `sound_nonvacuous`: `Sound`'s antecedent has content. If con-leche accepts
-`P` and types an application of `e` to closed arguments with a type whose whnf has members that
-are never the proof point (`CLStrictType`), then in every model `e` has a reading that is not the
-proof point (the proof point applied is the proof point, `CL ConLeche/SetTheory/Derive/Graphs.lean:79
-app_pt`). Reference: none (DV-34). -/
+`P` and types an application of `e` to closed arguments with a type whose whnf is a sort
+(`CLStrictType`: its members are types, never the proof point), then in every model `e` has a
+reading that is not the proof point (the proof point applied is the proof point,
+`CL ConLeche/SetTheory/Derive/Graphs.lean:79 app_pt`). A data-typed input is not covered (DV-34).
+Reference: none (DV-34). -/
 def sound_nonvacuous_statement.{w} : Prop :=
   ∀ {P : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {as : List Expr}
     {c c₁ T W : ConLeche.Expr} {F : Nat},
     ConLecheAccepts P env → toCL? e = some c → toCL? (mkAppN e as.toArray) = some c₁ →
     ConLeche.inferTypeCore .verified false env F 0 c₁ = .ok T →
-    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType env W →
+    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType W →
     ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V env)
       (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
       ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval env φ ρ c X ∧

@@ -1,4 +1,5 @@
 import EraseProof.Statements
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV2Data
 import EraseProof.Test.NV1Run
 import EraseProof.Test.CasesOnVal
@@ -847,5 +848,17 @@ theorem hev : SrcEval envNV2 σD eM vM :=
   SrcEval.casesIota (c := `B.casesOn) (us := [l1]) (iv := B_ind) (as := [motB, cT, alt1M, alt2M])
     (m := cT) (mv := cT) (i := 1) (fs := []) (alt := alt2M) (by krfl) rfl rfl ev_t
     ⟨`B.t, [], Bt_ctor, [], find_t, rfl, rfl, rfl, rfl, rfl⟩ ok_cases iota_t rfl ev_alt2
+
+/-! ## `sound_nonvacuous` on NV-2: `Box B` has the type `Type`, a sort, so in every model `Box` has a
+reading that is not the proof point -/
+
+theorem nonvacuous.{w} (hfold : ConLeche.checkDeclsPure .verified
+    (ConLeche.fueledOps .verified ConLeche.checkFuel) [] nv2full = .ok envNV2) :
+    ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V envNV2)
+      (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
+      ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval envNV2 φ ρ
+        (.const (nm "Box") []) X ∧ X ≠ ConLeche.SetTheory.pt :=
+  EraseProof.sound_nonvacuous (e := .const `Box []) (as := [tB]) (c₁ := kBox kB) (T := .sort k1)
+    (W := .sort k1) (F := 100) (hacc hfold) (by krfl) (by krfl) (by krfl) (by krfl) ⟨_, rfl⟩
 
 end EraseProof.Test.NV2

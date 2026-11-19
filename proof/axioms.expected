@@ -216,3 +216,6 @@ EraseProof.Test.RecIH.wrong_field propext
 EraseProof.Test.RecIH.wrong_head propext
 EraseProof.Test.RecIH.wrong_lams propext
 EraseProof.Test.RecIH.wrong_levels propext
+EraseProof.Test.NV0.nonvacuous propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.nonvacuous propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.nonvacuous propext,Classical.choice,Quot.sound
