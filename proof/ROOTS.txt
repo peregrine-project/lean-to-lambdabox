@@ -7,7 +7,6 @@
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
 EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
-EraseProof.RecLam.hasFVar_recLetTerm EraseProof.erasePure_erases
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
 EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.SrcEval.restrict EraseProof.erase_correct
@@ -36,10 +35,6 @@ EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotMk EraseProof.srcEval_sound
 EraseProof.StateOK.empty EraseProof.erasePure_erases
-EraseProof.StateOK.kername EraseProof.erasePure_erases
-EraseProof.knNotBlock_of_emits EraseProof.erasePure_erases
-EraseProof.addAxiom_ok EraseProof.erasePure_erases
-EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
 EraseProof.register_inductive_ok EraseProof.erasePure_erases
 EraseProof.eraseEntry_pure EraseProof.erase_correct
 EraseProof.Steps.visitExpr_fvar_step EraseProof.erasePure_erases
@@ -47,6 +42,9 @@ EraseProof.Steps.visitExpr_fail_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_mdata_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_lam_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_letE_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_app_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_const_step EraseProof.erasePure_erases
+EraseProof.Steps.visitMutual_step EraseProof.erasePure_erases
 EraseProof.CLOk.gradedU EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.find?_former EraseProof.srcEval_sound

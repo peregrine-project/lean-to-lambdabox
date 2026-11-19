@@ -31,6 +31,7 @@ import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
 import EraseProof.Core.Steps
+import EraseProof.Core.StepsApp
 /-!
 # Verification of the eraser
 
@@ -92,5 +93,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.Steps`: the statement of the traversal's correctness at one fuel, over
   markings under renamed locals, and its steps for `□`, free variables, the rejected terms,
   metadata, λ and `let`.
+* `EraseProof.Core.StepsApp`: the steps for application spines and constants without a rule of
+  their own, and for `visitMutual`.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
