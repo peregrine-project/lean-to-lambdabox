@@ -9,7 +9,6 @@
 EraseProof.Erases.abstract EraseProof.erasePure_erases
 EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
 EraseProof.RecLam.hasFVar_recLetTerm EraseProof.erasePure_erases
-EraseProof.ErasesDeps.ext EraseProof.erasePure_erases
 EraseProof.ErasesDeps.toBvar EraseProof.erasePure_erases
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
 EraseProof.erases_correct EraseProof.erase_correct
@@ -40,3 +39,10 @@ EraseProof.markOf_read_delta EraseProof.srcEval_sound
 EraseProof.Pure.isErasable_ren EraseProof.markOf_det
 EraseProof.Pure.typeLevel_ren EraseProof.markOf_det
 EraseProof.MarkOf.fvarsIn EraseProof.markOf_det
+EraseProof.StateOK.empty EraseProof.erasePure_erases
+EraseProof.StateOK.kername EraseProof.erasePure_erases
+EraseProof.knNotBlock_of_emits EraseProof.erasePure_erases
+EraseProof.addAxiom_ok EraseProof.erasePure_erases
+EraseProof.get_constant_kername_ok EraseProof.erasePure_erases
+EraseProof.register_inductive_ok EraseProof.erasePure_erases
+EraseProof.eraseEntry_pure EraseProof.erase_correct
