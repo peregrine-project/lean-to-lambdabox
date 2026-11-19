@@ -6,7 +6,6 @@
 # Every declaration of EraseProof outside EraseProof.Test must be reachable from a root, from a
 # statement definition or from a proved theorem of `statements` (tools/Report.lean); no root may
 # be reachable from another root.
-EraseProof.ErasesAlt.absN EraseProof.erasePure_erases
 EraseProof.ConLecheAccepts.accepted EraseProof.srcEval_sound
 EraseProof.erases_correct EraseProof.erase_correct
 EraseProof.SemCases.srcEval_sound_value EraseProof.srcEval_sound
@@ -44,6 +43,7 @@ EraseProof.Steps.visitExpr_app_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_const_step EraseProof.erasePure_erases
 EraseProof.Steps.visitMutual_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_ctor_step EraseProof.erasePure_erases
+EraseProof.Steps.visitExpr_cases_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_proj_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_lit_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_quot_step EraseProof.erasePure_erases
@@ -55,3 +55,4 @@ EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound
+EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
