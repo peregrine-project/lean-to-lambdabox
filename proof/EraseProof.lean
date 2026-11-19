@@ -31,6 +31,11 @@ import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
 import EraseProof.Test.RecIH
+import EraseProof.Test.NVKit
+import EraseProof.Test.NV3Data
+import EraseProof.Test.NV3Premises
+import EraseProof.Test.NV4Data
+import EraseProof.Test.NV4Premises
 import EraseProof.Oracle.Rename
 import EraseProof.Oracle.Det
 import EraseProof.Oracle.Atom
