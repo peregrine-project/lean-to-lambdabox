@@ -313,6 +313,12 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
   value : ∀ c ci v, findDecl decls c = some ci → ci.value? (allowOpaque := true) = some v →
     IsThm ci = false → casesInfo? decls c = none →
     ci.all.length = 1 ∧ ∃ Sc, ScopeOK decls Sc ∧ (∀ d, nameOccurs d v = true → Sc d) ∧ ¬ Sc c
+  irr : ∀ iv, (∃ ci ∈ decls, ci = .inductInfo iv) → cfg.remove_irrel_constr_args = false
+  phase : ∀ ci ∈ decls, PhaseIDecl view cfg decls ci
+  block : ∀ T iv, findDecl decls T = some (.inductInfo iv) → iv.all.Nodup ∧ iv.name ∈ iv.all ∧
+    ∀ n ∈ iv.all, ∀ ivn, findDecl decls n = some (.inductInfo ivn) →
+      ivn.all = iv.all ∧ ivn.numParams = iv.numParams
+  ctors : CtorsListed decls
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of
