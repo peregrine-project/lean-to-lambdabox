@@ -351,7 +351,7 @@ theorem _root_.EraseProof.ConLecheAccepts.casesIotaAt {P : List ConstantInfo} {e
   have hpis : clPis cvR.type = R.numParams + R.numMotives + R.numMinors + R.numIndices + 1 := by
     have := List.all_eq_true.mp hrc _ (ConLeche.Env.find?_mem hfR)
     simp only [Bool.and_eq_true, beq_iff_eq] at this
-    exact this.1.1
+    exact this.1.1.1
   obtain ⟨tyD, -, rfl⟩ := cvOf?_eq_some hcvD
   obtain ⟨tyR, -, rfl⟩ := cvOf?_eq_some hcvR
   obtain ⟨tyj, -, rfl⟩ := cvOf?_eq_some hcvj

@@ -44,9 +44,9 @@ theorem erases_correct : erases_correct_statement := by
   | casesFrozen hco hlen hcs hcn hm _ _ halt _ ih =>
     exact erases_correct_casesFrozen hco hlen hcs hcn hm halt ih
   | quotMk hc hk _ _ iha => exact erases_correct_quotMk hc hk iha
-  | quotLift hc hk _ _ hc' hk' hok _ ihf ihq ihb =>
+  | quotLift hc hk _ _ hc' hk' hok _ _ ihf ihq ihb =>
     exact erases_correct_quotLift hc hk hc' hk' hok ihf ihq ihb
-  | recIota hcr hall _ hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hok hrfs hrl _ _
+  | recIota hcr hall _ hblk hni hshape hihs hps hms hmins hlm _ _ hcv hmi hmk hok _ hrfs hrl _ _ _
       ihm ihmaj ihih ihv =>
     exact erases_correct_recIota hbinj hcl hnat hnc hrs hcr hall hblk hni hshape hihs hps hms
       hmins hlm hcv hmi hmk hok hrfs hrl ihm ihmaj ihih ihv
