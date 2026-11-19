@@ -32,7 +32,7 @@ namespace EraseProof
 
 namespace Steps
 
-open RegisterInd OracleRen StateLemmas Restrict
+open RegisterInd OracleRen StateLemmas
 
 /-! ## Application spines -/
 
@@ -523,7 +523,7 @@ theorem constHead_ok (hG : CoreEnv view cfg decls) (hatom : AtomBoxed view cfg d
     | defnInfo | opaqueInfo | axiomInfo => exact ⟨rfl, .inl rfl⟩
     | thmInfo v => exact (hatom_of (.inr rfl) rfl nofun).elim
     | inductInfo iv =>
-      exact (hatom_of (.inl (hG.arity iv ⟨_, (findDecl_eq_some hci).1, rfl⟩)) rfl nofun).elim
+      exact (hatom_of (.inl (hG.arity iv ⟨_, List.mem_of_find?_eq_some hci, rfl⟩)) rfl nofun).elim
     | ctorInfo cv =>
       have : ctorArity? decls c = some (cv.numParams + cv.numFields) := by
         unfold ctorArity?; rw [show findConst decls c = findDecl decls c from rfl, hci]
@@ -797,7 +797,8 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarked view 
     MutualSpec view cfg decls (fuel + 1) c := by
   intro Sc st tc ps st' ps' hsc hS hcfg hemc hcs hok hnew hrun
   obtain ⟨ci, hci, hthm, hem⟩ := hemc
-  obtain ⟨hmem, hname⟩ := findDecl_eq_some hci
+  have hmem : ci ∈ decls := List.mem_of_find?_eq_some hci
+  have hname : ci.name = c := by simpa using List.find?_some hci
   have hnb : KnNotBlock (evalEnvOf view cfg decls) c := by
     rcases hem with hem | ⟨q, rfl, hk⟩
     · exact knNotBlock_of_emits hG.bn hci hem
