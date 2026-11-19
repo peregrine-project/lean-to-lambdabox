@@ -3,7 +3,7 @@ import EraseProof.Relation.Basic
 /-!
 # Substitution and universe instantiation in the erasure relation
 
-`Erases.inst`, `ErasesAlt.inst`, `Erases.inst_let`: instantiating the innermost bound variable of
+`Erases.inst`, `Erases.inst_let`: instantiating the innermost bound variable of
 an erased body by a term without loose indices, on the Lean side, and substituting the term's
 erasure, on the λ□ side, keeps the erasure (`MR E/ESubstitution.v:612 erases_subst0`).
 `Erases.instLevels`: instantiating universe parameters keeps the erasure
@@ -224,36 +224,6 @@ theorem Erases.inst_let {Γ : List CtxBinder} {T v a b : Expr} {a' b' : LBTerm}
     (hb : Erases noCert σ ((T, some v) :: Γ) b b') (ha : Erases noCert σ Γ a a')
     (hla : AbsFV.LBV 0 a) : Erases noCert σ Γ (b.instantiate1' a) (csubst a' 0 b') :=
   Erases.instG ha hla hb 0 Γ
-
-/-- Substitution of a term without loose indices into a `casesOn` alternative erased under its
-field binders: the branch's body is substituted below the field binders. Adapted from
-`ML-V Relation/Inst.lean:1676`. Reference: `erases_subst0` (`MR E/ESubstitution.v:612`) on the
-branches of `MR E/Extract.v:109 erases_tCase`. -/
-theorem ErasesAlt.inst {Γ : List CtxBinder} {A a b : Expr} {a' t : LBTerm} {k : Nat}
-    {ns : List BinderName} (hb : ErasesAlt noCert σ ((A, none) :: Γ) k b (ns, t))
-    (ha : Erases noCert σ Γ a a') (hla : AbsFV.LBV 0 a) :
-    ErasesAlt noCert σ Γ k (b.instantiate1' a) (ns, csubst a' ns.length t) := by
-  suffices key : ∀ k {Γ₀ : List CtxBinder} {b : Expr} {br : List BinderName × LBTerm},
-      ErasesAlt noCert σ Γ₀ k b br → ∀ (d : Nat) (Γ' : List CtxBinder),
-        ErasesAlt noCert σ Γ' k (b.instantiate1' a d) (br.1, csubst a' (d + br.1.length) br.2) by
-    simpa using key k hb 0 Γ
-  intro k
-  induction k with
-  | zero =>
-    intro _ _ _ h d Γ'
-    cases h with
-    | done h => exact .done (Erases.instG ha hla h d Γ')
-  | succ k ih =>
-    intro _ _ _ h d Γ'
-    cases h with
-    | @lam A _ _ _ ns _ _ _ h =>
-      have := ih h (d + 1) ((A.instantiate1' a d, none) :: Γ')
-      rw [show d + 1 + ns.length = d + (ns.length + 1) by omega] at this
-      exact .lam this
-    | @etaLam A _ _ _ ns _ _ _ h =>
-      have := ih h (d + 1) ((A.instantiate1' a d, none) :: Γ')
-      rw [show d + 1 + ns.length = d + (ns.length + 1) by omega] at this
-      exact .etaLam this
 
 /-! ## Universe instantiation -/
 
