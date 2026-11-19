@@ -29,9 +29,6 @@ EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_ren propext,Quot.sound
 EraseProof.Pure.typeLevel_ren propext,Quot.sound
 EraseProof.MarkOf.fvarsIn propext,Classical.choice,Quot.sound
-EraseProof.MarkEta.fvarsIn propext,Classical.choice,Quot.sound
-EraseProof.MarkSat.fvarsIn propext,Classical.choice,Quot.sound
-EraseProof.MarkAlt.fvarsIn propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound

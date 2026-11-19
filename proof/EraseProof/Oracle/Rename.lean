@@ -155,11 +155,6 @@ theorem renFV_inst (ρ : FVarId → FVarId) (a : Expr) : ∀ (b : Expr) (d : Nat
       · simp [h1, h2, renFV]
   | _ => intro d; simp_all [Expr.instantiate1', renFV]
 
-theorem renFV_instLevels (ρ : FVarId → FVarId) (ps : List Name) (us : List Level) :
-    ∀ e : Expr, renFV ρ (Pure.instLevels ps us e) = Pure.instLevels ps us (renFV ρ e) := by
-  intro e
-  induction e <;> simp_all [Pure.instLevels, renFV]
-
 theorem renFV_closed (ρ : FVarId → FVarId) : ∀ {e : Expr}, FVarsIn (fun _ => False) e → renFV ρ e = e
   | .fvar _, h => h.elim
   | .app f a, h => by rw [renFV, renFV_closed ρ h.1, renFV_closed ρ h.2]
