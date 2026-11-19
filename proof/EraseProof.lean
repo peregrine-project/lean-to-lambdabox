@@ -16,6 +16,7 @@ import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
+import EraseProof.Oracle.Rename
 /-!
 # Verification of the eraser
 
@@ -50,5 +51,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
   application and the value rules.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
+* `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
+  its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
