@@ -617,9 +617,9 @@ What the statements and the checks rely on without proof:
   `welltyped Σ [] t` of `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`), and
   `ind_arity_eq` (`common/theories/EnvironmentTyping.v:1651`) of a well-formed environment.
 - **What differs:** the source semantics evaluates the marked term, not the input. `MarkOf` is a
-  function of the input, the closure, the configuration and the locals (on a closure without free
-  variables, `markOf_det_statement`), defined wherever the traversal runs
-  (`markOf_exists_statement`); every node the traversal asks the oracle about is marked `erase` when
+  function of the input and the closure (`markOf_det_statement`: for a closure whose types and
+  values mention no free variable, and a closed input at no locals, two markings of the input are
+  equal), defined wherever the traversal runs (`markOf_exists_statement`); every node the traversal asks the oracle about is marked `erase` when
   the oracle answers `true`. A frozen subterm is a value (`frozen`), no rule evaluates inside it, a
   frozen function applied is frozen (`frozenApp`, λ□'s `eval_box`), a projection of a frozen proof
   is frozen (`projFrozen`), a `casesOn` reduced at erasure time continues at frozen projections
@@ -814,7 +814,12 @@ What the statements and the checks rely on without proof:
   field count and as many arguments as the minor premise has binders,
   `EraseProof.RulesSelected`) and that its K flag is the one con-leche's block check expects
   (CL ConLeche/Kernel/Inductives/RecCheck.lean:463 recKExpected), which con-leche checks at install
-  and does not state of the accepted environment.
+  and does not state of the accepted environment. It also requires that every recursor's level
+  parameters be distinct (CL ConLeche/Kernel/CheckerBase.lean:112, checked at install and not
+  stated of the accepted environment) and that every inductive hypothesis of a rule be a call of a
+  stored recursor of the block at the recursor's own level parameters, with as many arguments as
+  that recursor's major premise position plus one, on the fields that the binders of the
+  constructor's minor premise name, in order (`EraseProof.IHShape`, `EraseProof.RuleSelects`).
   Acceptance also requires `EraseProof.TablesCanonical`: every stored projection table names its
   structure's single constructor, at that constructor's parameter and field counts and level
   parameters; con-leche installs a table only from a structure's constructor but states of a stored
