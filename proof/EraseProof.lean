@@ -7,6 +7,7 @@ import EraseProof.Semantics.Frozen
 import EraseProof.Semantics.DecodeAt
 import EraseProof.Semantics.Sound
 import EraseProof.Semantics.Cert
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -107,6 +108,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   constructors.
 * `EraseProof.Semantics.Cert`: `clCert_proof_pt`, the proof verdict of a certificate denotes the
   proof point.
+* `EraseProof.Semantics.NonVacuous`: `sound_nonvacuous`, an input typed at a sort through an
+  application does not denote the proof point.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.

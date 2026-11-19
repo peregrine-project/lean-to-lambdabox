@@ -699,8 +699,15 @@ What the statements and the checks rely on without proof:
   and, for a first-order value, by `EraseProof.CLTyped` on it. `SetTheory` is a hypothesis
   (an instance argument). `EraseProof.sound_nonvacuous_statement` shows that the antecedent has
   content: if con-leche types an application of the input to closed arguments with a type whose
-  members are never the proof point (a sort, or an inductive whose sort is never zero,
-  `EraseProof.CLStrictType`), the input has a reading in every model that is not the proof point.
+  whnf is a sort (`EraseProof.CLStrictType`), the input has a reading in every model that is not
+  the proof point. For a data-typed input, `ConLeche.Model.EnvModelM` does not state that an
+  inductive's carrier excludes the proof point: typing puts the carrier in a universe, which also
+  holds the truth value whose member is the proof point (CL ConLeche/SetTheory/Derive/Univ.lean:53
+  mem_univ_of_mem_univZero); con-leche's construction makes it a tagged sum for the recorded blocks
+  (`ConLeche.Model.EnvModelM.lfp_ok`, CL ConLeche/Model/Env/EnvModelM.lean:316 lfp_ok), and which
+  blocks are recorded is carried by its fold beside the model (CL ConLeche/Model/Cover.lean:15
+  LfpCover), not stated by `ConLeche.Model.EnvModelM`. So in such a model `Sound` can be vacuous
+  for data: the input may denote the proof point there.
 - **Why it is forced:** con-leche's results are about denotations in its set model: its claims on
   head normalisation, definitional equality and inference preserve denotations
   (CL ConLeche/Model/Claims.lean:52 WhnfCoreClaim) and say nothing about proofs, which all denote
