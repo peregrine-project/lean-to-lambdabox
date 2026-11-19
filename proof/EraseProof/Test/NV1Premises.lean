@@ -1,5 +1,6 @@
 import EraseProof.Statements
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-1: the hypotheses of the final theorem
@@ -191,28 +192,22 @@ theorem mark_neg {decls : List ConstantInfo} (hd : decls = P ∨ decls = D) :
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl)
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl))
 
-/-! ## `hcert`: con-leche certifies every mark of the emitted program: there is none
+/-! ## `hcert`: con-leche certifies every mark of the input and of the closure's values: there is none
 
-`ê = e` has no mark; of the closure's values, the emitted environment holds a body for `B.neg`
-only (not for the recognized `B.casesOn`), and `B.neg`'s marking has no mark. -/
+`ê = e` has no mark; the closure's values are `B.neg`'s and `B.casesOn`'s, and their markings
+(`mark_neg`, `mark_casesOnVal`) have no mark. -/
 
-/-- the emitted environment has no constant `B.casesOn` -/
-theorem lookup_casesOn : lookupConst [(toKername `B.neg, .constantDecl ⟨some negL⟩),
-    (mutualBlockKername [`B], .inductiveDecl ⟨.finite, 0, [bodyB]⟩)] (toKername `B.casesOn) = none := by
-  krfl
-
-/-- con-leche types the input and `B.neg`'s marked value as wholes, at `checkFuel`. -/
+/-- con-leche types the input and the closure's marked values as wholes, at `checkFuel`. -/
 theorem typedAt_e : CLTypedAt envNV1 e := ⟨.app (.const (nm2 "B" "neg") []) kF, kB, by krfl, by krfl⟩
 theorem typedAt_neg : CLTypedAt envNV1 negVal := ⟨kNegVal, .forallE kB (.app (.lam kB kB) (.bvar 0)), by krfl, by krfl⟩
+theorem typedAt_casesOn : CLTypedAt envNV1 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
 
-theorem hcert : ProgCert envNV1 D cfg p0 e := by
+theorem hcert : ProgCert envNV1 D cfg e := by
   refine ⟨typedAt_e, ⟨trivial, trivial⟩, ?_⟩
-  intro lenv t hp ci hci v cb hv hl _
-  cases hp
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
-  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl <;> try cases hv
-  · rw [show (ConstantInfo.defnInfo B_casesOn).name = `B.casesOn from rfl, lookup_casesOn] at hl
-    cases hl
+  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
+  · exact ⟨_, mark_casesOnVal (.inl rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
   · exact ⟨_, mark_neg (.inr rfl), typedAt_neg, by simp [MarksCert, negVal, tB, cT, cF]⟩
 
 /-! ## `hev`: an explicit derivation of `B.neg B.f ⇓ B.t`, its certificates by the kernel at
