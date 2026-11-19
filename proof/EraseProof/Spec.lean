@@ -12,9 +12,10 @@ The definitions the statements of `Statements.lean` are about:
 
 1. the bridge to con-leche (`Name.toCL`, `Level.toCL`, `toCL?`, `DeclsOf?`, `ConLecheAccepts`):
    con-leche's reading of the program's declarations and its pure fold;
-2. the con-leche checks: `CLTyped`, `CLTypedAt`, `CLOk`, `CLErasable` on closed terms, and
-   `CLCert` on a marked subterm in the context of its enclosing binders, opened as con-leche opens
-   binders, with the verdicts `CLFormer` (the checker's reducing type-former test) and `CLProof`;
+2. the con-leche checks: `CLTyped`, `CLTypedAt`, `CLOk`, `CLErasable`, `CLProofTerm` on closed
+   terms, and `CLCert`, `CLCertProof` on a marked subterm in the context of its enclosing binders,
+   opened as con-leche opens binders, with the verdicts `CLFormer` (the checker's reducing
+   type-former test) and `CLProof`;
 3. the evaluation environment and its atoms (ports of `ML-V Spec.lean` §7);
 4. the marks (`markErase`, `markEta`, `markReduced`, `unmark`) and `MarkOf`, the eraser's
    erasability decisions written on the source term, one rule per case of the traversal
@@ -114,6 +115,16 @@ def piLen : Lean.Expr → Nat
   | .mdata _ e => piLen e
   | _ => 0
 
+/-- The expression has no `mdata` node (a structural traversal, so that it reduces in the kernel).
+-/
+def NoMData : Lean.Expr → Bool
+  | .mdata _ _ => false
+  | .app f a => NoMData f && NoMData a
+  | .lam _ t b _ | .forallE _ t b _ => NoMData t && NoMData b
+  | .letE _ t v b _ => NoMData t && NoMData v && NoMData b
+  | .proj _ _ e => NoMData e
+  | _ => true
+
 /-- Some name of `ns` occurs in the expression (a structural traversal, so that it reduces in the
 kernel). -/
 def mentionsAny (ns : List Name) : Lean.Expr → Bool
@@ -168,14 +179,21 @@ its major premise and checks only the set of names,
 `CL ConLeche/Kernel/Inductives/BlockShape.lean:357 blockRecNameSetOk`; `collectDeps` looks the
 recursors up by name). `tys` are the block's types, `cvs` their constructors, `rs` the recursors
 of `P` with the block's `all`. Every recursor also has the block's parameter count, and a recursor of
-a block of one type without indices has one motive binding the major premise only (`recMotivesOK`;
-con-leche compares a recursor's type with the generated one up to definitional equality, so the
-syntactic shape is a check of its own, as `RulesCanonical` is). No member has nested occurrences (`numNested = 0`: nested inductives are outside the fragment,
+a block of one type without indices has one motive binding the major premise only (`recMotivesOK`),
+and every recursor's type names every member of the block (each member is the domain of a motive's
+major premise; the fragment test reads a recursor's block only through its type), and every
+recursor's minor premises are syntactic domains of its type without `mdata` (the traversal counts
+a minor premise's binders with `Erasure.minorArity`, which stops at `mdata`, con-leche's reading
+drops it); con-leche compares a recursor's type with the generated one up to definitional equality, so the syntactic
+shape is a check of its own, as `RulesCanonical` is. No member has nested occurrences (`numNested = 0`: nested inductives are outside the fragment,
 so a recursor's major premise names a member of its block). Reference: none (DV-3, DV-38). -/
 def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
     (cvs : List (List Lean.ConstructorVal)) (rs : List Lean.RecursorVal) : Bool :=
   rs.all (fun r => r.numParams == H.numParams &&
-      (H.all.length != 1 || r.numIndices != 0 || recMotivesOK r)) &&
+      (H.all.length != 1 || r.numIndices != 0 || recMotivesOK r) &&
+      H.all.all (fun n => mentionsAny [n] r.type) &&
+      (List.range r.numMinors).all fun i =>
+        ((Erasure.forallDom? (r.numParams + r.numMotives + i) r.type).map NoMData).getD false) &&
     tys.all (fun t => t.all == H.all && t.numParams == H.numParams &&
       match Erasure.arityShape t.type with
       | some (n, _) => n == H.numParams + t.numIndices
@@ -346,18 +364,96 @@ def RuleShape (env : ConLeche.Env) (rP : Nat) (r : ConLeche.RecRule) : Bool :=
   (s.2.take r.nfields).map clBvar? == (List.range r.nfields).map (fun i => some (r.nfields - 1 - i)) &&
   (s.2.drop r.nfields).all (IHShape env rP r.nfields)
 
-/-- Every recursor stored in `env` has `majorIdx + 1` leading `Π`s in its type, and every one of its
-stored rules has the generated shape (`RuleShape`). It is decidable, and the kernel evaluates it on
-an environment literal. con-leche stores the rules its generator writes
+/-- The constructors of the block of a stored family with capabilities `caps`, in order: the
+recorded constructors of each member of `caps.all`, the order of a recursor's minor premises. -/
+def blockCtors (env : ConLeche.Env) (caps : ConLeche.IndCaps) : List ConLeche.Name :=
+  caps.all.flatMap fun t => match env.find? t with
+    | some (.indInfo _ c) => c.ctors
+    | _ => []
+
+/-- The stored rule `rl` of a recursor with type `ty` and prefix length `rP`, of the block with the
+constructors `bc`, is the rule of its own constructor: the constructor is in the block and is
+stored with `rl.nfields` fields, the head of the right-hand side is the constructor's minor premise
+(the prefix variable at position `rP - bc.length + g`, `g` the constructor's position in `bc`), and
+the head has as many arguments as that minor premise (the domain of `ty` at that position) has
+leading `Π`s: the fields, then the inductive hypotheses. -/
+def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc : List ConLeche.Name)
+    (rl : ConLeche.RecRule) : Bool :=
+  let q := rP - bc.length + bc.idxOf rl.ctor
+  let s := clSpine (clLams rl.rhs).2
+  bc.contains rl.ctor &&
+  (match env.find? rl.ctor with
+   | some (.ctorInfo _ _ nF _) => nF == rl.nfields
+   | _ => false) &&
+  clBvar? s.1 == some (rl.nfields + (rP - 1 - q)) &&
+  (match ConLeche.Expr.binderDom q ty with
+   | some A => s.2.length == clPis A
+   | none => false)
+
+/-- The K flag con-leche's block check expects of the recursor of a stored family with type `cvT`
+and capabilities `caps` (`CL ConLeche/Kernel/Inductives/RecCheck.lean:463 recKExpected`, compared
+with the record's flag by `CL ConLeche/Kernel/Inductives/StreamRecs.lean:199 streamKCheck`): the
+block has one member, whose sort past its parameters and indices is zero at every valuation, with
+one constructor, which has no fields. -/
+def recKExpectedAt (env : ConLeche.Env) (cvT : ConLeche.ConstantVal) (caps : ConLeche.IndCaps) :
+    Bool :=
+  caps.all.length == 1 &&
+  (match ConLeche.Expr.peelPis (caps.nparams + caps.nIdx) cvT.type with
+   | some (.sort s) => s.isAlwaysZero
+   | _ => false) &&
+  (match caps.ctors with
+   | [c] => match env.find? c with
+     | some (.ctorInfo _ _ nF _) => nF == 0
+     | _ => false
+   | _ => false)
+
+/-- The rules of the recursor named `R`, with type `ty`, prefix length `rP` and K flag `isK`, select
+by constructor: for `R = T.rec`, `T` is a stored family, the rules are one per constructor of `T`, in
+`T`'s order, each the rule of its own constructor (`RuleSelects`), and the K flag is the expected one
+(`recKExpectedAt`). Other recursors (the quotient's) are not constrained. -/
+def RulesSelected (env : ConLeche.Env) (R : ConLeche.Name) (ty : ConLeche.Expr) (rP : Nat)
+    (isK : Bool) (rules : List ConLeche.RecRule) : Bool :=
+  match R with
+  | .str T "rec" => match env.find? T with
+    | some (.indInfo cvT caps) =>
+      rules.map (·.ctor) == caps.ctors && rules.all (RuleSelects env ty rP (blockCtors env caps)) &&
+        isK == recKExpectedAt env cvT caps
+    | _ => false
+  | _ => true
+
+/-- Every recursor stored in `env` has `majorIdx + 1` leading `Π`s in its type, every one of its
+stored rules has the generated shape (`RuleShape`), and its rules select by constructor and its K
+flag is the expected one (`RulesSelected`). It is decidable, and the kernel evaluates it on an
+environment literal. con-leche stores the rules its generator writes
 (`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`, stored by `classRuleOk`, `:444`) and
 proves their syntax only at install (`CL ConLeche/Model/Inductives/GenRuleSyn.lean:292
 classGenRule_spec`); the facts it states of the accepted environment's rules are their scoping and
-the number of their leading `λ`s (`CL ConLeche/Verify/EnvWF.lean:217`), so the shape the ι step
-reads is part of `ConLecheAccepts`. Reference: none (DV-38). -/
+the number of their leading `λ`s (`CL ConLeche/Verify/EnvWF.lean:217`), and it checks the K flag at
+install but states nothing of it at the fold, so the shape and the selection the ι step reads are
+part of `ConLecheAccepts`. Reference: none (DV-38). -/
 def RulesCanonical (env : ConLeche.Env) : Bool :=
   env.consts.all fun
-    | .recInfo v mI rP _ rules => clPis v.type == mI + 1 && rules.all (RuleShape env rP)
+    | .recInfo v mI rP isK rules => clPis v.type == mI + 1 && rules.all (RuleShape env rP) &&
+        RulesSelected env v.name v.type rP isK rules
     | _ => true
+
+/-- Every stored projection table names its structure's single constructor: the structure is
+stored with that constructor as its only one, and the constructor is stored with the table's
+parameter and field counts, at the table's level parameters, with at least that many leading `Π`s.
+con-leche installs a table only for a structure, from its constructor
+(`CL ConLeche/Kernel/Env.lean:255 ProjTable`), but states of a stored table only its lookup
+(`CL ConLeche/Verify/EnvWF.lean:22 Env.findProj?_some`); the structural projection rule reads its
+constructor (`CL ConLeche/Rules/Rel.lean:179 Red.proj`). Decidable; the kernel evaluates it on an
+environment literal. Reference: none (DV-38). -/
+def TablesCanonical (env : ConLeche.Env) : Bool :=
+  env.tables.all fun tbl =>
+    (match env.find? tbl.structName with
+     | some (.indInfo _ caps) => caps.ctors == [tbl.ctor]
+     | _ => false) &&
+    (match env.find? tbl.ctor with
+     | some (.ctorInfo cv nP nF _) => nP == tbl.numParams && nF == tbl.numFields &&
+         cv.levelParams == tbl.levelParams && (ConLeche.Expr.peelPis (nP + nF) cv.type).isSome
+     | _ => false)
 
 /-- con-leche's pure fold accepts `P` with environment `env`, at the standard fuel
 (`CL ConLeche/Kernel/CheckerBase.lean:44 pureOps`) and the empty `Nat.div`/`Nat.mod` pin list
@@ -365,12 +461,13 @@ def RulesCanonical (env : ConLeche.Env) : Bool :=
 checkDeclsPure_sound_of`, which gives a model `EnvModelM V env` in every `[SetTheory V]`. No
 prelude: the fold starts from the empty environment (`CL ConLeche/Kernel/CheckDecl.lean:180`), so
 `P` contains, in dependency order, everything its records use; basis declarations in `P` are
-checked against their pins. The third conjunct is `RulesCanonical`, which con-leche's generator makes
-true of every environment it accepts. Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3, DV-38. -/
+checked against their pins. The third and fourth conjuncts are `RulesCanonical` and
+`TablesCanonical`, which con-leche's installers make true of every environment it accepts.
+Reference: `wf_ext Σ` (`MR P/PCUICTyping.v:507`); DV-3, DV-38. -/
 def ConLecheAccepts (P : List Lean.ConstantInfo) (env : ConLeche.Env) : Prop :=
   ∃ ds, DeclsOf? P = some ds ∧
     ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) [] ds = .ok env ∧
-    RulesCanonical env = true
+    RulesCanonical env = true ∧ TablesCanonical env = true
 
 /-! ## 2. The con-leche checks -/
 
@@ -423,6 +520,13 @@ def CLErasable (env : ConLeche.Env) (t : Lean.Expr) : Prop :=
   ∃ c F T, toCL? t = some c ∧ ConLeche.inferTypeCore .verified false env F 0 c = .ok T ∧
     CLVerdict env F 0 T
 
+/-- The closed term `t` is typed by con-leche as a proof (`CLProof` at depth `0`), at some fuel:
+`CLErasable` with the proof verdict only. Reference: the proof disjunct of `isErasable`
+(`MR E/Extract.v:18`) (DV-32). -/
+def CLProofTerm (env : ConLeche.Env) (t : Lean.Expr) : Prop :=
+  ∃ c F T, toCL? t = some c ∧ ConLeche.inferTypeCore .verified false env F 0 c = .ok T ∧
+    CLProof env F 0 T
+
 /-- A binder around a marked position: its domain (the type of a `let`), and the value of a
 `let`. Reference: none. -/
 abbrev CtxBinder := Expr × Option Expr
@@ -461,6 +565,17 @@ def CLCert (env : ConLeche.Env) (Γ : List CtxBinder) (s : Expr) : Prop :=
     openLams 0 Γ.length c = some (d, c') ∧
     ConLeche.inferTypeCore .verified false env ConLeche.checkFuel d c' = .ok T ∧
     CLVerdict env ConLeche.checkFuel d T
+
+/-- `CLCert` with the proof verdict only: con-leche certifies the subterm `s`, whose enclosing
+binders are `Γ`, as a proof (`CLProof`); then the closed telescope denotes the proof point in every
+model of an accepted environment (`clCert_proof_pt_statement`). Reference: the proof disjunct of
+`isErasable` of an open term (`MR E/Extract.v:18`) (DV-32). -/
+def CLCertProof (env : ConLeche.Env) (Γ : List CtxBinder) (s : Expr) : Prop :=
+  ∃ c d c' T₀ T, toCL? (lamTele Γ s) = some c ∧
+    ConLeche.inferTypeCore .verified false env ConLeche.checkFuel 0 c = .ok T₀ ∧
+    openLams 0 Γ.length c = some (d, c') ∧
+    ConLeche.inferTypeCore .verified false env ConLeche.checkFuel d c' = .ok T ∧
+    CLProof env ConLeche.checkFuel d T
 
 /-! ## 3. The evaluation environment and its atoms (ports of `ML-V Spec.lean` §7) -/
 
@@ -939,6 +1054,40 @@ def BlocksCong (σ : EvalEnv) : Expr → Prop
     (∃ c us qv, e.getAppFn = .const c us ∧ findDecl σ.decls c = some (.quotInfo qv) ∧
       qv.kind = .ctor)
 
+/-- con-leche's ι step at the recursor `T.rec`, on a major premise whose head is the constructor at
+the head of `m`, fires with no certificate by the stored records (case 2 of con-leche's ι case
+split, `CL ConLeche/Kernel/CoreDefs.lean:1040 iotaNoCert`, read at the rule of `T.rec` for that
+constructor): the recursor is K, or the constructor's family is never `Prop` and has as many level
+parameters as the rule has comparand levels. A computation on the stored records. Reference: none
+(DV-33). -/
+def IotaNoCertAt (env : ConLeche.Env) (T : Name) (m : Expr) : Prop :=
+  ∃ C us cvR mI rP isK rules rl cvC nP nF ind, m.getAppFn = .const C us ∧
+    env.find? (Name.toCL (mkRecName T)) = some (.recInfo cvR mI rP isK rules) ∧
+    rules.find? (·.ctor == Name.toCL C) = some rl ∧
+    env.find? (Name.toCL C) = some (.ctorInfo cvC nP nF ind) ∧
+    ConLeche.iotaNoCert env.find? isK ind (ConLeche.recFireLevelCount rl cvC.levelParams) = true
+
+/-- con-leche certifies, at the full grade, the constructor telescope that its ι step checks in
+case 3 of its case split (`CL ConLeche/Kernel/Core.lean:955 iotaCertsFull`; `iotaCertsFullFueled`
+at the fuel `F`), on the major premise that stands for the proof `d` of a `casesOn` on `T`: the
+constructor `C`, at the comparand levels and parameters of the rule of `T.rec` for `C` with the
+recursor at the levels `us` and the parameters `ps`
+(`CL ConLeche/Kernel/CoreDefs.lean:995 recFireComparands`), applied to the parameters and to the
+projections of `d`, one per field.
+Reference: none (DV-25, DV-33). -/
+def FrozenFieldsCert (env : ConLeche.Env) (T C : Name) (us : List Level) (ps : List Expr)
+    (d : Expr) : Prop :=
+  ∃ cvR mI rP isK rules rl cvC nP nF ind cus cps cd F,
+    env.find? (Name.toCL (mkRecName T)) = some (.recInfo cvR mI rP isK rules) ∧
+    rules.find? (·.ctor == Name.toCL C) = some rl ∧
+    env.find? (Name.toCL C) = some (.ctorInfo cvC nP nF ind) ∧
+    us.mapM Level.toCL = some cus ∧ ps.mapM toCL? = some cps ∧ toCL? d = some cd ∧
+    ConLeche.iotaCertsFull (ConLeche.pureFns .verified false env F) env 0
+      (cvC.type.instantiateLevelParams cvC.levelParams
+        (ConLeche.recFireComparands rl nP cvR.levelParams cus cvC.levelParams cps rP).1)
+      ((ConLeche.recFireComparands rl nP cvR.levelParams cus cvC.levelParams cps rP).2 ++
+        (List.range nF).map fun j => .proj (Name.toCL T) j cd) = .ok true
+
 /-- Weak call-by-value evaluation of closed marked source terms (port of `ML-V Spec.lean:908`): a
 frozen (`erase`-marked) subterm is a value once con-leche types it as a proof or a type former
 (`frozen`); a frozen function applied is frozen (`frozenApp`, λ□ `eval_box`); a `casesOn` reduced
@@ -977,27 +1126,37 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
   | casesIota {as : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
       as[casesMajor iv]? = some m → SrcEval env σ m mv → CtorValue σ iv.name mv i fs →
       CLOk env (mkAppN (.const c us) (as.set (casesMajor iv) mv).toArray) →
+      IotaNoCertAt env iv.name mv →
       as[casesMajor iv + 1 + i]? = some alt → SrcEval env σ (mkAppN alt fs.toArray) v →
       SrcEval env σ (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a Nat literal major: `0`. -/
   | casesLitZero {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval env σ m (.lit (.natVal 0)) → as[casesMajor iv + 1]? = some alt →
+      SrcEval env σ m (.lit (.natVal 0)) →
+      CLOk env (mkAppN (.const c us) (as.set (casesMajor iv) (.lit (.natVal 0))).toArray) →
+      IotaNoCertAt env iv.name (.const ``Nat.zero []) → as[casesMajor iv + 1]? = some alt →
       SrcEval env σ alt v → SrcEval env σ (mkAppN (.const c us) as.toArray) v
   /-- `eval_iota` on a Nat literal major: `k + 1`. -/
   | casesLitSucc {as : List Expr} : σ.casesOn? c = some iv → iv.name = ``Nat →
       as.length = casesArity iv → as[casesMajor iv]? = some m →
-      SrcEval env σ m (.lit (.natVal (k + 1))) → as[casesMajor iv + 2]? = some alt →
+      SrcEval env σ m (.lit (.natVal (k + 1))) →
+      CLOk env (mkAppN (.const c us) (as.set (casesMajor iv) (.lit (.natVal (k + 1)))).toArray) →
+      IotaNoCertAt env iv.name (.const ``Nat.succ []) → as[casesMajor iv + 2]? = some alt →
       SrcEval env σ (.app alt (.lit (.natVal k))) v → SrcEval env σ (mkAppN (.const c us) as.toArray) v
   /-- A `casesOn` reduced at erasure time (`markReduced` discriminant): con-leche types the
-  discriminant as a proof or a type former; the alternative continues at the frozen projections of
-  the discriminant, one per field (λ□: the shipping reduced form, the alternative applied to `□`).
-  The fragment test admits a reduced `casesOn` only on an inductive whose sort is written `Prop`
-  (`Erasure.eliminatedUndecided`, `LeanToLambdaBox/Erasure/Entry.lean:254`), whose fields are proofs.
-  Reference: `eval_iota_sing` (`MR E/EWcbvEval.v:162`); DV-25. -/
+  discriminant as a proof (`CLProofTerm`); if the constructor has fields, the inductive has no
+  indices and con-leche certifies the constructor telescope at the projections of the discriminant
+  (`FrozenFieldsCert`, the certificate of its ι step on a proof); the alternative continues at the
+  frozen projections of the discriminant, one per field (λ□: the shipping reduced form, the
+  alternative applied to `□`). The fragment test admits a reduced `casesOn` only on an inductive
+  whose sort is written `Prop` (`Erasure.eliminatedUndecided`,
+  `LeanToLambdaBox/Erasure/Entry.lean:254`), whose fields are proofs. Reference: `eval_iota_sing`
+  (`MR E/EWcbvEval.v:162`); DV-25. -/
   | casesFrozen {as : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
       iv.ctors = [cn] → findDecl σ.decls cn = some (.ctorInfo cv) →
-      as[casesMajor iv]? = some (markReduced d) → CLErasable env d →
+      as[casesMajor iv]? = some (markReduced d) → CLProofTerm env d →
+      (0 < cv.numFields →
+        iv.numIndices = 0 ∧ FrozenFieldsCert env iv.name cn us (as.take iv.numParams) d) →
       as[casesMajor iv + 1]? = some alt →
       SrcEval env σ (mkAppN alt ((List.range cv.numFields).map fun j =>
         markErase (.proj iv.name j d)).toArray) v →
@@ -1161,8 +1320,9 @@ def PreRead (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
     ConstsIn (fun c => (findDecl decls c).isSome) pre ∧
     (HasNatLit pre → (findDecl decls ``Nat).isSome) ∧ PlainExpr cfg pre ∧ RecShaped cfg decls pre
 
-/-- A declaration of the closure is inside the first-phase fragment. Port of
-`ML-V Spec.lean:1198`. -/
+/-- A declaration of the closure is inside the first-phase fragment; a definition, theorem or
+opaque is alone in its block (`all = [name]`, which con-leche does not read and Metalean's
+environment gave). Port of `ML-V Spec.lean:1198`. -/
 def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
     ConstantInfo → Prop
   | .quotInfo _ => True
@@ -1172,14 +1332,15 @@ def PhaseIDecl (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo
     (∃ T iv, r.name = mkRecName T ∧ findDecl decls T = some (.inductInfo iv) ∧
       iv.ctors.length = 1) ∨
     RecInFragment cfg decls r
-  | .defnInfo d => d.safety = .safe ∧ (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
+  | .defnInfo d => d.safety = .safe ∧ d.all = [d.name] ∧
+      (view.find? (Compiler.mkUnsafeRecName d.name) = none ∨
       (isStructuralRecursive (.defnInfo d) &&
         (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome)) = true) ∧
       view.implementedBy? d.name = none
-  | .opaqueInfo o => o.isUnsafe = false ∧ view.find? (Compiler.mkUnsafeRecName o.name) = none ∧
-      view.implementedBy? o.name = none
+  | .opaqueInfo o => o.isUnsafe = false ∧ o.all = [o.name] ∧
+      view.find? (Compiler.mkUnsafeRecName o.name) = none ∧ view.implementedBy? o.name = none
   | .axiomInfo a => a.isUnsafe = false ∧ view.implementedBy? a.name = none
-  | .thmInfo _ => True
+  | .thmInfo t => t.all = [t.name]
   | .inductInfo iv => iv.isUnsafe = false ∧ iv.numNested = 0 ∧
       (∃ n u, arityShape iv.type = some (n, u) ∧ (u = .zero ∨ u.isNeverZero = true ∨
         (mayBeNonZero iv.levelParams u = true ∧ ¬ Eliminated decls iv))) ∧
@@ -1496,13 +1657,15 @@ inductive ErasesDeps (cert : BoxCert) (σ : EvalEnv) (lenv : GlobalDeclarations)
   /-- `erases_deps_tFix` (`:352`). -/
   | fix : (∀ d ∈ defs, ErasesDeps cert σ lenv d.body) → ErasesDeps cert σ lenv (.fix defs i)
 
-/-- Every `erase` mark of `ê`, and the discriminant of every `reduced` mark, is certified by
-con-leche (`CLCert`) in the context of its enclosing binders: `Γ` lists the binders around the
-position, innermost first, extended at λ, `let` (with its value) and `eta`-marked λ bodies, the
-positions at which `Erases` extends its context. Reference: none (DV-32). -/
+/-- Every `erase` mark of `ê` is certified by con-leche (`CLCert`), and the discriminant of every
+`reduced` mark is certified as a proof (`CLCertProof`), in the context of its enclosing binders:
+`Γ` lists the binders around the position, innermost first, extended at λ, `let` (with its value)
+and `eta`-marked λ bodies, the positions at which `Erases` extends its context. Reference: none
+(DV-32). -/
 def MarksCert (env : ConLeche.Env) : List CtxBinder → Expr → Prop
   | Γ, .mdata d e => match d with
-    | ⟨[(.anonymous, .ofNat 0)]⟩ | ⟨[(.anonymous, .ofNat 2)]⟩ => CLCert env Γ e
+    | ⟨[(.anonymous, .ofNat 0)]⟩ => CLCert env Γ e
+    | ⟨[(.anonymous, .ofNat 2)]⟩ => CLCertProof env Γ e
     | _ => MarksCert env Γ e
   | Γ, .app f a => MarksCert env Γ f ∧ MarksCert env Γ a
   | Γ, .lam _ t b _ => MarksCert env ((t, none) :: Γ) b
@@ -1513,10 +1676,11 @@ def MarksCert (env : ConLeche.Env) : List CtxBinder → Expr → Prop
 /-- con-leche certifies the marks of the program `p` that `#erase` emits for the marked input `ê`
 over the closure `decls`: it types `ê` as a whole (`CLTypedAt`; marks are transparent, so every
 η-expansion is typed, and the domain of each `eta`-marked binder is checked against the argument
-position it fills), and every mark of `ê` in the context of its enclosing binders (`MarksCert`);
-the same of the marking of each constant of `decls` whose value the emitted λ□ environment holds a
-body for. With the marking fixed (`MarkOf` is a function of its input, `markOf_det_statement`),
-each conjunct is a finite list of con-leche runs at `checkFuel`. Reference: none (DV-32). -/
+position it fills), and every mark of `ê` in the context of its enclosing binders (`MarksCert`;
+the discriminant of a `reduced` mark as a proof); the same of the marking of each constant of
+`decls` whose value the emitted λ□ environment holds a body for. With the marking fixed (`MarkOf`
+is a function of its input, `markOf_det_statement`), each conjunct is a finite list of con-leche
+runs at `checkFuel`. Reference: none (DV-32). -/
 def ProgCert (env : ConLeche.Env) (decls : List ConstantInfo) (cfg : ErasureConfig) (p : Program)
     (ê : Expr) : Prop :=
   CLTypedAt env ê ∧ MarksCert env [] ê ∧ ∀ lenv t, p = .untyped lenv t → ∀ ci ∈ decls, ∀ v cb,

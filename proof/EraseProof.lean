@@ -19,7 +19,7 @@ import EraseProof.Simulation.Ind
 import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Rec
 import EraseProof.Simulation.Main
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
 import EraseProof.Test.NV0Premises
@@ -64,8 +64,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Simulation.RecFix`: the λ□ fixpoint of a recursor of a single inductive, unfolded.
 * `EraseProof.Simulation.Rec`: the recursor ι case of the relation-level simulation.
 * `EraseProof.Simulation.Main`: the relation-level simulation `erases_correct`.
-* `EraseProof.Source.Restrict`: source evaluation in the program restricts to a
-  dependency-closed sub-environment.
+* `EraseProof.Source.Decls`: the closure property of a list of declarations, and what its lookups
+  and the `casesOn` recognizer give.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Bridge.CLAccept`: what con-leche's acceptance of the program gives.
 * `EraseProof.Semantics.Cases`: the invariant of the meaning of source evaluation in con-leche's

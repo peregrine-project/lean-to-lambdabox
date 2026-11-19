@@ -201,7 +201,7 @@ theorem blockOf?_shape {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.
       | _ => none) := fun r hr hall =>
     List.mem_filterMap.mpr ⟨_, List.mem_reverse.mpr hr, by simp [hall]⟩
   obtain ⟨⟨⟨⟨⟨⟨hr, ht⟩, -⟩, -⟩, -⟩, -⟩, hany⟩ := hok
-  refine ⟨fun n hn t hnt => (ht t (hty n hn t hnt)).1.1, fun r hr' hall => (hr r (hrs r hr' hall)).1,
+  refine ⟨fun n hn t hnt => (ht t (hty n hn t hnt)).1.1, fun r hr' hall => (hr r (hrs r hr' hall)).1.1.1,
     fun hall hH => ?_⟩
   have htys1 : tys = [H] := by
     rw [hall] at htys
@@ -261,7 +261,7 @@ theorem _root_.EraseProof.ConLecheAccepts.casesIotaAt {P : List ConstantInfo} {e
           (ConLeche.recFireLevelCount rl (cv.levelParams.map Name.toCL)) = true) :
     SemCases.CasesIotaAt env (Name.toCL c) (Name.toCL C) (casesArity iv) (casesMajor iv) cv.cidx
       cv.numParams cv.numFields := by
-  obtain ⟨ds, hds, hfold, hrc⟩ := id h
+  obtain ⟨ds, hds, hfold, hrc, -⟩ := id h
   have hnd := DeclsOf?.nodup hds
   obtain ⟨ci, hci, hiv⟩ : ∃ ci, casesInfo? P c = some ci ∧
       findDecl P ci.indName = some (.inductInfo iv) := by
@@ -351,7 +351,7 @@ theorem _root_.EraseProof.ConLecheAccepts.casesIotaAt {P : List ConstantInfo} {e
   have hpis : clPis cvR.type = R.numParams + R.numMotives + R.numMinors + R.numIndices + 1 := by
     have := List.all_eq_true.mp hrc _ (ConLeche.Env.find?_mem hfR)
     simp only [Bool.and_eq_true, beq_iff_eq] at this
-    exact this.1
+    exact this.1.1
   obtain ⟨tyD, -, rfl⟩ := cvOf?_eq_some hcvD
   obtain ⟨tyR, -, rfl⟩ := cvOf?_eq_some hcvR
   obtain ⟨tyj, -, rfl⟩ := cvOf?_eq_some hcvj
