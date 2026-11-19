@@ -178,7 +178,9 @@ def erase_correct_statement.{w} : Prop :=
       Sound.{w} env e v
 
 /-- The statement of `erase_correct_firstorder`: under the hypotheses of `erase_correct` other
-than `hcert`, with the closure `decls` free of mark keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
+than `hcert`, with a marking of every value of the closure (`hvals`, the part of `hcert` that is
+not a con-leche check; `erasePure_erases_statement` takes it) and the closure `decls` free of mark
+keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
 leaves), the main term of the emitted program evaluates in λ□ to its structural erasure `foErase`
 (frozen leaves ↦ `□`, literals ↦ Peano numerals), con-leche types `v`, every leaf erased to `□`
 is a subterm that con-leche types as a proof or a type former, and `v` means what `e` means in
@@ -196,6 +198,7 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hnopre : NoPreDefs view cfg decls) →
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
+    (hvals  : ValuesMarkedOf decls cfg) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
     (hfo    : FirstOrderValue (evalEnvOf view cfg decls) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧

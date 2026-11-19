@@ -763,7 +763,8 @@ What the statements and the checks rely on without proof:
   `EraseProof.CLFormer`, `EraseProof.CLProof`, `EraseProof.lamTele`, `EraseProof.openLams`,
   `EraseProof.CLTypedAt`), `EraseProof.MarksCert` and `EraseProof.ProgCert`, the hypothesis
   `hcert` of `EraseProof.erase_correct_statement`, `EraseProof.ValuesMarkedOf` (a premise of
-  `EraseProof.erasePure_erases_statement`), and `EraseProof.clCert_proof_pt_statement`.
+  `EraseProof.erasePure_erases_statement`, and the hypothesis `hvals` of
+  `EraseProof.erase_correct_firstorder_statement`), and `EraseProof.clCert_proof_pt_statement`.
 - **Reference artifact:** `isErasable` (`erasure/theories/Extract.v:18`), asked of every `□` by
   `erases_box` (`erasure/theories/Extract.v:140`) and computed by `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`) with a type inference; MC §7.2.
@@ -791,7 +792,9 @@ What the statements and the checks rely on without proof:
   the domain of a binder must itself be checked. The certificate covers every value of the
   closure because the proof of `erasePure_erases` needs a marking of each value the traversal
   erases (`ErasesDecl`) before it relates the value's run to the emitted program; its premise
-  `ValuesMarkedOf` is the first component of `ProgCert`'s third conjunct.
+  `ValuesMarkedOf` is the first component of `ProgCert`'s third conjunct. The first-order corollary
+  has no certificate and takes `ValuesMarkedOf` itself (`hvals`), for the same reason: its λ□
+  value comes from `erasePure_erases`.
 - **What was considered instead:** a semantic predicate on the denotation of the mark, which is false
   for types (DV-32); verifying the oracle, which needs a typing metatheory for Lean; certificates
   on the closed mark alone, which cannot type a mark that mentions its enclosing binders;

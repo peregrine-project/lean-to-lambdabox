@@ -53,6 +53,7 @@ import EraseProof.Core.StepsProj
 import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
 import EraseProof.Final
+import EraseProof.FirstOrder
 /-!
 # Verification of the eraser
 
@@ -149,5 +150,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
   of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
 * `EraseProof.Final`: the final theorem `erase_correct`, composed of the milestones over the
   fragment test's closure, with the certified erasure from the program's certificates.
+* `EraseProof.FirstOrder`: the final theorem on first-order values `erase_correct_firstorder`.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
