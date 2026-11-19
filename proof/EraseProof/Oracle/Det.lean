@@ -206,26 +206,6 @@ theorem OracleRen.open_ren {S : FVarId → Prop} {ρ : FVarId → FVarId} {x x' 
   rw [renFV_inst, renFV_upd hx hb]
   simp only [renFV, (fvarId_beq_iff x x).2 rfl, ↓reduceIte]
 
-/-- Closes a case of the inversion of a marking whose rule does not apply to the term: `he` equates
-the renamed term with the rule's term, `ho` is the oracle's answer `false` on the renamed term. -/
-local macro "mismatch " he:ident ho:ident : tactic => `(tactic| first
-  | (cases $he:ident; done)
-  | (subst $he:ident; exact (oracle_tf ‹_› $ho).elim)
-  | exact nomatch (mkAppN_notApp (Eq.symm $he) rfl rfl).1
-  | exact absurd (mkAppN_notApp (Eq.symm $he) ‹_› rfl).2 ‹_›
-  | exact nomatch (mkAppN_notApp $he rfl rfl).1
-  | exact (‹∀ c us, _ ≠ Expr.const c us› _ _ (mkAppN_inj $he rfl ‹_›).1.symm).elim
-  | (obtain ⟨h1, -, -⟩ := mkAppN_const_inj $he
-     subst h1
-     exact nomatch ‹markArity? _ _ _ = none›.symm.trans ‹markArity? _ _ _ = some _›))
-
-/-- Closes a case of the inversion of a saturated spine whose rule does not apply to the head. -/
-local macro "sat_mismatch" : tactic => `(tactic| first
-  | exact (casesOnOf_casesInfo ‹_› ‹_›).elim
-  | exact nomatch ‹ctorArity? _ _ = some _›.symm.trans ‹ctorArity? _ _ = none›
-  | exact nomatch ‹findDecl _ _ = some (.quotInfo _)›.symm.trans ‹findDecl _ _ = some (.recInfo _)›
-  | exact nomatch ‹findDecl _ _ = some (.recInfo _)›.symm.trans ‹findDecl _ _ = some (.quotInfo _)›)
-
 variable (hcl : ClosedDecls decls = true)
 include hcl
 
@@ -260,13 +240,21 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
     simp only [renFV] at he₂ ho₂ ⊢
     cases D2 with
     | fvar _ => cases he₂; rfl
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .mdata ho h, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂
     cases D2 with
     | mdata _ h' => cases he₂; exact MarkOf.det_ren h hsc he rfl h'
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .lam (n := n) ho hfr h, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂ ⊢
@@ -280,7 +268,11 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
       have hne := hsc.ne hx'
       cases he₂
       rw [MarkOf.det_ren h hsc' (fvarsIn_open he.2) (open_ren hnx he.2) h', absFV_ren hne hbM]
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .letE (n := n) (T := T) (v := v) (x := x) ho hfr hv hb, S, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂ ⊢
@@ -300,25 +292,41 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
       rw [MarkOf.det_ren hv hsc' (fvarsIn_mono (fun _ => .inl) he.2.1) (renFV_upd hnx he.2.1) hv',
         MarkOf.det_ren hb hsc' (fvarsIn_open he.2.2) (open_ren hnx he.2.2) hb',
         renFV_upd hnx hvM, absFV_ren hne hbM]
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .proj ho _ h, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂ ⊢
     cases D2 with
     | proj _ _ h' => cases he₂; rw [MarkOf.det_ren h hsc he rfl h']
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .litZero ho _, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂ ⊢
     cases D2 with
     | litZero _ _ => rfl
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .litSucc ho _ _ _, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     simp only [renFV] at he₂ ho₂ ⊢
     cases D2 with
     | litSucc _ _ _ _ => cases he₂; rfl
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (cases he₂; done)
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂.symm rfl rfl).1
+      | exact absurd (mkAppN_notApp he₂.symm ‹_› rfl).2 ‹_›
   | .app ho hne hfa hfc hf hlen hargs, _, ρ, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     rw [renFV_mkAppN] at he₂ ho₂ ⊢
@@ -332,7 +340,7 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
         fun i a â â' ha hâ hâ' => MarkOf.det_ren (hargs i a â ha hâ) hsc
           (he.2 a (List.mem_of_getElem? ha)) rfl (hargs' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
     | _ => first
-      | mismatch he₂ ho₂
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
       | exact (hne (List.map_eq_nil_iff.1 (mkAppN_notApp he₂ hfa₂ rfl).2)).elim
       | exact (hfc₂ _ _ (mkAppN_inj he₂ hfa₂ rfl).1).elim
   | .constApp ho _ hlen hargs, _, ρ, _, _, _, hsc, he, he₂, D2 => by
@@ -345,7 +353,13 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
       rw [list_det hlen (by simpa using hlen') fun i a â â' ha hâ hâ' => MarkOf.det_ren
         (hargs i a â ha hâ) hsc (he.2 a (List.mem_of_getElem? ha)) rfl
         (hargs' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂ rfl rfl).1
+      | exact (‹∀ c us, _ ≠ Expr.const c us› _ _ (mkAppN_inj he₂ rfl ‹_›).1.symm).elim
+      | (obtain ⟨h1, -, -⟩ := mkAppN_const_inj he₂
+         subst h1
+         exact nomatch ‹markArity? _ _ _ = none›.symm.trans ‹markArity? _ _ _ = some _›)
   | .special ho har hT hη, _, _, _, _, _, hsc, he, he₂, D2 => by
     have ho₂ := oracle_ren hcl hsc he ho
     have hT₂ := inferType_ren' hcl hsc he hT
@@ -358,7 +372,13 @@ theorem MarkOf.det_ren {ls₁ : List Local} {e ê : Expr} :
       rw [har] at har'; cases har'
       rw [hT₂] at hT'; cases hT'
       exact MarkEta.det_ren hη hsc hTS he.2 hη'
-    | _ => mismatch he₂ ho₂
+    | _ => first
+      | (subst he₂; exact (oracle_tf ‹_› ho₂).elim)
+      | exact nomatch (mkAppN_notApp he₂ rfl rfl).1
+      | exact (‹∀ c us, _ ≠ Expr.const c us› _ _ (mkAppN_inj he₂ rfl ‹_›).1.symm).elim
+      | (obtain ⟨h1, -, -⟩ := mkAppN_const_inj he₂
+         subst h1
+         exact nomatch ‹markArity? _ _ _ = none›.symm.trans ‹markArity? _ _ _ = some _›)
 
 /-- `MarkOf.det_ren` for the η-expansion of a spine. -/
 theorem MarkEta.det_ren {ls₁ : List Local} {ar : Nat} {T : Expr} {c : Name} {us : List Level}
@@ -410,7 +430,7 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
       rw [hcs] at hcs'; cases hcs'; rw [hfd] at hfd'; cases hfd'; exact (hlp' hlp).elim
     | cases hcs' hfd' hlp' _ _ _ _ _ _ _ _ _ _ _ =>
       rw [hcs] at hcs'; cases hcs'; rw [hfd] at hfd'; cases hfd'; exact (hlp' hlp).elim
-    | _ => sat_mismatch
+    | _ => exact (casesOnOf_casesInfo hcs ‹_›).elim
   | .casesReduced hcs hfd hlp hpre htl hnz hctors _ _ halt hlen hextra, _, ρ, _, _, _, hsc, has,
       he₂, D2 => by
     cases D2 with
@@ -436,7 +456,7 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
         (has _ (by simp)), htl] at htl'
       cases htl'
       exact ((hnz' hnz).1 (by rw [hctors]; rfl)).elim
-    | _ => sat_mismatch
+    | _ => exact (casesOnOf_casesInfo hcs ‹_›).elim
   | .cases hcs hfd hlp hpre halen htl hnz hd hlen hctors htys halts hlen' hextra, _, ρ, _, _, _,
       hsc, has, he₂, D2 => by
     cases D2 with
@@ -472,8 +492,8 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
           (hextra i a â ha hâ) hsc (has a (by simp [List.mem_of_getElem? ha])) rfl
           (hextra' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
       simp only [renFV_mkAppN, renFV, List.map_append, List.map_cons, List.map_nil]
-    | _ => sat_mismatch
-  | .ctor _ _ hlen hargs, _, ρ, _, _, _, hsc, has, he₂, D2 => by
+    | _ => exact (casesOnOf_casesInfo hcs ‹_›).elim
+  | .ctor hci hca hlen hargs, _, ρ, _, _, _, hsc, has, he₂, D2 => by
     cases D2 with
     | ctor _ _ hlen' hargs' =>
       subst he₂
@@ -481,8 +501,10 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
         (hargs i a â ha hâ) hsc (has a (List.mem_of_getElem? ha)) rfl
         (hargs' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
       simp only [renFV_mkAppN, renFV]
-    | _ => sat_mismatch
-  | .quotMk _ _ hfd hk ha hlen hextra, _, ρ, _, _, _, hsc, has, he₂, D2 => by
+    | _ => first
+      | exact (casesOnOf_casesInfo ‹_› hci).elim
+      | exact nomatch hca.symm.trans ‹ctorArity? _ _ = none›
+  | .quotMk hci hca hfd hk ha hlen hextra, _, ρ, _, _, _, hsc, has, he₂, D2 => by
     cases D2 with
     | quotMk _ _ _ _ ha' hlen' hextra' =>
       simp only [List.map_cons, List.cons_append, List.nil_append] at he₂
@@ -494,8 +516,11 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
       simp only [renFV_mkAppN, renFV, List.map_append, List.map_cons, List.map_nil]
     | quotLift _ _ hfd' hk' _ _ _ _ =>
       rw [hfd] at hfd'; cases hfd'; rw [hk] at hk'; cases hk'
-    | _ => sat_mismatch
-  | .quotLift _ _ hfd hk hf hq hlen hextra, _, ρ, _, _, _, hsc, has, he₂, D2 => by
+    | _ => first
+      | exact (casesOnOf_casesInfo ‹_› hci).elim
+      | exact nomatch ‹ctorArity? _ _ = some _›.symm.trans hca
+      | exact nomatch hfd.symm.trans ‹findDecl _ _ = some (.recInfo _)›
+  | .quotLift hci hca hfd hk hf hq hlen hextra, _, ρ, _, _, _, hsc, has, he₂, D2 => by
     cases D2 with
     | quotMk _ _ hfd' hk' _ _ _ =>
       rw [hfd] at hfd'; cases hfd'; rw [hk] at hk'; cases hk'
@@ -508,8 +533,11 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
           (has a (by simp [List.mem_of_getElem? ha])) rfl
           (hextra' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
       simp only [renFV_mkAppN, renFV, List.map_append, List.map_cons, List.map_nil]
-    | _ => sat_mismatch
-  | .recr _ _ hfd _ _ _ hps hms hmins his _ hlm hminsM hli hisM hmaj hle hextra, _, ρ, _, _, _,
+    | _ => first
+      | exact (casesOnOf_casesInfo ‹_› hci).elim
+      | exact nomatch ‹ctorArity? _ _ = some _›.symm.trans hca
+      | exact nomatch hfd.symm.trans ‹findDecl _ _ = some (.recInfo _)›
+  | .recr hci hca hfd _ _ _ hps hms hmins his _ hlm hminsM hli hisM hmaj hle hextra, _, ρ, _, _, _,
       hsc, has, he₂, D2 => by
     cases D2 with
     | recr _ _ hfd' _ _ _ hps' hms' hmins' his' _ hlm' hminsM' hli' hisM' hmaj' hle' hextra' =>
@@ -532,7 +560,10 @@ theorem MarkSat.det_ren {ls₁ : List Local} {c : Name} {us : List Level} {as : 
           (hextra i a â ha hâ) hsc (has a (by simp [List.mem_of_getElem? ha])) rfl
           (hextra' i _ â' (by rw [List.getElem?_map, ha]; rfl) hâ')]
       simp only [renFV_mkAppN, renFV, List.map_append, List.map_cons, List.map_nil]
-    | _ => sat_mismatch
+    | _ => first
+      | exact (casesOnOf_casesInfo ‹_› hci).elim
+      | exact nomatch ‹ctorArity? _ _ = some _›.symm.trans hca
+      | exact nomatch hfd.symm.trans ‹findDecl _ _ = some (.quotInfo _)›
 
 /-- `MarkOf.det_ren` for the alternatives of a `casesOn`. -/
 theorem MarkAlt.det_ren {ls₁ : List Local} {k : Nat} {e T ê : Expr} :
