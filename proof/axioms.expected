@@ -21,7 +21,6 @@ EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.markOf_det propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -247,6 +246,4 @@ EraseProof.Test.RecIH.wrong_head propext
 EraseProof.Test.RecIH.wrong_lams propext
 EraseProof.Test.RecIH.wrong_levels propext
 EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound
-EraseProof.ctorPropBoxed_of propext,Classical.choice,Quot.sound
-EraseProof.Steps.erasePure_erases_of propext,Classical.choice,Quot.sound
-EraseProof.coreEnv_of propext,Classical.choice,Quot.sound
+EraseProof.erasePure_erases propext,Classical.choice,Quot.sound

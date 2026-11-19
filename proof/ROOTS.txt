@@ -26,7 +26,6 @@ EraseProof.SemCases.srcEval_sound_projFrozen EraseProof.srcEval_sound
 EraseProof.SemCases.zeta_hpt EraseProof.srcEval_sound
 EraseProof.markOf_read EraseProof.srcEval_sound
 EraseProof.markOf_read_delta EraseProof.srcEval_sound
-EraseProof.markOf_det EraseProof.erasePure_erases
 EraseProof.collectDeps_spec EraseProof.erase_correct
 EraseProof.SemCases.srcEval_sound_recIota EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_quotLift EraseProof.srcEval_sound
@@ -38,6 +37,4 @@ EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound
-EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
-EraseProof.Steps.erasePure_erases_of EraseProof.erasePure_erases
-EraseProof.coreEnv_of EraseProof.erasePure_erases
+EraseProof.erasePure_erases EraseProof.erase_correct

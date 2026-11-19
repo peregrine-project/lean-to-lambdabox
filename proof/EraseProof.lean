@@ -136,7 +136,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   `Prop`, by con-leche's check of the constructors' conclusions (`ctorPropBoxed_of`).
 * `EraseProof.Core.StepsProj`: the steps for projections and Nat literals.
 * `EraseProof.Core.Assemble`: the induction on the traversal's fuel over the steps, and the
-  traversal's correctness from the closure facts (`erasePure_erases_of`).
+  pure traversal's correctness (`erasePure_erases`).
 * `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
   of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.

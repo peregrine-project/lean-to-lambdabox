@@ -3,6 +3,9 @@ import EraseProof.Core.StepsProj
 import EraseProof.Core.StepsQuot
 import EraseProof.Core.StepsRec
 import EraseProof.Core.NonRec
+import EraseProof.Core.CoreEnv
+import EraseProof.Core.CtorProp
+import EraseProof.Statements
 
 /-!
 # The pure traversal's correctness, assembled from its steps
@@ -13,7 +16,10 @@ one step lemma per case of `visitExpr` (`Core/Steps*.lean`) and the step of `vis
 application or a constant is dispatched by its head (`exprSpec_appLike`): a recognized `casesOn`
 constant, a constructor, `Quot.mk`/`Quot.lift`, a recursor, or a head without a rule of its own
 (`markArity? = none`). `erasePure_erases_of` applies it at the traversal's fuel in the empty
-context (`ρ = id`, no local), from the empty state, with the closure's names as the scope.
+context (`ρ = id`, no local), from the empty state, with the closure's names as the scope;
+`erasePure_erases` discharges its premises from those of the statement: `CoreEnv` by `coreEnv_of`,
+`CtorPropBoxed` by `ctorPropBoxed_of`, and the facts about the input from the fragment test's scan
+of it.
 
 Reference: `erases_erase` (`MR E/ErasureFunction.v:1228`), by induction over `erase`
 (`MR E/ErasureFunction.v:989`), with `erase_global_erases_deps`
@@ -148,5 +154,32 @@ theorem erasePure_erases_of (hG : CoreEnv view cfg decls) (hcp : CtorPropBoxed v
 end
 
 end Steps
+
+open CollectSpec CoreEnvOf Steps in
+/-- **The pure traversal's correctness** (`erasePure_erases_statement`): on the closure the
+fragment test returns, part of a program con-leche accepts, without compiled pre-definitions for
+what the traversal erases by its value, and with a marking of every value, the output of
+`erasePure` is an erasure of the input's marking, with erased dependencies, in a closed λ□
+environment. `erasePure_erases_of` with `CoreEnv` (`coreEnv_of`), `CtorPropBoxed`
+(`ctorPropBoxed_of`) and the facts about the input that the fragment test's scan gives: its
+constants are the closure's (`collectDeps_spec_sub`), it has no free variable and is `NatPlain`
+(`exprConsts_plain`), and its recursors are covered, hence in the fragment's shape
+(`Run.rec_frag`). Adapted from `ML-V Core/StepsB.lean:391`. Reference: `erases_erase`
+(`MR E/ErasureFunction.v:1228`) and `erase_global_erases_deps`
+(`MR E/ErasureFunctionProperties.v:172`); DV-32, DV-35. -/
+theorem erasePure_erases : erasePure_erases_statement := by
+  intro P decls env e ê view cfg p inl hP hsub hnopre hcol hrun hmk hm
+  obtain ⟨-, hdep, hcE, -, -⟩ := collectDeps_spec_sub hP hsub hcol
+  obtain ⟨cs, cases, hcs, hcl, -⟩ := CollectSpec.collectDeps_ok hcol
+  obtain ⟨hvw, -, -, hcov, hscan⟩ := closure_ok hcl nofun nofun
+  have hr : Run P env view cfg decls cases := ⟨hP, hsub, hvw, hscan, hdep⟩
+  obtain ⟨hfv, hnp⟩ := exprConsts_plain hcs
+  refine erasePure_erases_of (coreEnv_of hP hsub hnopre hcol) (ctorPropBoxed_of hP hsub) hmk
+    hfv hcE hnp ?_ hrun hm
+  refine ConstsIn_mono (fun c hc rv hrv => ?_) (exprConsts_consts hcs)
+  obtain ⟨y, hy, hyn, hyr⟩ := hcov c hc
+  rw [← hyn, hr.fd hy] at hrv
+  cases hrv
+  exact hr.rec_frag hy (hyr rv rfl)
 
 end EraseProof
