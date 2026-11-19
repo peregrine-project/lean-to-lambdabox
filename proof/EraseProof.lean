@@ -42,6 +42,7 @@ import EraseProof.Core.StepsCtor
 import EraseProof.Core.StepsCases
 import EraseProof.Core.StepsCasesSat
 import EraseProof.Core.StepsQuot
+import EraseProof.Core.StepsRec
 import EraseProof.Core.NonRec
 import EraseProof.Core.CtorProp
 import EraseProof.Core.StepsProj
@@ -122,6 +123,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.StepsCasesSat`: the step for `casesOn` spines: the `□`, reduced and `case`
   branches of `visitCases`.
 * `EraseProof.Core.StepsQuot`: the step for spines headed by `Quot.mk` or `Quot.lift`.
+* `EraseProof.Core.StepsRec`: the step for spines headed by a recursor (`visitRec`).
 * `EraseProof.Core.NonRec`: a value `visitMutual` erases is of a one-member block and has a scope
   without its own constant, by the order of con-leche's fold (`coreEnv_value`).
 * `EraseProof.Core.CtorProp`: the oracle boxes the constructor spines of inductives declared in

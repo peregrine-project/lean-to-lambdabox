@@ -333,6 +333,13 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
   (con-leche's `natBasis`). -/
   natShaped : NatShaped (evalEnvOf view cfg decls)
   natCtors : NatCtors (evalEnvOf view cfg decls)
+  /-- The recursor `T.rec` of a block of one type has one minor premise per constructor
+  (`blockShapeOK`'s `numMinors`). -/
+  recMinors : ∀ c rv T iv, findDecl decls c = some (.recInfo rv) → rv.all = [T] →
+    rv.name = mkRecName T → findDecl decls T = some (.inductInfo iv) →
+    rv.numMinors = iv.ctors.length
+  /-- The recursors have Lean's shape (`RecsShaped`; `blockShapeOK`'s `recMotivesOK`). -/
+  recs : RecsShaped decls
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of
