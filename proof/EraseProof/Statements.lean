@@ -77,7 +77,8 @@ def erasePure_erases_statement : Prop :=
       ErasesDeps noCert (evalEnvOf view cfg decls) lenv tb ∧ LenvClosed lenv
 
 /-- The statement of `srcEval_sound`: the marked source evaluation preserves meaning in every
-con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), `ê` is a marking of it and
+con-leche model of the accepted program: if `e` is typed by con-leche and carries no mark key (`NoMarkKeys`), the closure `decls` carries none
+(`NoMarkKeysDecls`; the program con-leche accepts is clean, and `decls` is part of it), `ê` is a marking of it and
 `ê` evaluates to `v`, then `unmark v` has a con-leche form that denotes what `e` denotes wherever
 that is not the proof point (`Sound`). Proved from con-leche's model (`checkDeclsPure_sound_of`,
 the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Reference: none
@@ -85,8 +86,8 @@ the claims of `checkSoundAtP5`) and the run-time certificates of `SrcEval`. Refe
 def srcEval_sound_statement.{w} : Prop :=
   ∀ {P decls : List ConstantInfo} {env : ConLeche.Env} {view : EnvView} {cfg : ErasureConfig}
     {e ê v : Expr},
-    ConLecheAccepts P env → CLTyped env e → NoMarkKeys e = true → MarkOf decls cfg [] e ê →
-    SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
+    ConLecheAccepts P env → CLTyped env e → NoMarkKeys e = true → NoMarkKeysDecls decls = true →
+    MarkOf decls cfg [] e ê → SrcEval env (evalEnvOf view cfg P) ê v → Sound.{w} env e v
 
 /-- The statement of `erase_correct`, the final theorem: partial correctness of `#erase` on the
 fragment, against con-leche. If con-leche's pure fold accepts the program `P` with environment
@@ -166,7 +167,7 @@ def erase_correct_statement.{w} : Prop :=
       Sound.{w} env e v
 
 /-- The statement of `erase_correct_firstorder`: under the hypotheses of `erase_correct` other
-than `hcert`, if the value `v` is first-order (a constructor tree with frozen and literal
+than `hcert`, with the closure `decls` free of mark keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
 leaves), the main term of the emitted program evaluates in λ□ to its structural erasure `foErase`
 (frozen leaves ↦ `□`, literals ↦ Peano numerals), con-leche types `v`, every leaf erased to `□`
 is a subterm that con-leche types as a proof or a type former, and `v` means what `e` means in
@@ -178,6 +179,7 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hacc   : ConLecheAccepts P env) →
     (hty    : CLTyped env e) →
     (hclean : NoMarkKeys e = true) →
+    (hcleanD : NoMarkKeysDecls decls = true) →
     (hview  : ViewAgrees view P) →
     (hfrag  : collectDeps view cfg e = .ok decls) →
     (hnopre : NoPreDefs view cfg decls) →
@@ -230,10 +232,13 @@ def clCert_proof_pt_statement.{w} : Prop :=
 
 /-- The statement of `markOf_det`: the marking is a function of the term, the closure, the
 configuration and the locals, for a closure whose types and values mention no free variable
-(`ClosedDecls`; the oracle's answers then do not depend on the names of the fresh variables). Reference: none (DV-32). -/
+(`ClosedDecls`; the oracle's answers then do not depend on the names of the fresh variables), for
+a closed input at no locals (every binder's domain is then in scope, so the fresh variable a
+binder rule picks cannot occur in it). Reference: none (DV-32). -/
 def markOf_det_statement : Prop :=
-  ∀ {decls : List ConstantInfo} {cfg : ErasureConfig} {ls : List Local} {e ê ê' : Expr},
-    ClosedDecls decls = true → MarkOf decls cfg ls e ê → MarkOf decls cfg ls e ê' → ê = ê'
+  ∀ {decls : List ConstantInfo} {cfg : ErasureConfig} {e ê ê' : Expr},
+    ClosedDecls decls = true → FVarsIn (fun _ => False) e → MarkOf decls cfg [] e ê →
+    MarkOf decls cfg [] e ê' → ê = ê'
 
 /-- The statement of `markOf_exists`: wherever the pure traversal erases the input, the input has a
 marking, so the hypothesis `hmark` of `erase_correct_statement` follows from `hfrag` and `hrun`,

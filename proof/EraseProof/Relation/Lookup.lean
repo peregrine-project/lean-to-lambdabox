@@ -26,7 +26,7 @@ variable {cert : BoxCert} {σ : EvalEnv} {lenv lenv' : GlobalDeclarations}
 
 /-- The derived `==` on module paths implies equality. Copy of `ML-V Relation/Deps.lean:24`.
 Reference: `modpath_eq_dec` (`MR common/theories/Kernames.v:232`). -/
-private theorem modPath_eq_of_beq : ∀ {a b : ModPath}, (a == b) = true → a = b
+theorem modPath_eq_of_beq : ∀ {a b : ModPath}, (a == b) = true → a = b
   | .MPfile d₁, .MPfile d₂, h => by
     have h' : (d₁ == d₂) = true := h
     rw [beq_iff_eq.1 h']
@@ -38,7 +38,7 @@ private theorem modPath_eq_of_beq : ∀ {a b : ModPath}, (a == b) = true → a =
 
 /-- The derived `==` on kernames implies equality. Copy of `ML-V Relation/Deps.lean:37`.
 Reference: `reflect_kername` (`MR common/theories/Kernames.v:325`). -/
-private theorem kername_eq_of_beq {a b : Kername} (h : (a == b) = true) : a = b := by
+theorem kername_eq_of_beq {a b : Kername} (h : (a == b) = true) : a = b := by
   obtain ⟨m₁, i₁⟩ := a
   obtain ⟨m₂, i₂⟩ := b
   have h' : (m₁ == m₂ && i₁ == i₂) = true := h
@@ -47,7 +47,7 @@ private theorem kername_eq_of_beq {a b : Kername} (h : (a == b) = true) : a = b 
 
 /-- A kername found in `lenv` is found, with the same declaration, after fresh growth. Copy of
 `ML-V Relation/Deps.lean:41`. -/
-private theorem find?_ext {kn : Kername} {d : Kername × GlobalDecl}
+theorem find?_ext {kn : Kername} {d : Kername × GlobalDecl}
     (hx : ∃ new, lenv' = new ++ lenv ∧ ∀ kn ∈ new.map (·.1), lenv.find? (·.1 == kn) = none)
     (h : lenv.find? (·.1 == kn) = some d) : lenv'.find? (·.1 == kn) = some d := by
   obtain ⟨new, rfl, hfresh⟩ := hx
