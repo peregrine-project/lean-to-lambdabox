@@ -23,10 +23,8 @@ EraseProof.SemCases.srcEval_sound_casesLitSucc propext,Classical.choice,Quot.sou
 EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_defn propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
 EraseProof.Pure.typeLevel_ren propext,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
@@ -237,3 +235,7 @@ EraseProof.Steps.visitExpr_fail_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_mdata_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_lam_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_letE_step propext,Classical.choice,Quot.sound
+EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
