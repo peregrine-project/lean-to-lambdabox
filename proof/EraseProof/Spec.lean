@@ -394,13 +394,15 @@ def minorIHField (A : ConLeche.Expr) (j : Nat) : Option Nat :=
   (ConLeche.Expr.binderDom j A).bind fun T => let r := clPiBody T; clFieldOf j r.1 r.2
 
 /-- The stored rule `rl` of a recursor with type `ty` and prefix length `rP`, of the block with the
-constructors `bc`, is the rule of its own constructor: the constructor is in the block and is
-stored with `rl.nfields` fields, the head of the right-hand side is the constructor's minor premise
-(the prefix variable at position `rP - bc.length + g`, `g` the constructor's position in `bc`), and
-the head has as many arguments as that minor premise (the domain of `ty` at that position) has
-leading `Π`s: the fields, then the inductive hypotheses, and the hypotheses recurse, in order, on
-the fields that the binders of the minor premise name (`clFieldOf`). -/
-def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc : List ConLeche.Name)
+constructors `bc` and the recursors `brs`, is the rule of its own constructor: the constructor is in
+the block and is stored with `rl.nfields` fields, the head of the right-hand side is the
+constructor's minor premise (the prefix variable at position `rP - bc.length + g`, `g` the
+constructor's position in `bc`), and the head has as many arguments as that minor premise (the
+domain of `ty` at that position) has leading `Π`s: the fields, then the inductive hypotheses; each
+hypothesis is a call of a recursor of the block (`brs`) under as many `λ`s as the minor premise's
+binder at its position has leading `Π`s, and the hypotheses recurse, in order, on the fields that
+the binders of the minor premise name (`clFieldOf`). -/
+def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc brs : List ConLeche.Name)
     (rl : ConLeche.RecRule) : Bool :=
   let q := rP - bc.length + bc.idxOf rl.ctor
   let s := clSpine (clLams rl.rhs).2
@@ -409,11 +411,17 @@ def RuleSelects (env : ConLeche.Env) (ty : ConLeche.Expr) (rP : Nat) (bc : List 
    | some (.ctorInfo _ _ nF _) => nF == rl.nfields
    | _ => false) &&
   clBvar? s.1 == some (rl.nfields + (rP - 1 - q)) &&
+  (s.2.drop rl.nfields).all (fun ih => match (clSpine (clLams ih).2).1 with
+    | .const n _ => brs.contains n
+    | _ => false) &&
   (match ConLeche.Expr.binderDom q ty with
    | some A => s.2.length == clPis A &&
        (s.2.drop rl.nfields).map (fun ih => let r := clLams ih; clFieldOf rl.nfields r.1 r.2) ==
          (List.range' rl.nfields (clPis A - rl.nfields)).map (minorIHField A) &&
-       (List.range' rl.nfields (clPis A - rl.nfields)).all fun j => (minorIHField A j).isSome
+       (List.range' rl.nfields (clPis A - rl.nfields)).all (fun j => (minorIHField A j).isSome) &&
+       (s.2.drop rl.nfields).map (fun ih => some (clLams ih).1) ==
+         (List.range' rl.nfields (clPis A - rl.nfields)).map fun j =>
+           (ConLeche.Expr.binderDom j A).map fun T => (clPiBody T).1
    | none => false)
 
 /-- The K flag con-leche's block check expects of the recursor of a stored family with type `cvT`
@@ -437,14 +445,16 @@ def recKExpectedAt (env : ConLeche.Env) (cvT : ConLeche.ConstantVal) (caps : Con
 by constructor: for `R = T.rec`, `T` is a stored family, the rules are one per constructor of `T`, in
 `T`'s order, each firing `.plain` (con-leche's installer's mode at a member major,
 `CL ConLeche/Kernel/Env.lean:118 RecRuleFire`) and each the rule of its own constructor
-(`RuleSelects`), and the K flag is the expected one (`recKExpectedAt`). Other recursors (the quotient's) are not constrained. -/
+(`RuleSelects`), whose recursive calls are of the recursors `t.rec` of the members `t` of `T`'s
+block (so of `R` for a one-member block; the generator's callee `rec_t`,
+`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`), and the K flag is the expected one (`recKExpectedAt`). Other recursors (the quotient's) are not constrained. -/
 def RulesSelected (env : ConLeche.Env) (R : ConLeche.Name) (ty : ConLeche.Expr) (rP : Nat)
     (isK : Bool) (rules : List ConLeche.RecRule) : Bool :=
   match R with
   | .str T "rec" => match env.find? T with
     | some (.indInfo cvT caps) =>
       rules.map (·.ctor) == caps.ctors && rules.all (·.fire == .plain) &&
-        rules.all (RuleSelects env ty rP (blockCtors env caps)) &&
+        rules.all (RuleSelects env ty rP (blockCtors env caps) (caps.all.map (·.str "rec"))) &&
         isK == recKExpectedAt env cvT caps
     | _ => false
   | _ => true

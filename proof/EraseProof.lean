@@ -42,6 +42,7 @@ import EraseProof.Core.StepsCtor
 import EraseProof.Core.StepsQuot
 import EraseProof.Core.NonRec
 import EraseProof.Core.CtorProp
+import EraseProof.Core.StepsProj
 /-!
 # Verification of the eraser
 
@@ -119,5 +120,6 @@ The library root of the proof package: the correctness of the erasure behind `#e
   without its own constant, by the order of con-leche's fold (`coreEnv_value`).
 * `EraseProof.Core.CtorProp`: the oracle boxes the constructor spines of inductives declared in
   `Prop`, by con-leche's check of the constructors' conclusions (`ctorPropBoxed_of`).
+* `EraseProof.Core.StepsProj`: the steps for projections and Nat literals.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

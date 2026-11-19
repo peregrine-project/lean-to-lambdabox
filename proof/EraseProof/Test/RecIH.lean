@@ -8,7 +8,9 @@ import EraseProof.Test.Run
 (one inductive hypothesis, on the field of its constructor), and fails when the recursive call is at
 other levels than the recursor's own, when the recursor's level parameters repeat, when the call has
 the wrong number of arguments, or when it recurses on a field the minor premise does not name, or when a rule of `T.rec` does not fire
-`.plain`. It also fails when a stored definition has repeated level parameters.
+`.plain`, or when the recursive call is of a stored recursor outside the block (of the right arity
+and levels), or sits under a `λ` that the minor premise's binder has no `Π` for. It also fails when
+a stored definition has repeated level parameters.
 -/
 
 namespace EraseProof.Test.RecIH
@@ -67,6 +69,40 @@ theorem not_plain : RulesCanonical
     ⟨(env [nm "u"] [.param (nm "u")] [3, 2, 1, 0]).consts.map fun
       | .recInfo v m r k rs => .recInfo v m r k (rs.map fun rl => { rl with fire := .levels [] })
       | c => c, []⟩ = false := by
+  krfl
+
+/-- The rule of `N.s` with the inductive hypothesis `ih`. -/
+def ruleSWith (ih : Expr) : RecRule :=
+  { ctor := nm2 "N" "s", nfields := 1, fire := .plain,
+    rhs := .lam kMot (.lam kN (.lam kN (.lam kN (.app (.app (.bvar 1) (.bvar 0)) ih)))) }
+
+/-- `env` with the rule `ruleSWith ih` and the stored constants `extra` after the family. -/
+def envWith (ih : Expr) (extra : List ConstantInfo) : Env :=
+  ⟨[ .recInfo ⟨nm2 "N" "rec", [nm "u"], recTy⟩ 3 3 false [ruleZ, ruleSWith ih]
+   , .ctorInfo ⟨nm2 "N" "s", [], .forallE kN kN⟩ 0 1 (nm "N")
+   , .ctorInfo ⟨nm2 "N" "z", [], kN⟩ 0 0 (nm "N")
+   , .indInfo ⟨nm "N", [], .sort (.succ .zero)⟩
+       { eta := false, all := [nm "N"], nparams := 0, nIdx := 0,
+         ctors := [nm2 "N" "z", nm2 "N" "s"], neverZero := true } ] ++ extra, []⟩
+
+/-- A stored recursor outside `N`'s block, of `N.rec`'s type and levels. -/
+def otherRec : ConstantInfo := .recInfo ⟨nm2 "N" "rec2", [nm "u"], recTy⟩ 3 3 false []
+
+/-- The constant `hd` at the level `u`, applied to `args`. -/
+def callAt (hd : Name) (args : List Expr) : Expr :=
+  args.foldl .app (.const hd [.param (nm "u")])
+
+theorem canonical_with : RulesCanonical (envWith (recCall [.param (nm "u")] [3, 2, 1, 0])
+    [otherRec]) = true := by
+  krfl
+
+theorem wrong_head : RulesCanonical (envWith
+    (callAt (nm2 "N" "rec2") [.bvar 3, .bvar 2, .bvar 1, .bvar 0]) [otherRec]) = false := by
+  krfl
+
+theorem wrong_lams : RulesCanonical (envWith
+    (.lam kN (callAt (nm2 "N" "rec") [.bvar 4, .bvar 3, .bvar 2, .app (.bvar 1) (.bvar 0)])) []) =
+      false := by
   krfl
 
 theorem dup_defn_levels : RulesCanonical
