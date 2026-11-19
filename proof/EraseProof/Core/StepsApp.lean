@@ -17,8 +17,8 @@ its erasure (`StateOK.register`), its erasure being an erasure of every marking 
 induction hypothesis of every step; `CoreEnv` collects the facts about the closure the steps read.
 
 The constant head of a spine the oracle keeps is no atom (`AtomBoxed`, the oracle's answer on atom
-spines, proved in `atomBoxed`); the value `visitMutual` erases has a marking (`ValuesMarked`), a
-fact about the shipping traversal over the closure, a hypothesis of the step that reads it.
+spines, proved in `atomBoxed`); the value `visitMutual` erases has a marking (`ValuesMarkedOf`,
+every value of the closure has one), a premise of the step that reads it.
 
 Reference: the `tApp` and `tConst` cases of `erases_erase` (`MR E/ErasureFunction.v:1228`), with
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and `erase_global_erases_deps`
@@ -346,15 +346,6 @@ def AtomBoxed (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo)
 theorem atomBoxed (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) :
     AtomBoxed view cfg decls :=
   fun _ _ _ hs h => EraseProof.Pure.isErasable_atom rfl hs h
-
-/-- A value that `visitMutual` erases, when the run of `visitExpr` on it returns, has a marking in
-the empty context: the hypothesis `∃ vM, MarkOf …` of `ErasesDecl`. Reference: none (DV-32). -/
-def ValuesMarked (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop :=
-  ∀ c ci v, findDecl decls c = some ci → ci.value? (allowOpaque := true) = some v →
-    IsThm ci = false → casesInfo? decls c = none →
-    ∀ fuel st tc ps r st' ps', CtxOK cfg tc →
-      (visitExpr (m := PureM) fuel v).runPure st tc ⟨decls, view⟩ ps = .ok ((r, st'), ps') →
-      ∃ vM, MarkOf decls cfg [] v vM
 
 /-- The correctness of `visitMutual fuel c` at the pure backend: on an unregistered constant of a
 scope `Sc` that is a definition, an opaque or an axiom (`EmitsConst`, not a theorem), or
@@ -812,13 +803,13 @@ pre-definition, `NoPreDefs`; of a one-member block and without its own constant,
 so `visitMutual` takes its non-recursive branch) is erased in the empty context, which `RenOK`
 relates to the caller's locals with no variable in scope, and registered with its erasure
 (`StateOK.register`): an erasure of every marking of the value, of which there is one
-(`ValuesMarked`), closed and without free variables (`Erases.noFVar`); the traversal cannot
+(`ValuesMarkedOf`), closed and without free variables (`Erases.noFVar`); the traversal cannot
 register the constant while it erases the value, whose scope does not hold it. The inlining
 bookkeeping keeps the state invariant (`KeepsCG`). Adapted from `ML-V Core/Steps.lean:2418`,
 without its fixpoint branch. Reference: `erase_constant_body` (`MR E/ErasureFunction.v:1309`) in
 the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`);
 `erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`). -/
-theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarked view cfg decls)
+theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarkedOf decls cfg)
     {fuel : Nat} (ih : StepIH view cfg decls fuel) {c : Name} :
     MutualSpec view cfg decls (fuel + 1) c := by
   intro Sc st tc ps st' ps' hsc hS hcfg hemc hcs hok hnew hrun
@@ -991,7 +982,7 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarked view 
       cases hci₁
       exact hval₁ v hv hthm hcs
     have hokb := StateOK.congr hok hcb hib hgb
-    obtain ⟨vM₀, hvM₀⟩ := hmk c ci v hci hv hthm hcs fuel sb _ ps t st₂ ps₂ hctx0 hW
+    obtain ⟨vM₀, hvM₀⟩ := hmk ci hmem v hv
     have hspec : ∀ (Sc₀ : Name → Prop), ScopeOK decls Sc₀ → (∀ d, nameOccurs d v = true → Sc₀ d) →
         ∀ {vM}, MarkOf decls cfg [] v vM → _ := fun Sc₀ hsc₀ hocc₀ vM hvM =>
       ih.expr fuel (Nat.le_refl _) v hctx0 hR0 hvcl hsc₀ hocc₀ (hG.npd ci hmem v hread)

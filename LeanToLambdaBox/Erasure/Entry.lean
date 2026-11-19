@@ -48,14 +48,6 @@ def exprConsts (cfg : ErasureConfig) : Expr → Except EraseError (List Name)
   | .mdata _ e => exprConsts cfg e
   | .proj S _ e => return S :: (← exprConsts cfg e)
 
-/-- The syntactic arity `Π x₁…xₙ, Sort u` of a type: `n` and `u`. Reference: `isArity`
-(`MR P/PCUICTyping.v:29`). -/
-def arityShape : Expr → Option (Nat × Level)
-  | .sort u => some (0, u)
-  | .forallE _ _ b _ => (arityShape b).map fun (n, u) => (n + 1, u)
-  | .mdata _ e => arityShape e
-  | _ => none
-
 /-- The level is not zero under every assignment of its parameters `lps`: it is never zero when
 every parameter is `1` (whether a level is zero depends only on which parameters are zero,
 monotonically). Reference: none. -/
