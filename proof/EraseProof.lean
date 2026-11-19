@@ -9,6 +9,7 @@ import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
 import EraseProof.Core.Collect
 import EraseProof.Core.CollectSpec
+import EraseProof.Core.CollectOk
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -89,6 +90,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (`collectDeps_sub`).
 * `EraseProof.Core.CollectSpec`: the closure of the fragment test is closed under what the source
   semantics and the traversal read, with distinct kernames and block names (`collectDeps_spec`).
+* `EraseProof.Core.CollectOk`: the fragment test accepts a program whose read closure lies inside
+  the first-phase fragment (`collectDeps_ok_of`).
 * `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
   its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Oracle.Det`: the marking is a function of its input (`markOf_det`).
