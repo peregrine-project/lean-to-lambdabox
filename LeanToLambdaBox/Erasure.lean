@@ -995,7 +995,9 @@ mutual
   (`recFix`, one function per member, from the shapes of the minor premises, `recShape`) is applied
   to the indices `is` and the major premise `t`. If the major premise's sort may be `Prop`, its
   value may be □, so the fixpoint reduces the `case` itself (`recFix`, `direct`), as `visitCases`
-  does. A recursor whose application is a proof or a type is erased to □ by `visitExpr` before.
+  does; only if the declared sort of `T` may be `Prop` too (as in `recStaysConstant`), so that an
+  ill-typed major premise does not select it. A recursor whose application is a proof or a type
+  is erased to □ by `visitExpr` before.
   The recursor stays a constant, a λ□ axiom (`visitMutual`), in the cases of `recStaysConstant`.
   -/
   def visitRec : Nat → RecursorVal → Expr → EraseT m LBTerm
@@ -1025,7 +1027,11 @@ mutual
     let arity := first + r.numMinors + r.numIndices + 1
     withAppEtaToMinArity fuel e arity fun _ args => do
       let maj ← getOrFail args[arity - 1]? "visitRec: no major premise"
-      let direct := !(← Backend.typeLevel (m := m) (← read).lctx (← read).locals maj).isNeverZero
+      let sortMayBeProp := match (ivs.find? (·.name == T)).map (piBinders ·.type |>.2) with
+        | some (.sort u) => !u.isNeverZero
+        | _ => true
+      let direct := sortMayBeProp &&
+        !(← Backend.typeLevel (m := m) (← read).lctx (← read).locals maj).isNeverZero
       let ms ← (args.extract first (first + r.numMinors)).toList.mapM (visitExpr fuel)
       let fix := recFix r.numMinors r.numParams direct members.toList j
       let applied ← visitAppArgs fuel fix (args.extract (first + r.numMinors) arity)
