@@ -31,6 +31,7 @@ import EraseProof.Oracle.Det
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
+import EraseProof.Core.Steps
 /-!
 # Verification of the eraser
 
@@ -90,5 +91,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.RegisterInd`: the registration of an inductive block keeps the invariant.
 * `EraseProof.Core.Glue`: a returning run of `#erase`'s entry point on an input inside the
   fragment is a run of the pure path.
+* `EraseProof.Core.Steps`: the statement of the traversal's correctness at one fuel, over
+  markings under renamed locals, and its steps for `□`, free variables, the rejected terms,
+  metadata, λ and `let`.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/
