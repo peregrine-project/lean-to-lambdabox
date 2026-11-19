@@ -161,7 +161,7 @@ validateIndF`: one parameter count, a constructor's `cidx` its position in its t
 the fields the traversal reads and con-leche does not: each type's `all` and `numIndices`; the
 head of each constructor's result type is the type that lists it (con-leche groups the constructors
 by that head, `CL ConLeche/Kernel/Inductives/BlockShape.lean:324 blockGroups`, and ignores the
-record's `induct`, `:237`); and, for a block without nested occurrences, `isRec` is whether a
+record's `induct`, `:237`); and `isRec` is whether a
 constructor has a `Π`-domain mentioning a member, and the recursors are exactly the `T.rec` of its
 members, each eliminating the type it is named after (con-leche assigns a recursor to a member by
 its major premise and checks only the set of names,
@@ -170,7 +170,8 @@ recursors up by name). `tys` are the block's types, `cvs` their constructors, `r
 of `P` with the block's `all`. Every recursor also has the block's parameter count, and a recursor of
 a block of one type without indices has one motive binding the major premise only (`recMotivesOK`;
 con-leche compares a recursor's type with the generated one up to definitional equality, so the
-syntactic shape is a check of its own, as `RulesCanonical` is). Reference: none (DV-3). -/
+syntactic shape is a check of its own, as `RulesCanonical` is). No member has nested occurrences (`numNested = 0`: nested inductives are outside the fragment,
+so a recursor's major premise names a member of its block). Reference: none (DV-3, DV-38). -/
 def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
     (cvs : List (List Lean.ConstructorVal)) (rs : List Lean.RecursorVal) : Bool :=
   rs.all (fun r => r.numParams == H.numParams &&
@@ -183,12 +184,12 @@ def blockShapeOK (H : Lean.InductiveVal) (tys : List Lean.InductiveVal)
       c.induct == t.name && c.cidx == j && c.numParams == H.numParams &&
         piLen c.type == H.numParams + c.numFields &&
         appHeadConst (piResult (H.numParams + c.numFields) c.type) == some t.name) &&
-    (tys.any (·.numNested != 0) ||
-      (tys.all (·.isRec == (cvs.flatten.any fun c => hasDomainMentioning H.all c.type)) &&
-        rs.length == tys.length && tys.all fun t => rs.any fun r =>
-          r.name == mkRecName t.name && r.numParams == H.numParams &&
-            r.numMotives == tys.length && r.numMinors == (cvs.map List.length).sum &&
-            r.numIndices == t.numIndices && r.getMajorInduct == t.name))
+    tys.all (·.numNested == 0) &&
+    tys.all (·.isRec == (cvs.flatten.any fun c => hasDomainMentioning H.all c.type)) &&
+      rs.length == tys.length && tys.all fun t => rs.any fun r =>
+        r.name == mkRecName t.name && r.numParams == H.numParams &&
+          r.numMotives == tys.length && r.numMinors == (cvs.map List.length).sum &&
+          r.numIndices == t.numIndices && r.getMajorInduct == t.name
 
 /-- The block whose first member is `H`, as one `indDecl` (`CL ConLeche/Frontend/ExportC.lean:377
 indBlockOfF`), if its records pass `blockShapeOK`: the formers in `all` order with `IndCaps` left
@@ -252,6 +253,11 @@ def NoMarkKeys : Lean.Expr → Bool
   | .letE _ t v b _ => NoMarkKeys t && NoMarkKeys v && NoMarkKeys b
   | .proj _ _ e => NoMarkKeys e
   | _ => true
+
+/-- No type and no value of the declarations has an `mdata` with the marks' key (the condition
+`DeclsOf?` puts on the program). Reference: none (DV-32). -/
+def NoMarkKeysDecls (ds : List ConstantInfo) : Bool :=
+  ds.all fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys
 
 /-- The expression mentions a free variable (`Expr.hasFVar`, structurally, so that the kernel
 computes it). -/
