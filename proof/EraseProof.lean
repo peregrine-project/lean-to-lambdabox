@@ -31,6 +31,7 @@ import EraseProof.Test.DeclOf
 import EraseProof.Test.RecIH
 import EraseProof.Oracle.Rename
 import EraseProof.Oracle.Det
+import EraseProof.Oracle.Atom
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
@@ -95,6 +96,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
   its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Oracle.Det`: the marking is a function of its input (`markOf_det`).
+* `EraseProof.Oracle.Atom`: the oracle never answers `false` on an atom spine (`Pure.isErasable_atom`).
 * `EraseProof.Core.State`: the traversal's state invariant and the registration of constants.
 * `EraseProof.Core.RegisterInd`: the registration of an inductive block keeps the invariant.
 * `EraseProof.Core.Glue`: a returning run of `#erase`'s entry point on an input inside the

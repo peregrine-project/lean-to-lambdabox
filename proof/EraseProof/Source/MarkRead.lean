@@ -438,20 +438,20 @@ theorem iotaRhs?_spec {decls : List ConstantInfo} {r : Name} {us : List Level} {
 theorem iotaApp?_spec {decls : List ConstantInfo} {e : Expr} {r : Name} {us : List Level}
     {rv : RecursorVal} {minors : List RecMinor} {args : List Expr}
     (h : Pure.iotaApp? decls e = some (r, us, rv, minors, args)) :
-    spine e = (.const r us, args) := by
+    spine e = (.const r us, args) ∧ findConst decls r = some (.recInfo rv) := by
   unfold Pure.iotaApp? at h
   split at h
   · rename_i r' us' args' hsp
     split at h
-    · rename_i rv' _
+    · rename_i rv' hr
       simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at h
       obtain ⟨_, -, h⟩ := h
       by_cases g : (args'.length == rv'.numParams + rv'.numMotives + rv'.numMinors + 1) = true
       · simp only [g, guard, ite_true, pure] at h
         obtain ⟨_, -, h⟩ := h
         simp only [Option.some.injEq, Prod.mk.injEq] at h
-        obtain ⟨rfl, rfl, -, -, rfl⟩ := h
-        exact hsp
+        obtain ⟨rfl, rfl, rfl, -, rfl⟩ := h
+        exact ⟨hsp, hr⟩
       · simp [g, guard, failure] at h
     · cases h
   · cases h
@@ -464,7 +464,7 @@ theorem whnf_app_cases {cx : Pure.Ctx} {f : Nat} {ls : List Local} {g a w : Expr
       ((∃ n t b bi, g' = .lam n t b bi ∧ Pure.whnf cx f ls (b.instantiate1' a) = .ok w) ∨
         w = .app g' a ∨
         ∃ r us args rv minors wa e, spine (.app g' a) = (.const r us, args) ∧
-          Pure.whnf cx f ls a = .ok wa ∧ Pure.iotaRhs? cx.decls r us rv minors args wa = some e ∧
+          findConst cx.decls r = some (.recInfo rv) ∧ Pure.whnf cx f ls a = .ok wa ∧ Pure.iotaRhs? cx.decls r us rv minors args wa = some e ∧
           Pure.whnf cx f ls e = .ok w) := by
   simp only [Pure.whnf] at h
   obtain ⟨g', h1, h2⟩ := ok_of_bind h
@@ -478,7 +478,8 @@ theorem whnf_app_cases {cx : Pure.Ctx} {f : Nat} {ls : List Local} {g a w : Expr
     obtain ⟨wa, h3, h4⟩ := ok_of_bind h2
     split at h4
     · rename_i e he
-      exact .inr (.inr ⟨r, us, args, rv, minors, wa, e, iotaApp?_spec hia, h3, he, h4⟩)
+      obtain ⟨hsp, hr⟩ := iotaApp?_spec hia
+      exact .inr (.inr ⟨r, us, args, rv, minors, wa, e, hsp, hr, h3, he, h4⟩)
     · exact .inr (.inl (refl h4))
   · exact .inr (.inl (refl h2))
 
@@ -522,7 +523,7 @@ theorem whnf_clean : ∀ (f : Nat) {e w : Expr}, NoMarkKeys e = true →
     have hg' := whnf_clean f he.1 h1
     have hga : NoMarkKeys (.app g' a) = true := by simp [NoMarkKeys, hg', he.2]
     rcases h2 with ⟨n, t, b, bi, rfl, h2⟩ | rfl |
-      ⟨r, us, args, rv, minors, wa, e, hsp, hwa, he', hw⟩
+      ⟨r, us, args, rv, minors, wa, e, hsp, -, hwa, he', hw⟩
     · simp only [NoMarkKeys, Bool.and_eq_true] at hg'
       exact whnf_clean f (clean_inst he.2 hg'.2) h2
     · exact hga
