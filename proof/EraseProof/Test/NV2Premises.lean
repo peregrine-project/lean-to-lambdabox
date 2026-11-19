@@ -2,7 +2,6 @@ import EraseProof.Statements
 import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV2Data
 import EraseProof.Test.NV1Run
-import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-2: the hypotheses of the final theorem
@@ -728,7 +727,7 @@ theorem hmark : MarkOf D cfg [] e eM := by
 
 The marks of `eM`: `B` in the first alternative (no binder), `B` under the source λ `k`, and the
 η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The closure's one value is
-`B.casesOn`'s, whose marking has no mark (`mark_casesOnVal`). -/
+`B.casesOn`'s, a recognized `casesOn` (`casesInfo_B`), whose value the traversal does not erase. -/
 
 /-- the context of the η-variable `α`: `val : α`, `α : Type`, innermost first -/
 def Γη : List CtxBinder := [(.bvar 0, none), (.sort l1, none)]
@@ -756,15 +755,12 @@ theorem marks_eM : MarksCert envNV2 [] eM :=
   ⟨⟨⟨⟨trivial, ⟨trivial, trivial⟩⟩, trivial⟩, ⟨⟨trivial, cert_B0⟩, trivial⟩⟩,
     ⟨⟨⟨trivial, cert_Bk⟩, trivial⟩, ⟨⟨trivial, cert_α⟩, trivial⟩⟩⟩
 
-/-- con-leche types `B.casesOn`'s value as a whole, at `checkFuel`. -/
-theorem typedAt_casesOn : CLTypedAt envNV2 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
-
 theorem hcert : ProgCert envNV2 D cfg eM := by
   refine ⟨typedAt_eM, marks_eM, ?_⟩
-  intro ci hci v hv
+  intro ci hci he v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
-  exact ⟨_, mark_casesOnVal (.inr rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
+  exact absurd he.2 (Option.isSome_iff_ne_none.1 (by krfl))
 
 /-! ## `hev`: an explicit derivation of `eM ⇓ Box.mk □□B B.f`, its certificates by the kernel at
 `envNV2` (none needs ι: the motive is constant) -/

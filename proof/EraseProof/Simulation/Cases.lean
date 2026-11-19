@@ -250,7 +250,7 @@ theorem erases_correct_delta (hinj : KernameInj σ.decls) {c : Name} {us : List 
     cases hinj c c' (by rw [hfd]; rfl) (by rw [hfd']; rfl) hk
     rw [hfd] at hfd'; cases hfd'
     simp only [ErasesDecl, ConstantInfo.value?] at hdecl
-    rcases hdecl with ⟨hax', -⟩ | ⟨-, -, b', hcb, herb⟩
+    rcases hdecl with ⟨hax', -⟩ | ⟨-, -, -, b', hcb, herb⟩
     · rw [hax] at hax'; cases hax'
     · obtain ⟨res, hres, hevres⟩ := ih (Erases.instLevels (herb bM hm) []) (hbody b' hcb)
       exact ⟨res, hres, .delta hl hcb hevres⟩
