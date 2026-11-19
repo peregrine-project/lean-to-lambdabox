@@ -4,9 +4,9 @@
 \begin{itemize}
 \item \lead{Goal} Discharge every hypothesis of \code{erase\_correct\_statement} on three concrete programs, so that the statement is not vacuous.
 \item \lead{Main results} NV-0 (a polymorphic identity), NV-1 (\code{B.neg} on a two-constructor type), NV-2 (a \code{casesOn} with $\eta$-expanded constructors and a second type). Section~\ref{sec:tests-table} tabulates what discharges each hypothesis.
-\item \lead{Status} \stProved{} every hypothesis on all three programs; \hl{the conclusion is not instantiated}, since no theorem is proved.
+\item \lead{Status} \stProved{} every hypothesis on all three programs, and the shape check \code{declOf?} on blocks outside their own \code{all}, unsafe and nested; \hl{the conclusion is not instantiated}, since \code{erase\_correct} is not proved.
 \item \lead{Nodes} \bpnodes{chap:tests}
-\item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV0Data, NV0Premises, NV1Data, NV1Run, NV1Premises, NV2Data, NV2Premises, Run}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Test/}{NV0Data, NV0Premises, NV1Data, NV1Run, NV1Premises, NV2Data, NV2Premises, Run, DeclOf}.
 \end{itemize}
 
 \section{The programs and their hypotheses}\label{sec:tests-table}
@@ -111,6 +111,23 @@ Hypothesis & Discharged by \\
 \begin{proof}
   \leanok
   \lead{Idea} Unfold \code{runPure} and \code{withApp}.
+\end{proof}
+
+\begin{lemma}[The shape check on rejected blocks]
+  \label{lem:EraseProof-Test-DeclOf}
+  \lean{EraseProof.Test.DeclOf.stray_rejected, EraseProof.Test.DeclOf.inBlock_accepted, EraseProof.Test.DeclOf.nv1_head_accepted, EraseProof.Test.DeclOf.unsafe_rejected, EraseProof.Test.DeclOf.nested_rejected}
+  \leanok
+  \uses{def:EraseProof-toCL, def:EraseProof-Test-NV1-P}
+  \srcloc{proof/EraseProof/Test/DeclOf.lean}{15}
+  \lead{In short} \code{declOf?} rejects an inductive outside its head's \code{all}, an unsafe inductive and a nested one, and translates NV-1's block.
+  \begin{itemize}
+  \item \code{stray\_rejected}, \code{unsafe\_rejected}, \code{nested\_rejected}: the program has no con-leche input;
+  \item \code{inBlock\_accepted}, \code{nv1\_head\_accepted}: a member of the head's \code{all} and NV-1's type are translated.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Evaluation of \code{declOf?} in the kernel.
 \end{proof}
 
 \section*{Caveats}

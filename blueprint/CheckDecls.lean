@@ -131,18 +131,36 @@ instance : MonadEnv (StateM Environment) where
   modifyEnv := modify
 
 /-- The axioms of `n` as `#print axioms` computes them (`Lean.collectAxioms`), to cross-check
-`closure`; for an inductive, the union with `#print axioms` of its constructors. For an imported
+`closure`; for an inductive, the union with `#print axioms` of the constructors of every inductive it
+reaches. For an imported
 declaration `#print axioms` reads the axioms its module stored when it was compiled; the module
 computes them with one cache for all its declarations, and a declaration visited inside the
 cycle between an inductive and its constructors is cached before the cycle closes. So the stored
 axioms of an inductive can miss those that only its constructors reach
-(`EraseProof.AtomSpine`: none, while `EraseProof.AtomSpine.const` gives `propext`). -/
+(`EraseProof.AtomSpine`: none, while `EraseProof.AtomSpine.const` gives `propext`), and those of
+an inductive reached through another one (`EraseProof.SrcValue`). -/
 def leanAxioms (env : Environment) (n : Name) : Array Name :=
   let get (c : Name) : Array Name := (collectAxioms c : StateM Environment (Array Name)).run' env
   let own := get n
   let all := match env.find? n with
-    | some (.inductInfo v) =>
-      v.ctors.foldl (fun (acc : Array Name) c => acc ++ (get c).filter (fun a => !acc.contains a)) own
+    | some (.inductInfo _) => Id.run do
+      -- the constructors of every inductive the declaration reaches, since the stored axioms of
+      -- an inductive reached through another one miss those only its constructors reach
+      let mut acc := own
+      let mut seen : Std.HashSet Name := {}
+      let mut todo : Array Name := #[n]
+      while h : todo.size > 0 do
+        let c := todo.back
+        todo := todo.pop
+        if seen.contains c then continue
+        seen := seen.insert c
+        let some ci := env.find? c | continue
+        if let .inductInfo v := ci then
+          for k in v.ctors do
+            acc := acc ++ (get k).filter (fun a => !acc.contains a)
+        for d in directDeps ci do
+          unless seen.contains d do todo := todo.push d
+      return acc
     | _ => own
   all.qsort (·.toString < ·.toString)
 

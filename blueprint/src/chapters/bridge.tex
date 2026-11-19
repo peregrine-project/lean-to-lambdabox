@@ -6,11 +6,11 @@
   con-leche's acceptance of the program the facts the proofs use.
 \item \lead{Main results} The reading commutes with instantiation of bound variables and of universe
   parameters (Section~\ref{sec:bridge-reading}); acceptance gives well-formedness, a model in every
-  set theory and con-leche's claims (Section~\ref{sec:bridge-accept}).
+  set theory and con-leche's claims (Section~\ref{sec:bridge-accept}), the stored records of the program (\code{CLStore}) and the names it binds (\code{CLNames}, Section~\ref{sec:bridge-store}).
 \item \lead{Status} \stProved{} every node of this chapter, from the axioms of Lean alone.
   \stOpen{} \code{CLOk.wellDenoted} (planned).
 \item \lead{Nodes} \bpnodes{chap:bridge}
-\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Bridge/CLRead, Bridge/CLAccept}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Bridge/CLRead, Bridge/CLAccept, Bridge/CLStore, Bridge/CLNames}.
 \item \lead{Reference} \leanfile{ConLeche/Frontend/ExportC.lean} (the reading), \leanfile{ConLeche/MainTheorem.lean}.
 \end{itemize}
 
@@ -21,7 +21,7 @@ program's records as con-leche's fold takes them.
 
 \begin{definition}[Reading of Lean declarations]
   \label{def:EraseProof-toCL}
-  \lean{EraseProof.toCL?, EraseProof.Name.toCL, EraseProof.Level.toCL, EraseProof.cvOf?, EraseProof.hintOf, EraseProof.quotKindOf, EraseProof.ruleOf?, EraseProof.recOf?, EraseProof.piLen, EraseProof.mentionsAny, EraseProof.hasDomainMentioning, EraseProof.piResult, EraseProof.appHeadConst, EraseProof.blockShapeOK, EraseProof.blockOf?, EraseProof.declOf?}
+  \lean{EraseProof.toCL?, EraseProof.Name.toCL, EraseProof.Level.toCL, EraseProof.cvOf?, EraseProof.hintOf, EraseProof.quotKindOf, EraseProof.ruleOf?, EraseProof.recOf?, EraseProof.piLen, EraseProof.mentionsAny, EraseProof.hasDomainMentioning, EraseProof.piResult, EraseProof.appHeadConst, EraseProof.blockShapeOK, EraseProof.blockOf?, EraseProof.declOf?, EraseProof.recMotivesOK}
   \leanok
   \srcloc{proof/EraseProof/Spec.lean}{61}
   \lead{In short} \hl{\code{toCL?} reads a Lean \code{Expr} as con-leche's \code{Expr}}, and the helpers read a declaration's records.
@@ -30,22 +30,23 @@ program's records as con-leche's fold takes them.
   \item \code{Name.toCL}, \code{Level.toCL}: con-leche's own conversions (a level metavariable has none);
   \item \code{cvOf?}, \code{ruleOf?}, \code{recOf?}, \code{hintOf}, \code{quotKindOf}: the records of a constant, a rule, a recursor;
   \item \code{blockOf?}, \code{declOf?}: an inductive block, one Lean constant (unsafe and partial constants are left out);
-  \item \code{piLen}, \code{piResult}, \code{mentionsAny}, \code{hasDomainMentioning}, \code{blockShapeOK}: the checks of con-leche's frontend.
+  \item \code{piLen}, \code{piResult}, \code{mentionsAny}, \code{hasDomainMentioning}, \code{blockShapeOK}, \code{recMotivesOK}: the checks of con-leche's frontend and of the recursors' motives.
   \end{itemize}
   \lead{Reference} \leanfile{ConLeche/Frontend/ExportC.lean}, DV-1, DV-3.
 \end{definition}
 
 \begin{definition}[The program as con-leche takes it]
   \label{def:EraseProof-DeclsOf}
-  \lean{EraseProof.DeclsOf?, EraseProof.NoMarkKeys, EraseProof.HasFVar, EraseProof.ClosedDecls, EraseProof.ConLecheAccepts}
+  \lean{EraseProof.DeclsOf?, EraseProof.NoMarkKeys, EraseProof.HasFVar, EraseProof.ClosedDecls, EraseProof.NoMarkKeysDecls, EraseProof.RulesCanonical, EraseProof.RuleShape, EraseProof.IHShape, EraseProof.clSpine, EraseProof.clLams, EraseProof.clPis, EraseProof.clBvar?, EraseProof.clSpine.go, EraseProof.ConLecheAccepts}
   \leanok
   \uses{def:EraseProof-toCL}
-  \srcloc{proof/EraseProof/Spec.lean}{256}
+  \srcloc{proof/EraseProof/Spec.lean}{277}
   \lead{In short} \code{DeclsOf?} is con-leche's input for the program; \code{ConLecheAccepts} says its pure fold accepts it.
   \begin{itemize}
   \item \code{DeclsOf?}: the records oldest first; \code{none} on a repeated name, a mark key, or a constant it cannot read;
-  \item \code{ConLecheAccepts P env}: \code{checkDeclsPure} at the standard fuel, without \code{Nat.div} and \code{Nat.mod} pins, returns \code{env};
-  \item \code{NoMarkKeys}, \code{HasFVar}, \code{ClosedDecls}: no mark key in an expression, a free variable, no free variable in a closure (statements \code{hclean} and \code{markOf\_det}).
+  \item \code{ConLecheAccepts P env}: \code{checkDeclsPure} at the standard fuel, without \code{Nat.div} and \code{Nat.mod} pins, returns \code{env}, and every stored recursor has the generated rule shape (\code{RulesCanonical}, \code{RuleShape}, \code{IHShape});
+  \item \code{NoMarkKeys}, \code{NoMarkKeysDecls}, \code{HasFVar}, \code{ClosedDecls}: no mark key in an expression or in a closure's declarations, a free variable, no free variable in a closure (statements \code{hclean} and \code{markOf\_det});
+  \item \code{clSpine}, \code{clLams}, \code{clPis}, \code{clBvar?}: spines, leading $\lambda$s and $\Pi$s and bound variables of con-leche's terms.
   \end{itemize}
   \lead{Reference} \leanfile{ConLeche/MainTheorem.lean}, DV-3, DV-38, DV-39.
 \end{definition}
@@ -113,7 +114,7 @@ for a typing judgement.
   \lean{EraseProof.CLCert, EraseProof.CLTyped, EraseProof.CLOk, EraseProof.CLTypedAt, EraseProof.CLFormer, EraseProof.CLProof, EraseProof.CLVerdict, EraseProof.CLErasable, EraseProof.CtxBinder, EraseProof.lamTele, EraseProof.openLams, EraseProof.MarksCert, EraseProof.ProgCert}
   \leanok
   \uses{def:EraseProof-DeclsOf}
-  \srcloc{proof/EraseProof/Spec.lean}{357}
+  \srcloc{proof/EraseProof/Spec.lean}{448}
   \lead{In short} \hl{con-leche's own inference stands in for typing}: a redex, a mark or a program is certified when the checker infers a type for it.
   \begin{itemize}
   \item \code{CLTyped}, \code{CLTypedAt}: inference accepts the closed term, at some fuel and at \code{checkFuel};
@@ -130,7 +131,7 @@ for a typing judgement.
   \lean{EraseProof.Sound, EraseProof.CLStrictType, EraseProof.FirstOrderValue, EraseProof.peanoLB, EraseProof.foErase, EraseProof.FrozenLeaf}
   \leanok
   \uses{def:EraseProof-CLCert}
-  \srcloc{proof/EraseProof/Spec.lean}{1387}
+  \srcloc{proof/EraseProof/Spec.lean}{1528}
   \lead{In short} \code{Sound} says the source value means what the input means in every con-leche model of the environment.
   \begin{itemize}
   \item \code{Sound}: \code{unmark v} has a con-leche form that denotes what the input denotes, wherever that is not the proof point;
@@ -151,6 +152,50 @@ for a typing judgement.
 \begin{proof}
   \uses{lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-CLTyped-closed}
   \lead{Idea} The claims of \code{ConLecheAccepts.accepted} for inference on the redex.
+\end{proof}
+
+\section{What the fold stores}\label{sec:bridge-store}
+
+Each step of con-leche's pure fold installs the constants of its declaration under unbound names; the environment finds each of them, as the program's record read through \code{DeclsOf?}, and every name it binds is the program's.
+
+\begin{lemma}[Stored records of the program]
+  \label{lem:EraseProof-ConLecheAccepts-stored}
+  \lean{EraseProof.eq_of_nodup_map, EraseProof.find?_pushDelta_old, EraseProof.find?_pushDelta_new, EraseProof.stdAxiomOk_sorryAx, EraseProof.checkDecl_pushes, EraseProof.foldlM_checkDecl_find?, EraseProof.checkDeclsPure_find?, EraseProof.mapM_eq_some, EraseProof.DeclsOf?.mem, EraseProof.cvOf?_eq_some, EraseProof.ConLecheAccepts.stored, EraseProof.find?_of_single, EraseProof.findDecl_mem, EraseProof.ConLecheAccepts.find?_defn, EraseProof.ConLecheAccepts.find?_thm, EraseProof.ConLecheAccepts.find?_opaque, EraseProof.quotAt_sound, EraseProof.ConLecheAccepts.find?_axiom, EraseProof.find?_ne_none, EraseProof.genRecCheck_recs_nodup, EraseProof.blockRun_nodup, EraseProof.blockSplitRecs_mem, EraseProof.blockSplitCtors_mem, EraseProof.blockSplit_mem, EraseProof.readBlock_rec_mem, EraseProof.readBlock_single_mem, EraseProof.recOf?_eq_some, EraseProof.blockOf?_records, EraseProof.ConLecheAccepts.block, EraseProof.ConLecheAccepts.find?_rec, EraseProof.ConLecheAccepts.find?_single}
+  \leanok
+  \uses{def:EraseProof-DeclsOf, lem:EraseProof-ConLecheAccepts-accepted}
+  \srcloc{proof/EraseProof/Bridge/CLStore.lean}{27}
+  \lead{In short} \hl{The environment the fold returns holds each record of the program, translated}: definitions, theorems, opaques, axioms, and a block's recursors, former and constructors.
+  \begin{itemize}
+  \item \code{checkDeclsPure\_find?}, \code{checkDecl\_pushes}, \code{find?\_pushDelta\_*}: each step pushes its constants, and later steps keep them;
+  \item \code{ConLecheAccepts.find?\_defn}, \code{find?\_thm}, \code{find?\_opaque}, \code{find?\_axiom}: the record of a constant;
+  \item \code{ConLecheAccepts.block}, \code{find?\_rec}, \code{find?\_single}: a block's recursors and, for a one-member block, its former and constructors;
+  \item \code{blockSplit*\_mem}, \code{readBlock\_*\_mem}, \code{genRecCheck\_recs\_nodup}, \code{quotAt\_sound}: the install-computed records.
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/Kernel/Install.lean} (\code{declConstants}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the fold; an installed name was unbound before its step.
+\end{proof}
+
+\begin{lemma}[Names of the program]
+  \label{lem:EraseProof-ConLecheAccepts-namesClosed}
+  \lean{EraseProof.clResolves, EraseProof.clResolves_of_instantiate1, EraseProof.find?_of_findProj?, EraseProof.infer_clResolves, EraseProof.clResolves_of_constsResolve, EraseProof.KnownIn, EraseProof.constsIn_of_clResolves, EraseProof.mem_of_mapM, EraseProof.mem_zip_of_mapM, EraseProof.DeclsOf?.mem_rev, EraseProof.DeclsOf?.nodup, EraseProof.findDecl_self, EraseProof.foldlM_checkDecl_run, EraseProof.atLps_toConstantVal, EraseProof.quotAt_cv, EraseProof.checkDecl_names, EraseProof.blockOf?_spec, EraseProof.blockRun_pins, EraseProof.blockSplit_former, EraseProof.readBlock_former_mem, EraseProof.readBlock_ctor_mem, EraseProof.ConLecheAccepts.ind_safe, EraseProof.ConLecheAccepts.blockPins, EraseProof.ConstsIn_mono, EraseProof.declOf?_names, EraseProof.ConLecheAccepts.known, EraseProof.ConLecheAccepts.knownIn, EraseProof.CLTyped.knownIn, EraseProof.front_defn, EraseProof.front_thm, EraseProof.front_opaque, EraseProof.front_axiom, EraseProof.ConLecheAccepts.head, EraseProof.NamesClosed, EraseProof.ConLecheAccepts.namesClosed}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-CLTyped-closed}
+  \srcloc{proof/EraseProof/Bridge/CLNames.lean}{25}
+  \lead{In short} \hl{A name con-leche binds or reads is a name of the program}, and a declaration the fragment test scans reads only names of the program (\code{NamesClosed}).
+  \begin{itemize}
+  \item \code{clResolves}, \code{infer\_clResolves}: a term inferred at full grade has its constants, literal supports and projection structures stored;
+  \item \code{ConLecheAccepts.known}, \code{knownIn}, \code{CLTyped.knownIn}, \code{KnownIn}: stored constants and the constants of a typed term are the program's;
+  \item \code{NamesClosed}, \code{namesClosed}, \code{front\_*}: the names a declaration reads, its block members, constructors and recursors;
+  \item \code{DeclsOf?.mem\_rev}, \code{DeclsOf?.nodup}, \code{ConLecheAccepts.blockPins}, \code{ind\_safe}: the program's records are distinct, and a block's pins.
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/Kernel/CheckerBase.lean} (\code{checkConstantVal}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Each record was accepted at an environment the final one extends; the checks of the frontend resolve every name.
 \end{proof}
 
 \section*{Caveats}

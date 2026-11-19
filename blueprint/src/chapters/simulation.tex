@@ -1,0 +1,163 @@
+\chapter{The simulation}\label{chap:simulation}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Prove the milestone \code{erases\_correct}: a marked source term that evaluates erases to a $\lambda_\Box$ term that evaluates to an erasure of the value.
+\item \lead{Main results} \hl{\code{erases\_correct} is proved} (Theorem~\ref{thm:EraseProof-erases_correct}): induction on \code{SrcEval}, with one lemma per rule, grouped below.
+\item \lead{Status} \stProved{} every node and the theorem. \code{ArityTypes} and \code{LenvClosed} are hypotheses the proof does not read.
+\item \lead{Nodes} \bpnodes{chap:simulation}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Simulation/}{Cases, Ind, Quot, RecFix, Rec, Main}.
+\item \lead{Reference} \code{erases\_correct} (\code{MR E/ErasureCorrectness.v:51}); DV-30, DV-32.
+\end{itemize}
+
+\section{The induction hypothesis}\label{sec:simulation-ih}
+
+\begin{definition}[Simulation of one evaluation]
+  \label{def:EraseProof-ErasesSim}
+  \lean{EraseProof.ErasesSim}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-LBEval}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{26}
+  \lead{In short} \hl{\code{ErasesSim $\sigma$ lenv e v}}: every erasure of \code{e} with erased dependencies evaluates in $\lambda_\Box$ to an erasure of \code{v}.
+  \begin{itemize}
+  \item the induction hypothesis of each case, with no typing premise and no certificate (\code{noCert}).
+  \end{itemize}
+  \lead{Reference} the induction hypotheses of \code{erases\_correct} (\code{MR E/ErasureCorrectness.v:51}).
+\end{definition}
+
+\begin{lemma}[Inversions for the cases]
+  \label{lem:EraseProof-SimCases-lam-inv}
+  \lean{EraseProof.SimCases.spine_fn, EraseProof.SimCases.lam_inv, EraseProof.SimCases.etaLam_inv, EraseProof.SimCases.letE_inv, EraseProof.SimCases.box_inv, EraseProof.SimCases.isAtom_own, EraseProof.SimCases.isAtom_casesOn, EraseProof.SimCases.head_not_atom, EraseProof.AtomSpine.not_erases, EraseProof.SimCases.unfold?_spec, EraseProof.SimCases.const_inv, EraseProof.CLOk.lbv, EraseProof.SimCases.beta_core}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, lem:EraseProof-Erases-app-inv, lem:EraseProof-SrcValue}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{41}
+  \lead{In short} What an erasure of a $\lambda$, a \code{let}, a frozen term, a constant or an atom looks like, and the shared $\beta$ step.
+  \begin{itemize}
+  \item \code{lam\_inv}, \code{etaLam\_inv}, \code{letE\_inv}, \code{box\_inv}, \code{const\_inv}: inversion of \code{Erases} at each former;
+  \item \code{isAtom\_*}, \code{head\_not\_atom}, \code{AtomSpine.not\_erases}: an atom constant or spine has no erasure;
+  \item \code{unfold?\_spec}, \code{CLOk.lbv}: the unfolded body, and the closedness a certificate gives;
+  \item \code{beta\_core}: the $\beta$ step common to \code{beta} and \code{etaBeta}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Inversion of the rule that fits the head.
+\end{proof}
+
+\begin{lemma}[Evaluation of lambda-box: congruence and constructors]
+  \label{lem:EraseProof-SimCases-lbeval-app-congr}
+  \lean{EraseProof.snocInduction, EraseProof.TargetSubst.csubst_comm, EraseProof.TargetSubst.csubstL_comm, EraseProof.TargetSubst.csubstB_comm, EraseProof.TargetSubst.csubstD_comm, EraseProof.TargetSubst.csubst_substl, EraseProof.substl_cons_closed, EraseProof.RecEval.lbArgs, EraseProof.RecEval.lbArgs_mkApps, EraseProof.RecEval.mkApps_inj, EraseProof.RecEval.box_only, EraseProof.RecEval.app_fixed, EraseProof.RecEval.LBEval.fixed, EraseProof.SimCases.lbeval_app_congr, EraseProof.SimCases.lbeval_mkApps_congr, EraseProof.SimCases.forall_snoc, EraseProof.SimCases.lbeval_construct, EraseProof.SimCases.choose_list, EraseProof.SimCases.mkApps_construct_ne_box, EraseProof.SimCases.mkApps_construct_app, EraseProof.SimCases.mkApps_construct_inj, EraseProof.SimCases.construct_args, EraseProof.SimCases.lams, EraseProof.SimCases.csubst_lams, EraseProof.SimCases.ErasesDeps.lams, EraseProof.SimCases.lam_only, EraseProof.SimCases.eval_lams, EraseProof.SimCases.SrcEval.not_reduced, EraseProof.SimCases.reduced_not_erases, EraseProof.SimCases.ErasesAlt.erases_lams, EraseProof.SimCases.Erases.spine}
+  \leanok
+  \uses{def:EraseProof-LBEval, lem:EraseProof-LBEval-idem, lem:EraseProof-TargetLift}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{37}
+  \lead{In short} Facts about $\lambda_\Box$ evaluation of applications, constructors and $\lambda$s that the cases use.
+  \begin{itemize}
+  \item \code{lbeval\_app\_congr}, \code{lbeval\_mkApps\_congr}, \code{lbeval\_construct}, \code{mkApps\_construct\_*}, \code{construct\_args}: evaluation under an application and of constructor spines;
+  \item \code{eval\_lams}, \code{csubst\_lams}, \code{ErasesDeps.lams}, \code{lam\_only}: $\beta$ over several $\lambda$s;
+  \item \code{TargetSubst.*\_comm}, \code{substl\_cons\_closed}, \code{RecEval.*}: substitution commutes, and a value is only itself.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the evaluation, or on the list of arguments.
+\end{proof}
+
+\section{The cases}\label{sec:simulation-cases}
+
+Each case is a theorem whose premises are premises of the rule and the induction hypotheses \code{ErasesSim} of its evaluation premises.
+
+\begin{lemma}[Cases: beta, zeta, delta, atoms and frozen terms]
+  \label{lem:EraseProof-SimCases-erases-correct-beta}
+  \lean{EraseProof.SimCases.erases_correct_beta, EraseProof.SimCases.erases_correct_etaBeta, EraseProof.SimCases.erases_correct_zeta, EraseProof.SimCases.erases_correct_delta, EraseProof.SimCases.erases_correct_constAtom, EraseProof.SimCases.erases_correct_appCong, EraseProof.SimCases.erases_correct_atom, EraseProof.SimCases.erases_correct_etaLam, EraseProof.SimCases.erases_correct_frozen, EraseProof.SimCases.erases_correct_frozenApp}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, lem:EraseProof-SimCases-lam-inv, lem:EraseProof-Erases-inst}
+  \srcloc{proof/EraseProof/Simulation/Cases.lean}{194}
+  \lead{In short} The cases \code{beta}, \code{etaBeta}, \code{zeta}, \code{delta}, \code{constAtom}, \code{appCong}, \code{atom}, \code{etaLam}, \code{frozen} and \code{frozenApp}.
+  \begin{itemize}
+  \item \code{beta}, \code{etaBeta}, \code{zeta}: $\lambda_\Box$ $\beta$ and \code{let} on the erased argument, by \code{Erases.inst};
+  \item \code{delta}: the erased dependency of the constant, from \code{KernameInj};
+  \item \code{constAtom}, \code{appCong}: vacuous, an atom has no erasure;
+  \item \code{atom}, \code{etaLam}, \code{frozen}, \code{frozenApp}: values, and the erasure of a frozen term is $\Box$.
+  \end{itemize}
+  \lead{Reference} \code{erases\_correct}, cases \code{eval\_beta}, \code{eval\_zeta}, \code{eval\_delta}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Invert the erasure of the redex, use the induction hypotheses, and substitute the erased value.
+\end{proof}
+
+\begin{lemma}[Cases: constructors, \code{casesOn}, projections and literals]
+  \label{lem:EraseProof-SimCases-erases-correct-ctor}
+  \lean{EraseProof.SimCases.beta_inv, EraseProof.SimCases.proj_inv, EraseProof.SimCases.get_major, EraseProof.SimCases.get_alt, EraseProof.SimCases.cases_split, EraseProof.SimCases.iota_step, EraseProof.SimCases.erases_correct_ctor, EraseProof.SimCases.erases_correct_lit, EraseProof.SimCases.erases_correct_casesIota, EraseProof.SimCases.erases_correct_casesLitZero, EraseProof.SimCases.erases_correct_casesLitSucc, EraseProof.SimCases.erases_correct_casesFrozen, EraseProof.SimCases.erases_correct_proj, EraseProof.SimCases.erases_correct_projFrozen}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, def:EraseProof-CtorsListed, lem:EraseProof-SimCases-lbeval-app-congr, lem:EraseProof-ErasesDeps-construct-ind, lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-SimCases-erases-correct-beta}
+  \srcloc{proof/EraseProof/Simulation/Ind.lean}{436}
+  \lead{In short} The cases \code{ctor}, \code{lit}, \code{casesIota}, \code{casesLitZero}, \code{casesLitSucc}, \code{casesFrozen}, \code{proj} and \code{projFrozen}.
+  \begin{itemize}
+  \item \code{ctor}, \code{lit}: a constructor value meets its $\lambda_\Box$ constructor at its index, given \code{CtorsListed} and \code{NatShaped};
+  \item \code{casesIota}, \code{casesLit*}: the alternative applied to the fields is $\lambda_\Box$'s $\iota$-reduct (\code{iota\_step}, \code{cases\_split});
+  \item \code{casesFrozen}, \code{proj}, \code{projFrozen}: a reduced discriminant, a field of a constructor value, a frozen projection.
+  \end{itemize}
+  \lead{Reference} \code{erases\_correct}, case \code{eval\_iota}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Every alternative is a $\lambda$ under its field binders, so its erasure applied to erased fields evaluates as the $\iota$-reduct.
+\end{proof}
+
+\begin{lemma}[Cases: quotients]
+  \label{lem:EraseProof-SimCases-erases-correct-quotMk}
+  \lean{EraseProof.SimCases.quotMk_inv, EraseProof.SimCases.erases_correct_quotMk, EraseProof.SimCases.erases_correct_quotLift}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, lem:EraseProof-SimCases-erases-correct-beta}
+  \srcloc{proof/EraseProof/Simulation/Quot.lean}{25}
+  \lead{In short} The cases \code{quotMk} and \code{quotLift}: \code{Quot.mk} is a constructor and \code{Quot.lift f q} is $\beta$ on the erased function and class.
+  \end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \code{Erases.quot\_inv}, then $\lambda_\Box$ $\beta$.
+\end{proof}
+
+\begin{lemma}[A recursor's fixpoint, unfolded]
+  \label{lem:EraseProof-RecFix-recFix-eq}
+  \lean{EraseProof.RecFix.foldl_app_eq_mkApps, EraseProof.RecFix.altF, EraseProof.RecFix.innerS, EraseProof.RecFix.recFix_eq, EraseProof.RecFix.altNames, EraseProof.RecFix.recAltS, EraseProof.RecFix.altG, EraseProof.RecFix.SimpleAlt, EraseProof.RecFix.filter_keep, EraseProof.RecFix.idxOf?_range, EraseProof.RecFix.altF_simple, EraseProof.RecFix.innerS_congr, EraseProof.RecFix.length_altNames, EraseProof.RecFix.csubst_foldr_lambda, EraseProof.RecFix.csubst_foldl_app, EraseProof.RecFix.csubstB_eq, EraseProof.RecFix.csubst_recAltS, EraseProof.RecFix.csubst_innerS, EraseProof.RecFix.foldl_csubst_bvar, EraseProof.RecFix.substl_fix1, EraseProof.RecFix.foldl_csubst_innerS, EraseProof.RecFix.csubst_bvar_lt, EraseProof.RecFix.foldl_csubst_bvar_lt, EraseProof.RecFix.foldl_csubst_closed, EraseProof.RecFix.innerSD, EraseProof.RecFix.csubst0_innerS, EraseProof.RecFix.substl_recAltS}
+  \leanok
+  \uses{def:EraseProof-RecFixOf, lem:EraseProof-TargetLift}
+  \srcloc{proof/EraseProof/Simulation/RecFix.lean}{23}
+  \lead{In short} The $\lambda_\Box$ fixpoint of a recursor of a single inductive, with its alternatives, and its closed substitution.
+  \begin{itemize}
+  \item \code{altF}, \code{innerS}, \code{recAltS}, \code{altG}, \code{SimpleAlt}: the alternative and the recursive calls;
+  \item \code{recFix\_eq}, \code{substl\_fix1}, \code{csubst\_*}, \code{foldl\_csubst\_*}: the fixpoint and its substitution.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfold the definition of the alternatives; substitution commutes with each former.
+\end{proof}
+
+\begin{lemma}[Cases: recursor iota]
+  \label{lem:EraseProof-SimCases-erases-correct-recIota}
+  \lean{EraseProof.SimRec.lbLift_zero, EraseProof.SimRec.lbLiftL_zero, EraseProof.SimRec.lbLiftB_zero, EraseProof.SimRec.lbLiftD_zero, EraseProof.SimRec.csubst_lbLift_succ, EraseProof.SimRec.csubstL_lbLift_succ, EraseProof.SimRec.csubstB_lbLift_succ, EraseProof.SimRec.csubstD_lbLift_succ, EraseProof.SimRec.csubst_recLets_succ, EraseProof.SimRec.deps_recLets_body, EraseProof.SimRec.recLets_sim, EraseProof.SimRec.substl_lbLift, EraseProof.SimRec.substl_app, EraseProof.SimRec.deps_letChain, EraseProof.SimRec.eval_recLets_inv, EraseProof.SimRec.mkApps_append, EraseProof.SimRec.eval_app_arg, EraseProof.SimRec.eval_args_replace, EraseProof.SimRec.recCs, EraseProof.SimRec.recBody, EraseProof.SimRec.recFIX, EraseProof.SimRec.recCs_fst, EraseProof.SimRec.simple_fields, EraseProof.SimRec.substl_recFix, EraseProof.SimRec.closedn_getD, EraseProof.SimRec.eval_recFIX, EraseProof.SimRec.deps_recBody, EraseProof.SimRec.mapM_get, EraseProof.SimRec.guard_some, EraseProof.SimRec.recShape_spec, EraseProof.SimRec.recBlock?_single, EraseProof.SimRec.recFix_shape, EraseProof.SimRec.erases_natLit, EraseProof.SimRec.erases_natLitCtor, EraseProof.SimRec.lbv_natLitCtor, EraseProof.SimRec.rec_core, EraseProof.SimRec.spine_split, EraseProof.SimCases.erases_correct_recIota}
+  \leanok
+  \uses{def:EraseProof-ErasesSim, def:EraseProof-CtorsListed, def:EraseProof-RecFixOf, lem:EraseProof-RecFix-recFix-eq, lem:EraseProof-SimCases-erases-correct-ctor, lem:EraseProof-ErasesDeps-csubst, lem:EraseProof-Erases-inst}
+  \srcloc{proof/EraseProof/Simulation/Rec.lean}{36}
+  \lead{In short} \hl{A saturated recursor of a single inductive without indices evaluates through $\lambda_\Box$'s fixpoint}, for both erased forms (\code{recLet}, \code{recFix}).
+  \begin{itemize}
+  \item \code{rec\_core}: bind the minors, unfold the fixpoint on the major's value (a \code{Nat} literal is its constructor chain), select the alternative, apply the minor to the fields and the recursive calls;
+  \item \code{recLets\_sim}, \code{eval\_recLets\_inv}, \code{csubst\_recLets\_succ}: let-bound minors need not be closed;
+  \item \code{recShape\_spec}, \code{recFix\_shape}, \code{recBlock?\_single}: the shapes read from \code{RecsShaped};
+  \item \code{erases\_natLit*}, \code{lbv\_natLitCtor}: \code{Nat} literals, given \code{NatCtors}.
+  \end{itemize}
+  \lead{Reference} DV-30; \code{eval\_zeta}, \code{eval\_fix}, \code{eval\_beta}, \code{eval\_iota} (\code{MR E/EWcbvEval.v}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Structural recursion under \code{.kernel} goes through the recursor, so this rule covers it.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item The relation has no typing premise; the hypotheses \code{CtorsListed}, \code{NatShaped}, \code{NatCtors}, \code{RecsShaped} come from acceptance (Chapter~\ref{chap:statements}).
+\item A source evaluation uses a recursor only without indices (DV-30).
+\item The cases use the certificates of \code{SrcEval} only to read closedness.
+\end{itemize}

@@ -1,0 +1,163 @@
+\chapter{The meaning of evaluation}\label{chap:semantics}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Prove \code{srcEval\_sound}: a marked evaluation preserves meaning in every con-leche model of the accepted program.
+\item \lead{Main results} The invariant \code{SemSim} (Section~\ref{sec:semantics-inv}); the cases $\beta$, $\zeta$, $\delta$, constructors, application congruence, frozen application, $\iota$ on a constructor and on a \code{Nat} literal, projections (Sections~\ref{sec:semantics-cases}--\ref{sec:semantics-iota}); the passage to \code{Sound}.
+\item \lead{Status} \stProved{} every node. \stOpen{} \code{srcEval\_sound} (Chapter~\ref{chap:statements}): the rules \code{recIota}, \code{quotMk}, \code{quotLift} and \code{casesFrozen} have no step lemma in the library.
+\item \lead{Nodes} \bpnodes{chap:semantics}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Semantics/}{Cases, Iota, Decode}.
+\item \lead{Route} A step is a derivation of con-leche's rules tier (\code{Red}, \leanfile{ConLeche/Rules/Rel.lean}), built from syntax; its soundness \code{red\_sound} (\leanfile{ConLeche/Model/Rules/Sound.lean}), at the inputs of the model (\code{Rules.RulesInputs.ofSem}), gives the equation of denotations wherever the redex is not the proof point.
+\end{itemize}
+
+\section{The invariant}\label{sec:semantics-inv}
+
+A term is read in con-leche through its marks: \code{toCL?} is transparent to metadata, so the reading of \code{unmark t} drops the \code{erase} and \code{reduced} marks and contracts each \code{eta}-marked $\lambda$.
+
+\begin{definition}[Grading and the invariant]
+  \label{def:EraseProof-SemSim}
+  \lean{EraseProof.GradedU, EraseProof.SemSim, EraseProof.CLOk.gradedU}
+  \leanok
+  \uses{def:EraseProof-Sound, def:EraseProof-CLCert, def:EraseProof-MarkOf}
+  \srcloc{proof/EraseProof/Semantics/Cases.lean}{38}
+  \lead{In short} \hl{\code{SemSim env t v}: the value \code{v} of \code{t} reads and denotes as \code{t}} wherever \code{t} is graded and not the proof point.
+  \begin{itemize}
+  \item \code{GradedU}: the reading of \code{unmark t} is closed and well denoted at every valuation, in every model;
+  \item \code{SemSim}: if the \code{eta} marks of \code{t} sit on $\lambda$s so do \code{v}'s, a closed reading of \code{t} gives one of \code{v}, and in every model the denotations agree;
+  \item \code{CLOk.gradedU}: a term a run-time certificate types is graded.
+  \end{itemize}
+  \lead{Reference} the invariant of subject reduction (\code{MR P/PCUICSR.v}), which con-leche does not have; DV-33, DV-34.
+\end{definition}
+
+\begin{lemma}[Algebra and congruence of the invariant]
+  \label{lem:EraseProof-SemCases-semSim-trans}
+  \lean{EraseProof.SemCases.appCongr, EraseProof.SemCases.letCongr, EraseProof.SemCases.red0, EraseProof.SemCases.infer0, EraseProof.SemCases.fvarsBelow0, EraseProof.SemCases.denotes_iff, EraseProof.SemCases.semSim_refl, EraseProof.SemCases.semSim_trans, EraseProof.SemCases.semSim_of_red, EraseProof.SemCases.semSim_of_unmark, EraseProof.SemCases.gradedU_of_unmark, EraseProof.SemCases.toCL?_unmark_app, EraseProof.SemCases.gradedU_appFn, EraseProof.SemCases.gradedU_foldl_head, EraseProof.SemCases.appSim, EraseProof.SemCases.spineSim, EraseProof.SemCases.letSim}
+  \leanok
+  \uses{def:EraseProof-SemSim, lem:EraseProof-ConLecheAccepts-accepted}
+  \srcloc{proof/EraseProof/Semantics/Cases.lean}{76}
+  \lead{In short} \code{SemSim} is reflexive and transitive, follows from a con-leche reduction of the readings, and is a congruence for application spines and \code{let}.
+  \begin{itemize}
+  \item \code{red0}, \code{infer0}, \code{denotes\_iff}, \code{fvarsBelow0}: con-leche's claims at closed terms;
+  \item \code{semSim\_of\_red}: a \code{Red} between the readings gives the invariant;
+  \item \code{appCongr}, \code{letCongr}, \code{appSim}, \code{spineSim}, \code{letSim}: the congruences, where the application is not the proof point.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The application of a graph that is not the proof point has one domain, so equal arguments give equal results.
+\end{proof}
+
+\begin{lemma}[From the invariant to the meaning]
+  \label{lem:EraseProof-Sound-of-semSim}
+  \lean{EraseProof.Sound.of_semSim}
+  \leanok
+  \uses{def:EraseProof-SemSim, def:EraseProof-Sound, lem:EraseProof-CLTyped-closed}
+  \srcloc{proof/EraseProof/Semantics/Cases.lean}{568}
+  \lead{In short} If con-leche types \code{e}, the marked term reads as \code{e} and \code{SemSim} holds from it to \code{v}, then \code{Sound env e v}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \uses{def:EraseProof-SemSim, lem:EraseProof-CLTyped-closed}
+  \lead{Idea} The typing of \code{e} gives a closed, graded reading (\code{infer0}); the invariant transports it to \code{v}.
+\end{proof}
+
+\section{Cases from the grading of the redex}\label{sec:semantics-cases}
+
+\begin{lemma}[Cases: beta, zeta, delta, constructors, application, frozen application, values]
+  \label{lem:EraseProof-SemCases-srcEval-sound-beta}
+  \lean{EraseProof.SemCases.srcEval_sound_value, EraseProof.SemCases.srcEval_sound_beta, EraseProof.SemCases.srcEval_sound_etaBeta, EraseProof.SemCases.srcEval_sound_zeta, EraseProof.SemCases.srcEval_sound_delta, EraseProof.SemCases.srcEval_sound_appCong, EraseProof.SemCases.srcEval_sound_ctor, EraseProof.SemCases.srcEval_sound_frozenApp, EraseProof.SemCases.isLambda_lift, EraseProof.SemCases.isLambda_inst, EraseProof.SemCases.etaLams_lift, EraseProof.SemCases.etaLams_inst, EraseProof.SemCases.etaLams_instLevels, EraseProof.SemCases.inst_absent, EraseProof.SemCases.betaRed, EraseProof.SemCases.zetaRed, EraseProof.SemCases.etaBetaRed}
+  \leanok
+  \uses{def:EraseProof-SemSim, lem:EraseProof-SemCases-semSim-trans, lem:EraseProof-markOf-read, lem:EraseProof-SrcValue}
+  \srcloc{proof/EraseProof/Semantics/Cases.lean}{465}
+  \lead{In short} The cases \code{value}, \code{beta}, \code{etaBeta}, \code{zeta}, \code{delta}, \code{appCong}, \code{ctor} and \code{frozenApp} of \code{srcEval\_sound}, each from the grading of the redex it forms.
+  \begin{itemize}
+  \item \code{betaRed}, \code{zetaRed}, \code{etaBetaRed}: the \code{Red} derivation of the step;
+  \item \code{etaLams\_*}, \code{isLambda\_*}, \code{inst\_absent}: \code{eta} marks survive substitution;
+  \item \code{delta}: the body's reading, by \code{markOf\_read\_delta}.
+  \end{itemize}
+  \lead{Reference} DV-33, DV-34.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} A reduction of the redex between readings, then the congruence for the parts already evaluated.
+\end{proof}
+
+\section{Recognized records, iota and projections}\label{sec:semantics-iota}
+
+\begin{definition}[Stored records of a recognized \code{casesOn} and of a projection]
+  \label{def:EraseProof-SemCases-CasesIotaAt}
+  \lean{EraseProof.SemCases.CasesIotaAt, EraseProof.SemCases.ProjAt}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-stored}
+  \srcloc{proof/EraseProof/Semantics/Iota.lean}{41}
+  \lead{In short} \code{CasesIotaAt} and \code{ProjAt} are the stored shapes the $\iota$ and projection steps read, in con-leche's syntax.
+  \begin{itemize}
+  \item \code{CasesIotaAt}: the \code{casesOn} definition, its recursor and the rule of the constructor, with the wrapper of the alternative;
+  \item \code{ProjAt}: the projection table names the constructor, with its parameters and fields.
+  \end{itemize}
+  \lead{Reference} \code{casesInfo?} (\leanfile{LeanToLambdaBox/Erasure/Pure.lean}); \code{classGenRule} (\leanfile{ConLeche/Kernel/Inductives/GenRec.lean}).
+\end{definition}
+
+\begin{lemma}[Decoding the stored records]
+  \label{lem:EraseProof-ConLecheAccepts-casesIotaAt}
+  \lean{EraseProof.Decode.isBVarAt_eq, EraseProof.Decode.params_of_zip, EraseProof.Decode.isConstAt_eq, EraseProof.Decode.spine_foldl, EraseProof.Decode.isMinorBody_eq, EraseProof.Decode.ctorAlts_spec, EraseProof.Decode.toCL?_foldl, EraseProof.Decode.toCL?_peelLams, EraseProof.Decode.clLams_mkAppN, EraseProof.Decode.forall₂_fbv, EraseProof.Decode.mapM_param, EraseProof.Decode.blockOf?_shape, EraseProof.ConLecheAccepts.casesIotaAt, EraseProof.Decode.ctorName?, EraseProof.Decode.blockSplitRecs_ctors, EraseProof.Decode.blockSplitCtors_ctors, EraseProof.Decode.blockSplit_ctors, EraseProof.Decode.ctorRecords_names, EraseProof.Decode.ctorLookup_names, EraseProof.ConLecheAccepts.find?_former, EraseProof.ConLecheAccepts.find?_quot}
+  \leanok
+  \uses{def:EraseProof-SemCases-CasesIotaAt, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-ConLecheAccepts-namesClosed}
+  \srcloc{proof/EraseProof/Semantics/Decode.lean}{34}
+  \lead{In short} \hl{Acceptance gives \code{CasesIotaAt} for a recognized \code{casesOn} of a one-member block}, and the stored former and quotient constants.
+  \begin{itemize}
+  \item \code{ConLecheAccepts.casesIotaAt}: the records of the value, the recursor and the constructors;
+  \item \code{ConLecheAccepts.find?\_former}, \code{find?\_quot}: the former's capabilities, the quotient records;
+  \item \code{Decode.*}: the shape of the recognizer's input, read through \code{toCL?}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The recognizer accepts a value of the generated shape, and the fold stores exactly that value.
+\end{proof}
+
+\begin{lemma}[Syntax of the rules tier]
+  \label{lem:EraseProof-SemCases-red-betas}
+  \lean{EraseProof.SemCases.fbv, EraseProof.SemCases.red_mkAppN_fn, EraseProof.SemCases.clLams_succ, EraseProof.SemCases.clLams_zero, EraseProof.SemCases.red_betas, EraseProof.SemCases.clLams_instLP, EraseProof.SemCases.lamBody_of_clLams, EraseProof.SemCases.clLams_bounded, EraseProof.SemCases.mkAppN_bounded_iff, EraseProof.SemCases.bounded_instantiateList, EraseProof.SemCases.instantiateList_bvar, EraseProof.SemCases.instantiateList_bvar0, EraseProof.SemCases.instantiateList_mkAppN, EraseProof.SemCases.fbv_instLP, EraseProof.SemCases.fbv_instantiateList, EraseProof.SemCases.peelPis_of_clPis, EraseProof.SemCases.instantiateList_rev_bvar}
+  \leanok
+  \uses{def:EraseProof-toCL}
+  \srcloc{proof/EraseProof/Semantics/Iota.lean}{37}
+  \lead{In short} $\beta$ over several $\lambda$s with the arguments substituted at once, and the bookkeeping of \code{instantiateList} on con-leche's terms.
+  \begin{itemize}
+  \item \code{red\_betas}, \code{red\_mkAppN\_fn}: reduction under a spine, and $\beta$ over \code{n} $\lambda$s;
+  \item \code{clLams\_*}, \code{lamBody\_of\_clLams}, \code{peelPis\_of\_clPis}: leading $\lambda$s and $\Pi$s;
+  \item \code{instantiateList\_*}, \code{bounded\_*}, \code{fbv\_*}: simultaneous instantiation.
+  \end{itemize}
+  \lead{Reference} \code{instantiateList\_cons} (\leanfile{ConLeche/Kernel/ExprOps.lean}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the number of $\lambda$s or on the list.
+\end{proof}
+
+\begin{lemma}[Cases: iota and projections]
+  \label{lem:EraseProof-SemCases-srcEval-sound-casesIota}
+  \lean{EraseProof.SemCases.casesIota_red, EraseProof.SemCases.semSim_of_redD, EraseProof.SemCases.toCL?_unmark_foldl, EraseProof.SemCases.toCL?_unmark_foldl_of, EraseProof.SemCases.forall₂_getElem?, EraseProof.SemCases.forall₂_length, EraseProof.SemCases.clMkAppN_append, EraseProof.SemCases.etaLams_foldl, EraseProof.SemCases.etaLams_foldl_of, EraseProof.SemCases.denote_mkAppN_inv, EraseProof.SemCases.denote_const_len, EraseProof.SemCases.natLitStored_of_denote, EraseProof.SemCases.spineSim_set, EraseProof.SemCases.casesSim, EraseProof.SemCases.srcEval_sound_casesIota, EraseProof.SemCases.srcEval_sound_casesLitZero, EraseProof.SemCases.srcEval_sound_casesLitSucc, EraseProof.SemCases.interp_projNV_pt, EraseProof.SemCases.interp_projNV_congr, EraseProof.SemCases.wd_projNV_arg, EraseProof.SemCases.wd_projNV_congr, EraseProof.SemCases.projSim, EraseProof.SemCases.srcEval_sound_proj, EraseProof.SemCases.srcEval_sound_projFrozen, EraseProof.SemCases.IsTy.pt_of_pt, EraseProof.SemCases.ctx0, EraseProof.SemCases.letVal_mem, EraseProof.SemCases.zeta_hpt}
+  \leanok
+  \uses{def:EraseProof-SemSim, def:EraseProof-SemCases-CasesIotaAt, lem:EraseProof-SemCases-red-betas, lem:EraseProof-SemCases-semSim-trans, lem:EraseProof-ConLecheAccepts-casesIotaAt}
+  \srcloc{proof/EraseProof/Semantics/Iota.lean}{229}
+  \lead{In short} The cases \code{casesIota}, \code{casesLitZero}, \code{casesLitSucc}, \code{proj} and \code{projFrozen}, and the premise of \code{zeta}.
+  \begin{itemize}
+  \item \code{casesIota\_red}: $\delta$ of the \code{casesOn}, $\beta$ over its $\lambda$s, \code{Red.iota} at the constructor's rule, $\beta$ over the alternative's wrapper;
+  \item \code{srcEval\_sound\_casesLitZero}, \code{casesLitSucc}: the same at \code{Nat.rec}, the major a literal (\code{natLitStored\_of\_denote});
+  \item \code{srcEval\_sound\_proj}: the structural projection rule (\code{Red.proj}); \code{projFrozen} needs no certificate;
+  \item \code{zeta\_hpt}: the two certificates of \code{SrcEval.zeta} give the proof-point side condition.
+  \end{itemize}
+  \lead{Reference} \code{Red.iota}, \code{Red.proj} (\leanfile{ConLeche/Rules/Rel.lean}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} A \code{Red} between the \code{unmark} readings, built from the stored records, after the congruence at the evaluated major premise.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item The $\iota$ cases take \code{CasesIotaAt} and \code{ProjAt} as premises; acceptance gives \code{CasesIotaAt} for a one-member block.
+\item The invariant is conditional on the proof point: it says nothing where \code{t} denotes it (DV-34).
+\item A step that forms a redex asks con-leche to type it (DV-33).
+\end{itemize}

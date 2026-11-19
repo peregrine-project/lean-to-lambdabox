@@ -3,8 +3,8 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what the final theorem does not say, and what is not done.
-\item \lead{Status} \stOpen{} every theorem of Chapter~\ref{chap:statements} and the planned lemma
-  of Chapter~\ref{chap:bridge}; \stProved{} the statement definitions, the lemmas of Chapters~\ref{chap:bridge}--\ref{chap:relation},
+\item \lead{Status} \stOpen{} ten theorems of Chapter~\ref{chap:statements} and the planned lemma
+  of Chapter~\ref{chap:bridge}; \stProved{} \code{erases\_correct} and \code{collectDeps\_sub}, the statement definitions, the lemmas of Chapters~\ref{chap:bridge}--\ref{chap:core},
   and the hypotheses of the final theorem on three programs (Chapter~\ref{chap:tests}).
 \end{itemize}
 
@@ -75,12 +75,8 @@ generated from \code{proof/ROOTS.txt}.
 \toprule
 Milestone & Content \\
 \midrule
-Simulation & \code{erases\_correct}: the $\lambda_\Box$ evaluation of an erasure of a marked source
-  value, from the lemmas of Chapter~\ref{chap:relation}; the cases for $\beta$, $\delta$, constructors, \code{casesOn}, projections and recursors \\
-Meaning of the evaluation & \code{srcEval\_sound}: the marked evaluation preserves the set-model
-  meaning, from con-leche's claims and the run-time certificates \\
-The shipping traversal & \code{erasePure\_erases} and \code{collectDeps\_ok\_of}, with the facts on
-  the closure and the marking \\
+Meaning of the evaluation & \code{srcEval\_sound}: the step lemmas of Chapter~\ref{chap:semantics} cover every rule of \code{SrcEval} but \code{recIota}, \code{quotMk}, \code{quotLift} and \code{casesFrozen}; the induction that assembles them is open \\
+The shipping traversal & \code{erasePure\_erases} (the traversal's invariant is Chapter~\ref{chap:core}) and \code{collectDeps\_ok\_of}, with the determinism, existence and agreement of the marking \\
 Final & \code{erase\_correct}, its first-order corollary, and the end-to-end test programs \\
 \bottomrule
 \end{tabular}

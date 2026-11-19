@@ -6,14 +6,25 @@
   \code{Prop} that \code{proof/spec.pin} pins.
 \item \lead{Main results} The final theorem \code{erase\_correct} (Section~\ref{sec:statements-final}),
   three milestones, a corollary and seven lemmas.
-\item \lead{Status} \stProved{} the twelve definitions, sorry-free and pinned (checks C12, C12b).
-  \stOpen{} \hl{none of the twelve theorems is proved}: each has a planned node.
+\item \lead{Status} \stProved{} the twelve definitions, sorry-free and pinned (checks C12, C12b), and
+  \hl{two theorems: \code{erases\_correct} and \code{collectDeps\_sub}}. \stOpen{} the ten others, each with a planned node.
 \item \lead{Nodes} \bpnodes{chap:statements}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean}.
 \end{itemize}
 
 Each statement is a definition node that cites the \code{\_statement} definition. Beside it, a
-planned node states the theorem the definition is the type of.
+node states the theorem the definition is the type of: proved, or planned.
+
+\begin{tabular}{p{0.28\linewidth}p{0.64\linewidth}}
+\toprule
+Condition & Meaning \\
+\midrule
+\code{NoMarkKeys}, \code{NoMarkKeysDecls} & no \code{mdata} with the marks' key in the input, resp. in the types and values of the closure (\code{hclean}; acceptance gives the second) \\
+\code{ClosedDecls} & no free variable in the closure's types and values (\code{markOf\_det}, \code{markOf\_exists}) \\
+\code{CtorsListed}, \code{NatShaped}, \code{NatCtors}, \code{RecsShaped} & shape of constructors, \code{Nat} and recursors (\code{erases\_correct}; Definition~\ref{def:EraseProof-CtorsListed}) \\
+\code{RulesCanonical} & stored recursor rules have the generated shape (part of \code{ConLecheAccepts}) \\
+\bottomrule
+\end{tabular}
 
 \section{The final theorem}\label{sec:statements-final}
 
@@ -21,7 +32,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-erase_correct-statement}
   \lean{EraseProof.erase_correct_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{88}
+  \srcloc{proof/EraseProof/Statements.lean}{92}
   \lead{In short} The statement of \code{erase\_correct}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -38,7 +49,7 @@ planned node states the theorem the definition is the type of.
   \end{itemize}
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-erase_correct-statement}
+  \uses{def:EraseProof-erase_correct-statement, lem:EraseProof-collectDeps-spec, lem:EraseProof-eraseEntry-pure}
   \lead{Idea} Compose the pure-path correctness, the fragment lemmas, the marking lemmas, the simulation and the meaning of the evaluation.
 \end{proof}
 
@@ -55,23 +66,27 @@ planned node states the theorem the definition is the type of.
 \begin{theorem}[Simulation]
   \label{thm:EraseProof-erases_correct}
   \lean{EraseProof.erases_correct}
-  \planned
-  \uses{def:EraseProof-erases_correct-statement, lem:EraseProof-Erases-inst, lem:EraseProof-Erases-app-inv}
-  \lead{In short} A marked source term that evaluates erases to a $\lambda_\Box$ term that evaluates to an erasure of the value.
+  \leanok
+  \uses{def:EraseProof-erases_correct-statement}
+  \srcloc{proof/EraseProof/Simulation/Main.lean}{23}
+  \lead{In short} \hl{A marked source term that evaluates erases to a $\lambda_\Box$ term that evaluates to an erasure of the value}, with no typing premise and no certificate.
   \begin{itemize}
-  \item \lead{Given} an erasure of the marked term, with erased dependencies, and the closure facts of the fragment test; no typing premise and no certificate.
+  \item \lead{Given} an erasure of the marked term with erased dependencies; \code{KernameInj}, \code{BlockNamesInj}, \code{CtorsListed}, \code{NatShaped}, \code{NatCtors}, \code{RecsShaped} on the closure; a source evaluation.
+  \item \lead{Then} the value has an erasure that the $\lambda_\Box$ term evaluates to.
   \end{itemize}
+  \lead{Reference} \code{erases\_correct} (\code{MR E/ErasureCorrectness.v:51}); DV-32.
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-erases_correct-statement, lem:EraseProof-Erases-inst, lem:EraseProof-Erases-app-inv}
-  \lead{Idea} Induction on the source evaluation, with the erasure relation preserved by substitution.
+  \uses{def:EraseProof-erases_correct-statement, lem:EraseProof-SimCases-erases-correct-beta, lem:EraseProof-SimCases-erases-correct-ctor, lem:EraseProof-SimCases-erases-correct-quotMk, lem:EraseProof-SimCases-erases-correct-recIota}
+  \leanok
+  \lead{Idea} Induction on the source evaluation; each of its rules is closed by one case lemma (Chapter~\ref{chap:simulation}).
 \end{proof}
 
 \begin{definition}[Pure traversal: statement]
   \label{def:EraseProof-erasePure_erases-statement}
   \lean{EraseProof.erasePure_erases_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{59}
+  \srcloc{proof/EraseProof/Statements.lean}{62}
   \lead{In short} The statement of \code{erasePure\_erases}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -86,7 +101,7 @@ planned node states the theorem the definition is the type of.
   \end{itemize}
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-erasePure_erases-statement}
+  \uses{def:EraseProof-erasePure_erases-statement, lem:EraseProof-Erases-abstract, lem:EraseProof-TargetLift, lem:EraseProof-ErasesDeps-construct-ind, lem:EraseProof-StateOK-register, lem:EraseProof-register-inductive-ok}
   \lead{Idea} Induction on the traversal, using the oracle facts and the determinism of the marking.
 \end{proof}
 
@@ -94,7 +109,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-srcEval_sound-statement}
   \lean{EraseProof.srcEval_sound_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{76}
+  \srcloc{proof/EraseProof/Statements.lean}{79}
   \lead{In short} The statement of \code{srcEval\_sound}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -105,11 +120,11 @@ planned node states the theorem the definition is the type of.
   \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-toCL-instantiate1, lem:EraseProof-unmark-instantiate1}
   \lead{In short} The marked source evaluation preserves meaning in every con-leche model of the accepted program, except where the input denotes the proof point.
   \begin{itemize}
-  \item \lead{Given} con-leche accepts the program and types the input, which carries no mark key; the input has a marking that evaluates.
+  \item \lead{Given} con-leche accepts the program and types the input; the input and the closure carry no mark key; the input has a marking that evaluates.
   \end{itemize}
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-toCL-instantiate1, lem:EraseProof-unmark-instantiate1}
+  \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-toCL-instantiate1, lem:EraseProof-unmark-instantiate1, lem:EraseProof-SemCases-srcEval-sound-beta, lem:EraseProof-Sound-of-semSim, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-SemCases-srcEval-sound-casesIota, lem:EraseProof-markOf-read, def:EraseProof-SemSim, lem:EraseProof-ConLecheAccepts-casesIotaAt}
   \lead{Idea} Induction on the marked evaluation; each rule follows from con-leche's claims for conversion and inference and from its recursor and quotient laws.
 \end{proof}
 
@@ -117,7 +132,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-collectDeps_ok_of-statement}
   \lean{EraseProof.collectDeps_ok_of_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{42}
+  \srcloc{proof/EraseProof/Statements.lean}{45}
   \lead{In short} The statement of \code{collectDeps\_ok\_of}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -140,7 +155,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-erase_correct_firstorder-statement}
   \lean{EraseProof.erase_correct_firstorder_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{165}
+  \srcloc{proof/EraseProof/Statements.lean}{169}
   \lead{In short} The statement of \code{erase\_correct\_firstorder}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -149,7 +164,7 @@ planned node states the theorem the definition is the type of.
   \lean{EraseProof.erase_correct_firstorder}
   \planned
   \uses{def:EraseProof-erase_correct_firstorder-statement, thm:EraseProof-erase_correct}
-  \lead{In short} Under the hypotheses of the final theorem other than \code{hcert}, a first-order value erases to the structural erasure of the value.
+  \lead{In short} Under the hypotheses of the final theorem other than \code{hcert}, and with a closure free of mark keys, a first-order value erases to the structural erasure of the value.
   \begin{itemize}
   \item \lead{Then} each box stands for a subterm certified as a proof or a type former, and the value means what the input means.
   \end{itemize}
@@ -165,7 +180,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-sound_nonvacuous-statement}
   \lean{EraseProof.sound_nonvacuous_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{189}
+  \srcloc{proof/EraseProof/Statements.lean}{194}
   \lead{In short} The statement of \code{sound\_nonvacuous}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -185,7 +200,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-clCert_proof_pt-statement}
   \lean{EraseProof.clCert_proof_pt_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{205}
+  \srcloc{proof/EraseProof/Statements.lean}{210}
   \lead{In short} The statement of \code{clCert\_proof\_pt}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -205,7 +220,7 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-markOf_det-statement}
   \lean{EraseProof.markOf_det_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{228}
+  \srcloc{proof/EraseProof/Statements.lean}{233}
   \lead{In short} The statement of \code{markOf\_det}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -214,18 +229,18 @@ planned node states the theorem the definition is the type of.
   \lean{EraseProof.markOf_det}
   \planned
   \uses{def:EraseProof-markOf_det-statement}
-  \lead{In short} For a closure without free variables (\code{ClosedDecls}), the marking is a function of the term, the configuration and the locals.
+  \lead{In short} For a closure without free variables (\code{ClosedDecls}) and a closed input, the marking at no locals is a function of the term and the configuration.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-markOf_det-statement}
-  \lead{Idea} Induction on the marking relation: the oracle does not depend on the names of fresh variables.
+  \uses{def:EraseProof-markOf_det-statement, lem:EraseProof-Oracle-Rename}
+  \lead{Idea} Induction on the marking relation: the oracle does not depend on the names of fresh variables (Section~\ref{sec:core-oracle}).
 \end{proof}
 
 \begin{definition}[Marking exists: statement]
   \label{def:EraseProof-markOf_exists-statement}
   \lean{EraseProof.markOf_exists_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{235}
+  \srcloc{proof/EraseProof/Statements.lean}{243}
   \lead{In short} The statement of \code{markOf\_exists}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -245,27 +260,29 @@ planned node states the theorem the definition is the type of.
   \label{def:EraseProof-collectDeps_sub-statement}
   \lean{EraseProof.collectDeps_sub_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{246}
+  \srcloc{proof/EraseProof/Statements.lean}{254}
   \lead{In short} The statement of \code{collectDeps\_sub}, a definition of type \code{Prop}.
 \end{definition}
 
 \begin{lemma}[Closure inside the program]
   \label{lem:EraseProof-collectDeps_sub}
   \lean{EraseProof.collectDeps_sub}
-  \planned
+  \leanok
   \uses{def:EraseProof-collectDeps_sub-statement}
+  \srcloc{proof/EraseProof/Core/Collect.lean}{442}
   \lead{In short} The closure the fragment test returns is part of the program con-leche accepted.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-collectDeps_sub-statement}
-  \lead{Idea} Every constant the fragment test reads comes from a record that the acceptance check covers.
+  \uses{def:EraseProof-collectDeps_sub-statement, lem:EraseProof-CollectSub-closure-sub}
+  \leanok
+  \lead{Idea} Every constant the fragment test reads comes from a record that the acceptance check covers (Chapter~\ref{chap:core}).
 \end{proof}
 
 \begin{definition}[Marking over the closure: statement]
   \label{def:EraseProof-markOf_agree-statement}
   \lean{EraseProof.markOf_agree_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{258}
+  \srcloc{proof/EraseProof/Statements.lean}{266}
   \lead{In short} The statement of \code{markOf\_agree}, a definition of type \code{Prop}.
 \end{definition}
 

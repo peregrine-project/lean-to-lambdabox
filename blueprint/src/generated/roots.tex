@@ -3,22 +3,54 @@
 \toprule
 Root theorem & Consumer \\
 \midrule
-\leandecl{EraseProof.Erases.inst} (\ref{lem:EraseProof-Erases-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.Erases.inst_let} (\ref{lem:EraseProof-Erases-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.ErasesAlt.inst} (\ref{lem:EraseProof-Erases-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.Erases.instLevels} (\ref{lem:EraseProof-Erases-inst}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.Erases.app_inv} (\ref{lem:EraseProof-Erases-app-inv}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.Erases.ctor_inv} (\ref{lem:EraseProof-Erases-app-inv}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.Erases.cases_inv} (\ref{lem:EraseProof-Erases-app-inv}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.AbsFV.LBV_of_toCL?} (\ref{lem:EraseProof-Erases-app-inv}) & \code{EraseProof.\allowbreak{}erases\_\allowbreak{}correct} (\ref{thm:EraseProof-erases_correct}) \\
-\leandecl{EraseProof.unmark_instantiate1'} (\ref{lem:EraseProof-unmark-instantiate1}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
-\leandecl{EraseProof.unmark_instLevels} (\ref{lem:EraseProof-unmark-instantiate1}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
-\leandecl{EraseProof.toCL?_instantiate1'_closed} (\ref{lem:EraseProof-toCL-instantiate1}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
-\leandecl{EraseProof.toCL?_instLevels} (\ref{lem:EraseProof-toCL-instantiate1}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
-\leandecl{EraseProof.CLTyped.closed} (\ref{lem:EraseProof-CLTyped-closed}) & \code{EraseProof.\allowbreak{}CLOk.\allowbreak{}wellDenoted} (\ref{lem:EraseProof-CLOk-wellDenoted}) \\
-\leandecl{EraseProof.toCL?_hasFvar} (\ref{lem:EraseProof-CLTyped-closed}) & \code{EraseProof.\allowbreak{}CLOk.\allowbreak{}wellDenoted} (\ref{lem:EraseProof-CLOk-wellDenoted}) \\
+\leandecl{EraseProof.Erases.abstract} (\ref{lem:EraseProof-Erases-abstract}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.ErasesAlt.absN} (\ref{lem:EraseProof-Erases-abstract}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.RecLam.hasFVar_recLetTerm} (\ref{lem:EraseProof-TargetLift}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.ErasesDeps.toBvar} (\ref{lem:EraseProof-ErasesDeps-construct-ind}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
 \leandecl{EraseProof.ConLecheAccepts.accepted} (\ref{lem:EraseProof-ConLecheAccepts-accepted}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.erases_correct} (\ref{thm:EraseProof-erases_correct}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
 \leandecl{EraseProof.SrcEval.restrict} (\ref{lem:EraseProof-SrcEval-restrict}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_value} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_beta} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_etaBeta} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_zeta} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_delta} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_appCong} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_ctor} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_frozenApp} (\ref{lem:EraseProof-SemCases-srcEval-sound-beta}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.Sound.of_semSim} (\ref{lem:EraseProof-Sound-of-semSim}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.ConLecheAccepts.find?_thm} (\ref{lem:EraseProof-ConLecheAccepts-stored}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.ConLecheAccepts.find?_opaque} (\ref{lem:EraseProof-ConLecheAccepts-stored}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_casesIota} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_casesLitZero} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_casesLitSucc} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_proj} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.srcEval_sound_projFrozen} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.SemCases.zeta_hpt} (\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.markOf_read} (\ref{lem:EraseProof-markOf-read}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.markOf_read_delta} (\ref{lem:EraseProof-markOf-read}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.collectDeps_spec} (\ref{lem:EraseProof-collectDeps-spec}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
+\leandecl{EraseProof.Pure.isErasable_ren} (\ref{lem:EraseProof-Oracle-Rename}) & \code{EraseProof.\allowbreak{}markOf\_\allowbreak{}det} (\ref{lem:EraseProof-markOf_det}) \\
+\leandecl{EraseProof.Pure.typeLevel_ren} (\ref{lem:EraseProof-Oracle-Rename}) & \code{EraseProof.\allowbreak{}markOf\_\allowbreak{}det} (\ref{lem:EraseProof-markOf_det}) \\
+\leandecl{EraseProof.MarkOf.fvarsIn} (\ref{lem:EraseProof-Oracle-Rename}) & \code{EraseProof.\allowbreak{}markOf\_\allowbreak{}det} (\ref{lem:EraseProof-markOf_det}) \\
+\bottomrule
+\end{tabular}
+
+\begin{tabular}{p{0.45\linewidth}p{0.45\linewidth}}
+\toprule
+Root theorem & Consumer \\
+\midrule
+\leandecl{EraseProof.StateOK.empty} (\ref{lem:EraseProof-StateOK-register}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.StateOK.kername} (\ref{lem:EraseProof-StateOK-register}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.knNotBlock_of_emits} (\ref{lem:EraseProof-StateOK-register}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.addAxiom_ok} (\ref{lem:EraseProof-StateOK-register}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.get_constant_kername_ok} (\ref{lem:EraseProof-StateOK-register}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.register_inductive_ok} (\ref{lem:EraseProof-register-inductive-ok}) & \code{EraseProof.\allowbreak{}erasePure\_\allowbreak{}erases} (\ref{thm:EraseProof-erasePure_erases}) \\
+\leandecl{EraseProof.eraseEntry_pure} (\ref{lem:EraseProof-eraseEntry-pure}) & \code{EraseProof.\allowbreak{}erase\_\allowbreak{}correct} (\ref{thm:EraseProof-erase_correct}) \\
+\leandecl{EraseProof.CLOk.gradedU} (\ref{def:EraseProof-SemSim}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.ConLecheAccepts.casesIotaAt} (\ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.ConLecheAccepts.find?_former} (\ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
+\leandecl{EraseProof.ConLecheAccepts.find?_quot} (\ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}) & \code{EraseProof.\allowbreak{}srcEval\_\allowbreak{}sound} (\ref{thm:EraseProof-srcEval_sound}) \\
 \bottomrule
 \end{tabular}
 

@@ -29,7 +29,8 @@ scripts/leanlinks.py    the links to the Lean sources (URLs, revisions), in the 
 STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, resolution,
-                        statements, open
+                        bridge, source, relation, simulation, semantics, core,
+                        statements, tests, open
 src/generated/*.tex     generated chapters, tables and imported nodes (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions

@@ -1,0 +1,149 @@
+\chapter{The traversal and the fragment test}\label{chap:core}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State what the shipping functions \code{collectDeps}, \code{erasePure}, \code{eraseEntry} and the registration of inductives preserve, as lemmas about their runs.
+\item \lead{Main results} The closure of the fragment test is part of the accepted program (\code{collectDeps\_sub}) and satisfies the closure facts (\code{collectDeps\_spec}); the entry point's result is the pure path's (\code{eraseEntry\_pure}); the traversal's state invariant \code{StateOK} is kept by registration.
+\item \lead{Status} \stProved{} every node and \code{collectDeps\_sub}. \stOpen{} \code{erasePure\_erases}, \code{collectDeps\_ok\_of}, \code{markOf\_det}, \code{markOf\_exists}, \code{markOf\_agree} (Chapter~\ref{chap:statements}).
+\item \lead{Nodes} \bpnodes{chap:core}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Core/Glue, Core/Collect, Core/CollectSpec, Core/State, Core/RegisterInd, Oracle/Rename}.
+\item \lead{Reference} \code{erase\_global\_deps} (\code{MR E/ErasureFunction.v:1602}), \code{includes\_deps} (\code{MR E/ErasureFunctionProperties.v:41}).
+\end{itemize}
+
+\section{The entry point and the closure}\label{sec:core-closure}
+
+\begin{lemma}[The entry point returns the pure path's result]
+  \label{lem:EraseProof-eraseEntry-pure}
+  \lean{EraseProof.someCtx, EraseProof.someRef, EraseProof.someW, EraseProof.CoreM.pure_inj, EraseProof.EIO.bind_err, EraseProof.CoreM.throwError_ne_pure, EraseProof.eraseEntry_pure}
+  \leanok
+  \srcloc{proof/EraseProof/Core/Glue.lean}{20}
+  \lead{In short} \hl{When the fragment test accepts the input, a result of \code{eraseEntry} is a result of \code{erasePure}} on the closure.
+  \begin{itemize}
+  \item \code{CoreM.pure\_inj}, \code{CoreM.throwError\_ne\_pure}, \code{EIO.bind\_err}: a \code{CoreM} action run at an arbitrary context, reference and world token (\code{someCtx}, \code{someRef}, \code{someW}).
+  \end{itemize}
+  \lead{Reference} \code{L4 Core/Glue}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfold \code{eraseEntry} and \code{route}; an error is not a result.
+\end{proof}
+
+\begin{lemma}[The closure is part of the program]
+  \label{lem:EraseProof-CollectSub-closure-sub}
+  \lean{EraseProof.CollectSub.ok_of_bind, EraseProof.CollectSub.exprConsts_mem, EraseProof.CollectSub.KnownIn.exprConsts, EraseProof.CollectSub.view_mem, EraseProof.CollectSub.viewFind_eq, EraseProof.CollectSub.viewFind_mem, EraseProof.CollectSub.recognize_mem, EraseProof.CollectSub.ite_ok_then, EraseProof.CollectSub.ite_ok_else, EraseProof.CollectSub.declExclusion_flags, EraseProof.CollectSub.closureStep_sub, EraseProof.CollectSub.dropKnown_sub, EraseProof.CollectSub.closure_sub}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-namesClosed, def:EraseProof-ViewAgrees}
+  \srcloc{proof/EraseProof/Core/Collect.lean}{25}
+  \lead{In short} \hl{On an accepted program, the closure a successful \code{collectDeps} returns for a typed term consists of declarations of the program} (\code{collectDeps\_sub}).
+  \begin{itemize}
+  \item \code{closureStep\_sub}, \code{dropKnown\_sub}, \code{closure\_sub}: every scanned declaration and every read name is the program's;
+  \item \code{view\_mem}, \code{viewFind\_*}, \code{recognize\_mem}, \code{exprConsts\_mem}, \code{declExclusion\_flags}: the view's declarations and the shipping checks.
+  \end{itemize}
+  \lead{Reference} \code{L4 Core/Scope}; DV-3.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the closure; each name read is a name of the term (\code{CLTyped.knownIn}), of a scanned declaration (\code{namesClosed}) or of a compiled pre-definition (\code{ViewAgrees}).
+\end{proof}
+
+\begin{lemma}[What the closure satisfies]
+  \label{lem:EraseProof-collectDeps-spec}
+  \lean{EraseProof.CollectSpec.modPath_beq_self, EraseProof.CollectSpec.kername_beq_self, EraseProof.CollectSpec.findCollision_eq_none, EraseProof.CollectSpec.findDecl_isSome_iff, EraseProof.CollectSpec.KernameInj.of_findCollision, EraseProof.CollectSpec.BlockNamesInj.of_findBlockCollision, EraseProof.CollectSpec.exprConsts_consts, EraseProof.CollectSpec.mentionsAny_consts, EraseProof.CollectSpec.viewFind_of, EraseProof.CollectSpec.recogList, EraseProof.CollectSpec.recognize_spec, EraseProof.CollectSpec.closureStep_spec, EraseProof.CollectSpec.sortDecided_arity, EraseProof.CollectSpec.Scanned, EraseProof.CollectSpec.Scanned.mono, EraseProof.CollectSpec.mem_names, EraseProof.CollectSpec.dropKnown_ok, EraseProof.CollectSpec.closure_ok, EraseProof.CollectSpec.collectDeps_ok, EraseProof.CollectSpec.findConst_agree, EraseProof.CollectSpec.mem_of_view, EraseProof.CollectSpec.recog_cases, EraseProof.collectDeps_spec}
+  \leanok
+  \uses{lem:EraseProof-CollectSub-closure-sub, lem:EraseProof-ConLecheAccepts-namesClosed}
+  \srcloc{proof/EraseProof/Core/CollectSpec.lean}{29}
+  \lead{In short} \hl{The closure has distinct kernames and block names, syntactic arities, holds the constants of the term and is closed under what the semantics and the traversal read}, when every recursor names its block's members in its type.
+  \begin{itemize}
+  \item \code{KernameInj.of\_findCollision}, \code{BlockNamesInj.of\_findBlockCollision}: the collision checks of the shipping code;
+  \item \code{closure\_ok}, \code{closureStep\_spec}, \code{dropKnown\_ok}, \code{Scanned}: the run of the closure, described without the program;
+  \item \code{recognize\_spec}, \code{recogList}, \code{findConst\_agree}: the recognizers.
+  \end{itemize}
+  \lead{Reference} \code{L4 Core/Collect}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Read the checks \code{exprConsts}, \code{declExclusion}, \code{closureStep}, \code{dropKnown} on every scanned declaration; the program enters only through the recursors' types.
+\end{proof}
+
+\section{The traversal's state}\label{sec:core-state}
+
+\begin{definition}[Traversal state invariant]
+  \label{def:EraseProof-StateOK}
+  \lean{EraseProof.StateOK, EraseProof.LenvExt, EraseProof.KeepMasks, EraseProof.KnNotBlock}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-RecFixOf}
+  \srcloc{proof/EraseProof/Core/State.lean}{51}
+  \lead{In short} \hl{\code{StateOK cert $\sigma$ st}: every registered constant and inductive of the state has its erased entry}, on the pure path.
+  \begin{itemize}
+  \item registered constants: own kername, a declaration of $\sigma$, an entry that erases it (\code{ErasesDeps});
+  \item registered inductives: their $\lambda_\Box$ inductive, block erased (\code{ErasesInd}), masks that keep every field (\code{KeepMasks});
+  \item every entry of the $\lambda_\Box$ environment belongs to a registered constant or block, and every stored body is closed;
+  \item \code{LenvExt}: growth by fresh entries; \code{KnNotBlock}: a constant's kername is no block's.
+  \end{itemize}
+  \lead{Reference} \code{includes\_deps} (\code{MR E/ErasureFunctionProperties.v:41}); DV-14, DV-23.
+\end{definition}
+
+\begin{lemma}[Registration]
+  \label{lem:EraseProof-StateOK-register}
+  \lean{EraseProof.StateLemmas.modPath_beq_self, EraseProof.StateLemmas.kername_beq_self, EraseProof.StateLemmas.lookupConst_ext, EraseProof.StateLemmas.lookupConst_cons_self, EraseProof.StateLemmas.lookupConst_cons, EraseProof.StateOK.empty, EraseProof.StateOK.kername, EraseProof.StateOK.fresh, EraseProof.knNotBlock_of_emits, EraseProof.StateOK.register, EraseProof.addAxiom_ok, EraseProof.get_constant_kername_ok}
+  \leanok
+  \uses{def:EraseProof-StateOK, lem:EraseProof-ErasesDeps-construct-ind}
+  \srcloc{proof/EraseProof/Core/State.lean}{85}
+  \lead{In short} Registering a constant with an erased entry keeps \code{StateOK} and grows the environment freshly; \code{get\_constant\_kername} returns a registered kername.
+  \begin{itemize}
+  \item \code{StateOK.empty}, \code{StateOK.fresh}, \code{StateOK.kername}, \code{knNotBlock\_of\_emits}: the empty state, freshness from \code{KernameInj} and \code{BlockNamesInj}, the kername of a registered constant;
+  \item \code{addAxiom\_ok}, \code{get\_constant\_kername\_ok}: the axiom case and the lookup.
+  \end{itemize}
+  \lead{Reference} \code{erase\_constant\_body} (\code{MR E/ErasureFunction.v:1309}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The new entry has a fresh kername, so the environment grows by one entry and lookups of the others are unchanged.
+\end{proof}
+
+\begin{lemma}[Registering an inductive block]
+  \label{lem:EraseProof-register-inductive-ok}
+  \lean{EraseProof.RegisterInd.ok_of_bind, EraseProof.RegisterInd.whnf_arity, EraseProof.RegisterInd.isPropFormerType_arity, EraseProof.RegisterInd.evidentZero_isNeverZero, EraseProof.RegisterInd.evidentZero_instLevel, EraseProof.RegisterInd.evidentZero_iff, EraseProof.RegisterInd.isPropFormerType_iff, EraseProof.RegisterInd.runPure_bind, EraseProof.RegisterInd.runPure_read_bind, EraseProof.RegisterInd.runPure_liftM, EraseProof.RegisterInd.HT, EraseProof.RegisterInd.HT.pure, EraseProof.RegisterInd.HT.bind, EraseProof.RegisterInd.HT.mono, EraseProof.RegisterInd.HT.get, EraseProof.RegisterInd.HT.modify, EraseProof.RegisterInd.HT.read_bind, EraseProof.RegisterInd.HT.liftM, EraseProof.RegisterInd.HT.throwM, EraseProof.RegisterInd.HT.getConst, EraseProof.RegisterInd.HT.getOrFail, EraseProof.RegisterInd.HT.mapM, EraseProof.RegisterInd.HT.of_fact, EraseProof.RegisterInd.HT.any, EraseProof.RegisterInd.HT.pure_eq, EraseProof.RegisterInd.isExtern_run, EraseProof.RegisterInd.pureM_isPropFormerType_run, EraseProof.RegisterInd.isPropFormerType_run, EraseProof.RegisterInd.BodyOK, EraseProof.RegisterInd.CtorOK, EraseProof.RegisterInd.Registered, EraseProof.RegisterInd.forall₂_get, EraseProof.RegisterInd.forall₂_length, EraseProof.RegisterInd.zipIdx_prefix_ne, EraseProof.RegisterInd.register_inductive_run, EraseProof.RegisterInd.indIdOf_member, EraseProof.RegisterInd.lookupInd_cons_self, EraseProof.register_inductive_ok}
+  \leanok
+  \uses{def:EraseProof-StateOK, lem:EraseProof-StateOK-register, def:EraseProof-RecFixOf}
+  \srcloc{proof/EraseProof/Core/RegisterInd.lean}{32}
+  \lead{In short} \hl{\code{register\_inductive} registers a whole block, each type at its position, and keeps \code{StateOK}}.
+  \begin{itemize}
+  \item \code{HT}: a Hoare-style reading of the pure backend's runs, with a rule for each combinator;
+  \item \code{register\_inductive\_run}: the run of the shipping function; \code{BodyOK}, \code{CtorOK}, \code{Registered}: what it emits;
+  \item \code{isPropFormerType\_iff}, \code{evidentZero\_iff}: the syntactic \code{propositional} flag agrees with \code{EvidentZero} on the sorts the fragment test admits.
+  \end{itemize}
+  \lead{Reference} DV-14, DV-30.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Run the function symbolically through \code{HT}; the block facts the run does not check (distinct names, one block and parameter count) are premises.
+\end{proof}
+
+\section{The oracle under renaming}\label{sec:core-oracle}
+
+\begin{lemma}[The pure oracle commutes with renaming]
+  \label{lem:EraseProof-Oracle-Rename}
+  \lean{EraseProof.renFV, EraseProof.renLocal, EraseProof.LocalsSupport, EraseProof.LocalsRen, EraseProof.OracleRen.fvarsIn_mono, EraseProof.OracleRen.fvarsIn_false, EraseProof.OracleRen.fvarsIn_of_hasFVar, EraseProof.OracleRen.fvarsIn_instLevels, EraseProof.OracleRen.fvarsIn_lift, EraseProof.OracleRen.fvarsIn_inst, EraseProof.OracleRen.fvarsIn_foldl, EraseProof.OracleRen.spine_snd, EraseProof.OracleRen.closed_find, EraseProof.OracleRen.renFV_lift, EraseProof.OracleRen.renFV_inst, EraseProof.OracleRen.renFV_closed, EraseProof.OracleRen.renFV_foldl, EraseProof.OracleRen.renFV_mkAppN, EraseProof.OracleRen.spine_ren, EraseProof.OracleRen.renFV_eq_lam, EraseProof.OracleRen.list_mapM_map, EraseProof.OracleRen.iotaApp?_ren, EraseProof.OracleRen.ihs_ren, EraseProof.OracleRen.iotaRhs?_ren, EraseProof.OracleRen.throw_ne_ok, EraseProof.OracleRen.bind_ren, EraseProof.OracleRen.bind_ren_eq, EraseProof.OracleRen.bind_congr_ok, EraseProof.OracleRen.iotaRhs?_spec, EraseProof.OracleRen.iotaApp?_spine, EraseProof.OracleRen.mem_of_mapM, EraseProof.OracleRen.iotaRhs_fvarsIn, EraseProof.OracleRen.renFV_id, EraseProof.OracleRen.localsRen_id, EraseProof.OracleRen.fvarsIn_mkAppN, EraseProof.OracleRen.fvarsIn_absFV, EraseProof.OracleRen.localsSupport_cons, EraseProof.OracleRen.fvarsIn_open, EraseProof.OracleRen.localsSupport_open, EraseProof.OracleRen.whnf_ren, EraseProof.OracleRen.instForalls_ren, EraseProof.OracleRen.instProjs_ren, EraseProof.OracleRen.inferType_ren, EraseProof.OracleRen.isArity_ren, EraseProof.Pure.typeLevel_ren, EraseProof.Pure.isErasable_ren, EraseProof.OracleRen.forallView?_of_not, EraseProof.forallView?_ren, EraseProof.OracleRen.fvarsIn_list, EraseProof.OracleRen.fvarsIn_oracle_ty, EraseProof.OracleRen.fvarsIn_view, EraseProof.MarkOf.fvarsIn, EraseProof.MarkEta.fvarsIn, EraseProof.MarkSat.fvarsIn, EraseProof.MarkAlt.fvarsIn}
+  \leanok
+  \uses{def:EraseProof-MarkOf, def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Oracle/Rename.lean}{20}
+  \lead{In short} \hl{Over declarations without free variables (\code{ClosedDecls}), the oracle's answers on renamed locals are the renamed answers}, and the free variables of an answer lie in the support of its input.
+  \begin{itemize}
+  \item \code{renFV}, \code{LocalsRen}, \code{LocalsSupport}: the renaming and its hypotheses;
+  \item \code{whnf\_ren}, \code{inferType\_ren}, \code{isArity\_ren}, \code{Pure.typeLevel\_ren}, \code{Pure.isErasable\_ren}: each oracle function;
+  \item \code{MarkOf.fvarsIn}: a marking's free variables lie in the support of its input (the basis of \code{markOf\_det}).
+  \end{itemize}
+  \lead{Reference} the frame lemma of \code{ML-V Oracle/Agree}.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The oracle reads a free variable only through its local, so no injectivity of the renaming is needed.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item \code{collectDeps\_spec} takes the hypothesis that every recursor's type names its block's members.
+\item \code{register\_inductive\_ok} takes the block facts the run does not check as premises.
+\item The \code{propositional} flag is the syntactic test; a sort \code{max 0 0} is outside the fragment (DV-14).
+\end{itemize}
