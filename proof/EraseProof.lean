@@ -58,6 +58,7 @@ import EraseProof.Core.CtorProp
 import EraseProof.Core.StepsProj
 import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
+import EraseProof.Core.ExistsInv
 import EraseProof.Final
 import EraseProof.FirstOrder
 import EraseProof.Test.NV4Final
@@ -161,6 +162,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   pure traversal's correctness (`erasePure_erases`).
 * `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
   of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
+* `EraseProof.Core.ExistsInv`: every run of the traversal keeps its counter of fresh variables
+  increasing and the masks it registers keeping every field (`travMonoAt`).
 * `EraseProof.Final`: the final theorem `erase_correct`, composed of the milestones over the
   fragment test's closure, with the certified erasure from the program's certificates.
 * `EraseProof.FirstOrder`: the final theorem on first-order values `erase_correct_firstorder`.
