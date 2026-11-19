@@ -170,7 +170,6 @@ def statements : Array (Name × Name) := #[
 with their statements. -/
 def unproved : Array Name := #[
   `EraseProof.erase_correct,
-  `EraseProof.erases_correct,
   `EraseProof.erasePure_erases,
   `EraseProof.srcEval_sound,
   `EraseProof.collectDeps_ok_of,

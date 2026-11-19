@@ -164,7 +164,7 @@ theorem const_inv {Γ : List CtxBinder} {c : Name} {us : List Level} {ci : Const
 /-- A term con-leche types has no loose bound variable (`CLTyped.closed`, `AbsFV.LBV_of_toCL?`):
 the closedness premise of `Erases.inst`. -/
 theorem _root_.EraseProof.CLOk.lbv {env : ConLeche.Env} {t : Expr} (h : CLOk env t) : AbsFV.LBV 0 t := by
-  obtain ⟨c, F, T, hc, hinf⟩ := h
+  obtain ⟨c, F, T, hc, hinf⟩ := h.1
   exact AbsFV.LBV_of_toCL? hc (CLTyped.closed ⟨c, F, T, hc, hinf⟩ hc)
 
 /-! ## The cases -/
