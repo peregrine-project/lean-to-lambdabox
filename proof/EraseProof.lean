@@ -2,6 +2,8 @@ import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
+import EraseProof.Bridge.CLNames
+import EraseProof.Core.Collect
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -61,6 +63,10 @@ The library root of the proof package: the correctness of the erasure behind `#e
   model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
   application and the value rules.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
+* `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
+  declaration of the program the fragment test may scan reads only names of the program.
+* `EraseProof.Core.Collect`: the closure of the fragment test is part of the program
+  (`collectDeps_sub`).
 * `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
   its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
