@@ -1722,19 +1722,26 @@ def MarksCert (env : ConLeche.Env) : List CtxBinder → Expr → Prop
   | Γ, .proj _ _ e => MarksCert env Γ e
   | _, _ => True
 
-/-- con-leche certifies the marks of the program `p` that `#erase` emits for the marked input `ê`
-over the closure `decls`: it types `ê` as a whole (`CLTypedAt`; marks are transparent, so every
-η-expansion is typed, and the domain of each `eta`-marked binder is checked against the argument
-position it fills), and every mark of `ê` in the context of its enclosing binders (`MarksCert`;
-the discriminant of a `reduced` mark as a proof); the same of the marking of each constant of
-`decls` whose value the emitted λ□ environment holds a body for. With the marking fixed (`MarkOf`
-is a function of its input, `markOf_det_statement`), each conjunct is a finite list of con-leche
-runs at `checkFuel`. Reference: none (DV-32). -/
-def ProgCert (env : ConLeche.Env) (decls : List ConstantInfo) (cfg : ErasureConfig) (p : Program)
-    (ê : Expr) : Prop :=
-  CLTypedAt env ê ∧ MarksCert env [] ê ∧ ∀ lenv t, p = .untyped lenv t → ∀ ci ∈ decls, ∀ v cb,
-    ci.value? (allowOpaque := true) = some v → lookupConst lenv (toKername ci.name) = some cb →
-    cb.cst_body.isSome = true → ∃ vM, MarkOf decls cfg [] v vM ∧ CLTypedAt env vM ∧ MarksCert env [] vM
+/-- con-leche certifies the marks of the marked input `ê` over the closure `decls`: it types `ê`
+as a whole (`CLTypedAt`; marks are transparent, so every η-expansion is typed, and the domain of
+each `eta`-marked binder is checked against the argument position it fills), and every mark of `ê`
+in the context of its enclosing binders (`MarksCert`; the discriminant of a `reduced` mark as a
+proof); the same of a marking of the value of every constant of `decls` that has one, whether or
+not the emitted λ□ environment holds a body for it (DV-37). With the marking fixed (`MarkOf` is a
+function of its input, `markOf_det_statement`), each conjunct is a finite list of con-leche runs at
+`checkFuel`. Reference: none (DV-32). -/
+def ProgCert (env : ConLeche.Env) (decls : List ConstantInfo) (cfg : ErasureConfig) (ê : Expr) :
+    Prop :=
+  CLTypedAt env ê ∧ MarksCert env [] ê ∧ ∀ ci ∈ decls, ∀ v,
+    ci.value? (allowOpaque := true) = some v →
+    ∃ vM, MarkOf decls cfg [] v vM ∧ CLTypedAt env vM ∧ MarksCert env [] vM
+
+/-- Every value of a constant of the closure `decls` has a marking in the empty context: the
+premise of `erasePure_erases_statement` that gives `ErasesDecl`'s `∃ vM` for each value the
+traversal erases; the final theorem has it from `ProgCert`'s third conjunct. Reference: none
+(DV-32). -/
+def ValuesMarkedOf (decls : List ConstantInfo) (cfg : ErasureConfig) : Prop :=
+  ∀ ci ∈ decls, ∀ v, ci.value? (allowOpaque := true) = some v → ∃ vM, MarkOf decls cfg [] v vM
 
 /-! ## 8. The meaning of the source value; first-order values -/
 
