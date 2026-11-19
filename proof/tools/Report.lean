@@ -178,7 +178,6 @@ def unproved : Array Name := #[
   `EraseProof.clCert_proof_pt,
   `EraseProof.markOf_det,
   `EraseProof.markOf_exists,
-  `EraseProof.collectDeps_sub,
   `EraseProof.markOf_agree]
 
 /-- The statement definitions, whose definitions C12b pins. -/
@@ -241,9 +240,17 @@ partial def parseArgs (cfg : Config) : List String → Except String Config
 def isNumbered (pre s : String) : Bool :=
   s.length > pre.length && s.startsWith pre && (s.toList.drop pre.length).all Char.isDigit
 
+/-- `match_<n>_<m>`: a matcher the structural recursion over a mutual inductive family generates
+for one member of the family (as `match_<n>` for the function). -/
+def isMatchCopy (s : String) : Bool :=
+  let r := s.toList.drop "match_".length
+  s.startsWith "match_" && r.count '_' == 1 && r.head? != some '_' && r.getLast? != some '_' &&
+    r.all fun c => c.isDigit || c == '_'
+
 /-- A name component that marks a compiler- or elaborator-generated auxiliary. -/
 def isAuxComponent (s : String) : Bool :=
-  s.startsWith "_" || isNumbered "match_" s || isNumbered "proof_" s || isNumbered "eq_" s
+  s.startsWith "_" || isNumbered "match_" s || isNumbered "proof_" s || isNumbered "eq_" s ||
+    isMatchCopy s
 
 /-- Last components of generated declarations: auxiliary recursors, `noConfusion`, equation and
 induction principles, injectivity lemmas, `sizeOf` lemmas. -/

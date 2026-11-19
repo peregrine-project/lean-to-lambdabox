@@ -2,11 +2,14 @@ import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
+import EraseProof.Bridge.CLNames
+import EraseProof.Core.Collect
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
 import EraseProof.Relation.Lookup
 import EraseProof.Source.Marks
+import EraseProof.Source.MarkRead
 import EraseProof.Simulation.Cases
 import EraseProof.Simulation.Ind
 import EraseProof.Simulation.Quot
@@ -19,6 +22,7 @@ import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
+import EraseProof.Oracle.Rename
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
@@ -41,6 +45,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (constants' bodies, inductive blocks), and their stability under abstraction and growth.
 * `EraseProof.Source.Marks`: marks under substitution; `unmark` commutes with lifting, universe
   instantiation and instantiation.
+* `EraseProof.Source.MarkRead`: a marking reads through `unmark` as the term it marks, and its
+  `eta` marks sit on λs.
 * `EraseProof.TargetFacts`: the induction principle of λ□ evaluation.
 * `EraseProof.Relation.Deps`: erased dependencies under substitution and λ□ evaluation.
 * `EraseProof.Source.Value`: the shapes of source values; every evaluation result is one.
@@ -60,6 +66,12 @@ The library root of the proof package: the correctness of the erasure behind `#e
   model, and its cases β, ζ, δ, application congruence, constructor values, the frozen
   application and the value rules.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
+* `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
+  declaration of the program the fragment test may scan reads only names of the program.
+* `EraseProof.Core.Collect`: the closure of the fragment test is part of the program
+  (`collectDeps_sub`).
+* `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
+  its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Core.State`: the traversal's state invariant and the registration of constants.
 * `EraseProof.Core.RegisterInd`: the registration of an inductive block keeps the invariant.
 * `EraseProof.Core.Glue`: a returning run of `#erase`'s entry point on an input inside the
