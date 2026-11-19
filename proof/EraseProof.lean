@@ -3,11 +3,13 @@ import EraseProof.Semantics.Cases
 import EraseProof.Semantics.Iota
 import EraseProof.Semantics.Rec
 import EraseProof.Semantics.Decode
+import EraseProof.Semantics.Frozen
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
 import EraseProof.Core.Collect
 import EraseProof.Core.CollectSpec
+import EraseProof.Core.CollectOk
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -80,6 +82,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.Decode`: the stored records of a recognized `casesOn` (its value, recursor
   and constructors), of a one-member block's former and of the quotient constants; the grading of a
   certified term.
+* `EraseProof.Semantics.Frozen`: its case `casesOn` on a frozen discriminant (a proof), reduced
+  by con-leche's semantic ι at a constructor application built for the step.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
@@ -87,6 +91,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (`collectDeps_sub`).
 * `EraseProof.Core.CollectSpec`: the closure of the fragment test is closed under what the source
   semantics and the traversal read, with distinct kernames and block names (`collectDeps_spec`).
+* `EraseProof.Core.CollectOk`: the fragment test accepts a program whose read closure lies inside
+  the first-phase fragment (`collectDeps_ok_of`).
 * `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
   its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
 * `EraseProof.Oracle.Det`: the marking is a function of its input (`markOf_det`).
