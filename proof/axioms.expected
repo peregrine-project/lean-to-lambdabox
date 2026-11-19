@@ -4,24 +4,7 @@
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.erases_correct propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_value propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_beta propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_etaBeta propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_zeta propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_delta propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_appCong propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_ctor propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_frozenApp propext,Classical.choice,Quot.sound
-EraseProof.Sound.of_semSim propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_casesIota propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_casesLitZero propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_casesLitSucc propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
-EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
+EraseProof.srcEval_sound propext,Classical.choice,Quot.sound
 EraseProof.markOf_det propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
@@ -220,17 +203,12 @@ EraseProof.Test.NV2.withApp_alt1 propext
 EraseProof.Test.NV2.withApp_alt2 propext
 EraseProof.Test.NV2.withApp_bodyK propext
 EraseProof.Test.NV2.withApp_e propext
-EraseProof.markOf_read propext,Classical.choice,Quot.sound
-EraseProof.markOf_read_delta propext,Classical.choice,Quot.sound
 EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound
 EraseProof.Test.DeclOf.inBlock_accepted propext
 EraseProof.Test.DeclOf.nv1_head_accepted propext
 EraseProof.Test.DeclOf.nested_rejected propext
 EraseProof.Test.DeclOf.stray_rejected propext
 EraseProof.Test.DeclOf.unsafe_rejected propext
-EraseProof.SemCases.srcEval_sound_recIota propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_quotLift propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_quotMk propext,Classical.choice,Quot.sound
 EraseProof.StateOK.empty propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_fvar_step propext,Classical.choice,Quot.sound
@@ -246,12 +224,6 @@ EraseProof.Steps.visitExpr_cases_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_proj_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_lit_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_quot_step propext,Classical.choice,Quot.sound
-EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.projAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.recIotaAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.RecIH.canonical propext
 EraseProof.Test.RecIH.canonical_with propext
 EraseProof.Test.RecIH.dup_defn_levels propext
@@ -263,5 +235,4 @@ EraseProof.Test.RecIH.wrong_head propext
 EraseProof.Test.RecIH.wrong_lams propext
 EraseProof.Test.RecIH.wrong_levels propext
 EraseProof.coreEnv_value propext,Classical.choice,Quot.sound
-EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound
 EraseProof.ctorPropBoxed_of propext,Classical.choice,Quot.sound
