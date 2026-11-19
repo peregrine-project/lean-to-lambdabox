@@ -19,8 +19,8 @@ import EraseProof.Simulation.Main
 4. `erases_correct`: the main term evaluates in λ□ to an erasure of the source value;
 5. `srcEval_sound`: the source value means what the input means;
 6. `Erases.toCert`, `ErasesDeps.toCert`: the erasure of the main term and of the bodies is
-   certified, the marks of the input by `hcert`'s second conjunct, the markings of the values by
-   its third, which is every marking of them (`markOf_det`).
+   certified, the marks of the input by `hcert`'s second conjunct, the markings of the values the
+   traversal erases by its third, which is every marking of them (`markOf_det`).
 
 Adapted from `ML-V Final.lean`, with `srcEval_sound` in place of `SrcEval.defeq` and the
 certified conjuncts.
@@ -100,27 +100,29 @@ theorem Erases.toCert {env : ConLeche.Env} {σ : EvalEnv} {Γ : List CtxBinder} 
     (fun _ ih hm => .etaLam (ih hm)) h hm
 
 /-- A λ□ body related to a constant without certificates is related with con-leche's
-certificates if every marking of the constant's value is certified. Reference: none (DV-32). -/
+certificates if every marking of the constant's value is certified, when the traversal erases it
+(`ErasedValue`). Reference: none (DV-32). -/
 theorem ErasesDecl.toCert {env : ConLeche.Env} {σ : EvalEnv} {ci : ConstantInfo}
     {cb : ConstantBody}
-    (hd : ∀ v, ci.value? (allowOpaque := true) = some v → ∀ vM, MarkOf σ.decls σ.cfg [] v vM →
-      MarksCert env [] vM)
+    (hd : ErasedValue σ.decls ci → ∀ v, ci.value? (allowOpaque := true) = some v →
+      ∀ vM, MarkOf σ.decls σ.cfg [] v vM → MarksCert env [] vM)
     (h : ErasesDecl noCert σ ci cb) : ErasesDecl (CLCert env) σ ci cb := by
   unfold ErasesDecl at h ⊢
   split at h
   · exact h
   · rename_i v hv
-    rcases h with h | ⟨ha, hex, b', hb, hall⟩
+    rcases h with h | ⟨ha, he, hex, b', hb, hall⟩
     · exact .inl h
-    · exact .inr ⟨ha, hex, b', hb, fun vM hM => Erases.toCert (hall vM hM) (hd v hv vM hM)⟩
+    · exact .inr ⟨ha, he, hex, b', hb, fun vM hM => Erases.toCert (hall vM hM) (hd he v hv vM hM)⟩
 
 /-- Erased dependencies without certificates are erased dependencies with con-leche's
-certificates if every marking of the value of every constant of `σ` is certified. Reference:
-none (DV-32). -/
+certificates if every marking of the value of every constant of `σ` that the traversal erases
+(`ErasedValue`) is certified. Reference: none (DV-32). -/
 theorem ErasesDeps.toCert {env : ConLeche.Env} {σ : EvalEnv} {lenv : GlobalDeclarations}
     {t : LBTerm}
-    (hd : ∀ c ci, findDecl σ.decls c = some ci → ∀ v, ci.value? (allowOpaque := true) = some v →
-      ∀ vM, MarkOf σ.decls σ.cfg [] v vM → MarksCert env [] vM)
+    (hd : ∀ c ci, findDecl σ.decls c = some ci → ErasedValue σ.decls ci → ∀ v,
+      ci.value? (allowOpaque := true) = some v → ∀ vM, MarkOf σ.decls σ.cfg [] v vM →
+        MarksCert env [] vM)
     (h : ErasesDeps noCert σ lenv t) : ErasesDeps (CLCert env) σ lenv t := by
   induction h with
   | box => exact .box
@@ -135,16 +137,17 @@ theorem ErasesDeps.toCert {env : ConLeche.Env} {σ : EvalEnv} {lenv : GlobalDecl
   | proj hi hind _ ih => exact .proj hi hind ih
   | fix _ ih => exact .fix ih
 
-/-- Over a closure without free variables, every marking of the value of one of its constants is
-certified, if `ProgCert` certifies one: the marking is a function of the value (`markOf_det`).
-Reference: none (DV-32, DV-37). -/
+/-- Over a closure without free variables, every marking of the value of one of its constants
+that the traversal erases (`ErasedValue`) is certified: `ProgCert` certifies one, and the marking
+is a function of the value (`markOf_det`). Reference: none (DV-32, DV-37). -/
 theorem marksCert_of_progCert {env : ConLeche.Env} {decls : List ConstantInfo}
     {cfg : ErasureConfig} {ê : Expr} (hcert : ProgCert env decls cfg ê)
     (hcl : ClosedDecls decls = true) {c : Name} {ci : ConstantInfo}
-    (hf : findDecl decls c = some ci) {v : Expr} (hv : ci.value? (allowOpaque := true) = some v)
+    (hf : findDecl decls c = some ci) (he : ErasedValue decls ci) {v : Expr}
+    (hv : ci.value? (allowOpaque := true) = some v)
     {vM : Expr} (hM : MarkOf decls cfg [] v vM) : MarksCert env [] vM := by
   have hci := (Decls.findDecl_eq_some hf).1
-  obtain ⟨vM', hM', -, hC⟩ := hcert.2.2 ci hci v hv
+  obtain ⟨vM', hM', -, hC⟩ := hcert.2.2 ci hci he v hv
   have hfv : FVarsIn (fun _ => False) v := by
     have h := (Bool.and_eq_true _ _ ▸ List.all_eq_true.1 hcl ci hci).2
     rw [hv] at h
@@ -180,12 +183,14 @@ theorem erase_correct : erase_correct_statement.{w} := by
   have hG := coreEnv_of hacc hsub hnopre hfrag
   obtain ⟨hinj, -, -, hbn, har⟩ := collectDeps_spec hacc hview hty hfrag
   obtain ⟨lenv, tb, rfl, her, hdeps, hlc⟩ := erasePure_erases hacc hsub hnopre hfrag
-    (eraseEntry_pure hfrag hrun) (fun ci hci v hv => (hcert.2.2 ci hci v hv).imp fun _ h => h.1)
+    (eraseEntry_pure hfrag hrun)
+    (fun ci hci he v hv => (hcert.2.2 ci hci he v hv).imp fun _ h => h.1)
     hmark
   obtain ⟨vb, hvb, hlb⟩ := erases_correct (σ := evalEnvOf view cfg decls) hinj hbn har hG.ctors
     hG.natShaped hG.natCtors hG.recs hlc her hdeps hev
   exact ⟨lenv, tb, vb, rfl, Erases.toCert her hcert.2.1,
-    ErasesDeps.toCert (fun _ _ hf _ hv _ hM => marksCert_of_progCert hcert hG.closed hf hv hM)
+    ErasesDeps.toCert
+      (fun _ _ hf he _ hv _ hM => marksCert_of_progCert hcert hG.closed hf he hv hM)
       hdeps,
     hvb, hlb, srcEval_sound hacc hsub hty hclean (noMarkKeysDecls_of hacc hsub) hmark hev⟩
 

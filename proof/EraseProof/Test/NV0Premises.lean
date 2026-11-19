@@ -301,7 +301,7 @@ theorem typedAt_main : CLTypedAt envNV0 mainM :=
 
 theorem hcert : ProgCert envNV0 D cfg e := by
   refine ⟨typedAt_e, trivial, ?_⟩
-  intro ci hci v hv
+  intro ci hci _ v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl <;> cases hv
   · exact ⟨_, mark_idLam (.inr rfl) _ (.inl rfl), typedAt_id, trivial⟩

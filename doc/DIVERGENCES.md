@@ -771,13 +771,14 @@ What the statements and the checks rely on without proof:
   `EraseProof.CLTypedAt`), `EraseProof.MarksCert` and `EraseProof.ProgCert`, the hypothesis
   `hcert` of `EraseProof.erase_correct_statement`, `EraseProof.ValuesMarkedOf` (a premise of
   `EraseProof.erasePure_erases_statement`, and the hypothesis `hvals` of
-  `EraseProof.erase_correct_firstorder_statement`), and `EraseProof.clCert_proof_pt_statement`.
+  `EraseProof.erase_correct_firstorder_statement`), `EraseProof.ErasedValue` (read by both and by
+  `EraseProof.ErasesDecl`), and `EraseProof.clCert_proof_pt_statement`.
 - **Reference artifact:** `isErasable` (`erasure/theories/Extract.v:18`), asked of every `□` by
   `erases_box` (`erasure/theories/Extract.v:140`) and computed by `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`) with a type inference; MC §7.2.
 - **What differs:** the erased subterms are certified by runs of con-leche's checker on the given
   program, not by a typing derivation. `ProgCert` asks that con-leche types the marked input as a
-  whole and a marking of the value of every constant of the closure that has one
+  whole and a marking of the value of every constant of the closure that the traversal erases
   (`EraseProof.CLTypedAt`), and that every `erase` mark and the discriminant of every `reduced` mark
   is certified in the context of its enclosing binders (`MarksCert`): the closed telescope of its
   binders is typed, and the subterm opened as con-leche opens binders has a type that is a
@@ -788,23 +789,31 @@ What the statements and the checks rely on without proof:
   evaluated values substituted, which no check repeats. The `□`s that the relation does not pair with
   a mark (the direct-mode placeholders of a recursor's fixpoint, DV-30) rest on declaration
   conditions and the fragment test, not on a certificate. The oracle's answers are checked on this
-  program, not proved. The values certified are all those of the closure, also those the traversal
-  does not erase (a recognized `casesOn`'s, a theorem's), whose λ□ environment holds no body for
-  them: a program on which the oracle has no marking of such a value, or con-leche does not
-  certify it, is outside the theorem.
+  program, not proved. The values certified are those of the closure that the traversal erases
+  (`EraseProof.ErasedValue`: a definition that is not a `casesOn` that `Erasure.casesInfo?`
+  recognizes, or an opaque; never a theorem, on whose spines the oracle answers `true` before it
+  reads anything else), also those whose body the emitted λ□ environment does not hold: a program
+  on which the oracle has no marking of such a value, or con-leche does not certify it, is outside
+  the theorem.
 - **Why it is forced:** con-leche has neither a typing judgement nor a semantic criterion for type
   formers (DV-32), so `isErasable` can be replaced only by what its checker decides; the oracle
   (`Erasure.Pure.isErasable`) is unverified, and the certificate recovers the property per program.
   The context of the binders is part of the check because con-leche types a term only closed, and
   the domain of a binder must itself be checked. The certificate covers every value of the
-  closure because the proof of `erasePure_erases` needs a marking of each value the traversal
-  erases (`ErasesDecl`) before it relates the value's run to the emitted program; its premise
-  `ValuesMarkedOf` is the first component of `ProgCert`'s third conjunct. The first-order corollary
-  has no certificate and takes `ValuesMarkedOf` itself (`hvals`), for the same reason: its λ□
-  value comes from `erasePure_erases`.
+  closure that the traversal erases, whether or not the emitted environment holds its body,
+  because the proof of `erasePure_erases` needs a marking of each value the traversal erases
+  (`ErasesDecl`, which records `ErasedValue`) before it relates the value's run to the emitted
+  program, and the test is the traversal's own (`visitMutual` is reached only on such constants);
+  its premise `ValuesMarkedOf` is the first component of `ProgCert`'s third conjunct. The
+  first-order corollary has no certificate and takes `ValuesMarkedOf` itself (`hvals`), for the
+  same reason: its λ□ value comes from `erasePure_erases`.
 - **What was considered instead:** a semantic predicate on the denotation of the mark, which is false
   for types (DV-32); verifying the oracle, which needs a typing metatheory for Lean; certificates
   on the closed mark alone, which cannot type a mark that mentions its enclosing binders;
+  certifying the value of every constant of the closure, theorems' and recognized `casesOn`s'
+  included, which the oracle has no marking of when a theorem's proof cites a constant outside the
+  closure (every program with a nested proof, such as a `Fin` literal or `decide` on `Nat`) or a
+  mutual `casesOn`'s value mentions `PUnit`, so that `hcert` is false on such programs;
   certifying only the values whose bodies the emitted environment holds, which the induction over
   the traversal can read only with a bound on the final environment threaded through every step and
   a proof that each traversal function keeps the registered constants; proving that the traversal's

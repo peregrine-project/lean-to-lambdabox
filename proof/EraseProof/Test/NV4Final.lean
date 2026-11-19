@@ -35,6 +35,6 @@ theorem firstorder.{w} (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fuel
       CLTyped envNV4 NV1.cT ∧ (∀ s, FrozenLeaf NV1.cT s → CLErasable envNV4 s) ∧
       Sound.{w} envNV4 e NV1.cT :=
   erase_correct_firstorder.{w} (hacc hfold) (hty hg) hclean (by krfl) hview hfrag hnopre hrun hmark
-    (fun ci hci v hv => let ⟨vM, h, _⟩ := (hcert hg).2.2 ci hci v hv; ⟨vM, h⟩) (hev hg) fo
+    (fun ci hci he v hv => let ⟨vM, h, _⟩ := (hcert hg).2.2 ci hci he v hv; ⟨vM, h⟩) (hev hg) fo
 
 end EraseProof.Test.NV4
