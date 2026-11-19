@@ -25,6 +25,7 @@ import EraseProof.Simulation.Main
 import EraseProof.Source.Decls
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises

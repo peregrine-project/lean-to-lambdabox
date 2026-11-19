@@ -278,9 +278,9 @@ theorem mark_main {decls : List ConstantInfo} (hd : decls = P ∨ decls = D) :
   · exact MarkOf.erase (by rcases hd with rfl | rfl <;> krfl)
   · exact mark_idLam hd 1 (.inr rfl)
 
-/-! ## `hcert`: con-leche certifies every mark of the emitted program
+/-! ## `hcert`: con-leche certifies every mark of the input and of the closure's values
 
-`ê = e` has no mark. The emitted environment holds bodies for `nv0id` (no mark) and `nv0main`, whose
+`ê = e` has no mark. The closure's values are those of `nv0id` (no mark) and `nv0main`, whose
 one mark is the type argument `(α : Type) → α → α` of `nv0id`, at the top (no enclosing binder):
 con-leche types it with a sort, so it is a type former (`CLVerdict`, first disjunct). -/
 
@@ -298,9 +298,9 @@ theorem typedAt_id : CLTypedAt envNV0 (idLam (.param `u)) :=
 theorem typedAt_main : CLTypedAt envNV0 mainM :=
   ⟨.app (.app (.const (nm "nv0id") [.succ (.succ .zero)]) cTT) cIdT, cTT, by krfl, by krfl⟩
 
-theorem hcert : ProgCert envNV0 D cfg p0 e := by
+theorem hcert : ProgCert envNV0 D cfg e := by
   refine ⟨typedAt_e, trivial, ?_⟩
-  intro lenv t _ ci hci v cb hv _ _
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl <;> cases hv
   · exact ⟨_, mark_idLam (.inr rfl) _ (.inl rfl), typedAt_id, trivial⟩

@@ -1,6 +1,7 @@
 import EraseProof.Statements
 import EraseProof.Test.NV2Data
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-2: the hypotheses of the final theorem
@@ -725,8 +726,8 @@ theorem hmark : MarkOf D cfg [] e eM := by
 /-! ## `hcert`: con-leche types the marked input and certifies its four marks
 
 The marks of `eM`: `B` in the first alternative (no binder), `B` under the source λ `k`, and the
-η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The emitted environment holds
-no constant, so no body is asked of. -/
+η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The closure's one value is
+`B.casesOn`'s, whose marking has no mark (`mark_casesOnVal`). -/
 
 /-- the context of the η-variable `α`: `val : α`, `α : Type`, innermost first -/
 def Γη : List CtxBinder := [(.bvar 0, none), (.sort l1, none)]
@@ -754,16 +755,15 @@ theorem marks_eM : MarksCert envNV2 [] eM :=
   ⟨⟨⟨⟨trivial, ⟨trivial, trivial⟩⟩, trivial⟩, ⟨⟨trivial, cert_B0⟩, trivial⟩⟩,
     ⟨⟨⟨trivial, cert_Bk⟩, trivial⟩, ⟨⟨trivial, cert_α⟩, trivial⟩⟩⟩
 
-theorem hcert : ProgCert envNV2 D cfg p0 eM := by
+/-- con-leche types `B.casesOn`'s value as a whole, at `checkFuel`. -/
+theorem typedAt_casesOn : CLTypedAt envNV2 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
+
+theorem hcert : ProgCert envNV2 D cfg eM := by
   refine ⟨typedAt_eM, marks_eM, ?_⟩
-  intro lenv t hp ci hci v cb hv hl _
-  cases hp
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
-  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> try cases hv
-  rw [show lookupConst [(mutualBlockKername [`Box], .inductiveDecl ⟨.finite, 1, [bodyBox]⟩),
-    (mutualBlockKername [`B], .inductiveDecl ⟨.finite, 0, [bodyB]⟩)]
-      (toKername (ConstantInfo.defnInfo B_casesOn).name) = none by krfl] at hl
-  cases hl
+  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
+  exact ⟨_, mark_casesOnVal (.inr rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
 
 /-! ## `hev`: an explicit derivation of `eM ⇓ Box.mk □□B B.f`, its certificates by the kernel at
 `envNV2` (none needs ι: the motive is constant) -/
