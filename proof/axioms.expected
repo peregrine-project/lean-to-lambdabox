@@ -246,6 +246,7 @@ EraseProof.Steps.visitExpr_cases_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_proj_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_lit_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_quot_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_rec_step propext,Classical.choice,Quot.sound
 EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
