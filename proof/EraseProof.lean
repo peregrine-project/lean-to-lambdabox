@@ -37,6 +37,9 @@ import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
 import EraseProof.Core.Steps
 import EraseProof.Core.StepsApp
+import EraseProof.Core.StepsRun
+import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsQuot
 import EraseProof.Core.NonRec
 /-!
 # Verification of the eraser
@@ -107,6 +110,10 @@ The library root of the proof package: the correctness of the erasure behind `#e
   metadata, λ and `let`.
 * `EraseProof.Core.StepsApp`: the steps for application spines and constants without a rule of
   their own, and for `visitMutual`.
+* `EraseProof.Core.StepsRun`: runs of the traversal's environment helpers at the pure backend.
+* `EraseProof.Core.StepsCtor`: the η-expansion of a spine to its head's arity, and the step for
+  constructor spines.
+* `EraseProof.Core.StepsQuot`: the step for spines headed by `Quot.mk` or `Quot.lift`.
 * `EraseProof.Core.NonRec`: a value `visitMutual` erases is of a one-member block and has a scope
   without its own constant, by the order of con-leche's fold (`coreEnv_value`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
