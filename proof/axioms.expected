@@ -239,7 +239,8 @@ EraseProof.Steps.visitMutual_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_ctor_step propext,Classical.choice,Quot.sound
 EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.projAt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.RecIH.canonical propext
 EraseProof.Test.RecIH.dup_defn_levels propext
