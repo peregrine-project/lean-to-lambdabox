@@ -166,12 +166,6 @@ theorem ArityShape.inst {T a : Expr} {n : Nat} {u : Level} (H : ArityShape T n u
   | forallE _ ih => intro d; exact .forallE ih
   | mdata _ ih => intro d; exact .mdata ih
 
-theorem ConstSpine.inst {h : Name} {vs : List Level} {k : Nat} {T a : Expr}
-    (H : ConstSpine h vs k T) : ∀ {d : Nat}, ConstSpine h vs k (T.instantiate1' a d) := by
-  induction H with
-  | const => intro d; exact .const
-  | app _ ih => intro d; exact .app ih
-
 theorem MSpine.inst {h : Name} {vs : List Level} {k : Nat} {T a : Expr}
     (H : MSpine h vs k T) : ∀ {d : Nat}, MSpine h vs k (T.instantiate1' a d) := by
   induction H with
@@ -192,13 +186,6 @@ theorem ArityShape.instLevels {T : Expr} {n : Nat} {u : Level} {ps : List Name} 
   | sort => exact .sort
   | forallE _ ih => exact .forallE ih
   | mdata _ ih => exact .mdata ih
-
-theorem ConstSpine.instLevels {h : Name} {vs : List Level} {k : Nat} {T : Expr} {ps : List Name}
-    {us : List Level} (H : ConstSpine h vs k T) :
-    ConstSpine h (vs.map (Pure.instLevel ps us)) k (Pure.instLevels ps us T) := by
-  induction H with
-  | const => exact .const
-  | app _ ih => exact .app ih
 
 theorem MSpine.instLevels {h : Name} {vs : List Level} {k : Nat} {T : Expr} {ps : List Name}
     {us : List Level} (H : MSpine h vs k T) :
@@ -221,10 +208,6 @@ theorem ConstSpine.ne_mdata {h : Name} {vs : List Level} {k : Nat} {T : Expr}
 
 theorem ConstSpine.ne_lam {h : Name} {vs : List Level} {k : Nat} {T : Expr}
     (H : ConstSpine h vs k T) : ∀ n t b bi, T ≠ .lam n t b bi := by
-  cases H <;> intro n t b bi h <;> cases h
-
-theorem ConstSpine.ne_forallE {h : Name} {vs : List Level} {k : Nat} {T : Expr}
-    (H : ConstSpine h vs k T) : ∀ n t b bi, T ≠ .forallE n t b bi := by
   cases H <;> intro n t b bi h <;> cases h
 
 theorem MSpine.ne_forallE {h : Name} {vs : List Level} {k : Nat} {T : Expr}
