@@ -230,3 +230,6 @@ EraseProof.Test.DeclOf.inBlock_accepted propext
 EraseProof.Test.DeclOf.nv1_head_accepted propext
 EraseProof.Test.DeclOf.stray_rejected propext
 EraseProof.Test.DeclOf.unsafe_rejected propext
+EraseProof.SemCases.srcEval_sound_recIota propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotLift propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotMk propext,Classical.choice,Quot.sound

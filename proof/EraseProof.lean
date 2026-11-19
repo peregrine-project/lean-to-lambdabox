@@ -1,6 +1,7 @@
 import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
 import EraseProof.Semantics.Iota
+import EraseProof.Semantics.Rec
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -65,6 +66,7 @@ The library root of the proof package: the correctness of the erasure behind `#e
   application and the value rules.
 * `EraseProof.Semantics.Iota`: its cases `casesOn` ι (on a constructor value and on a `Nat`
   literal), projection and frozen projection, and the premise of its `let` case.
+* `EraseProof.Semantics.Rec`: its cases recursor ι, quotient lift and quotient constructor.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
