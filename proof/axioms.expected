@@ -248,3 +248,4 @@ EraseProof.Test.RecIH.dup_levels propext
 EraseProof.Test.RecIH.wrong_arity propext
 EraseProof.Test.RecIH.wrong_field propext
 EraseProof.Test.RecIH.wrong_levels propext
+EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound
