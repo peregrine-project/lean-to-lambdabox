@@ -3,10 +3,10 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} Prove \code{srcEval\_sound}: a marked evaluation preserves meaning in every con-leche model of the accepted program.
-\item \lead{Main results} The invariant \code{SemSim} (Section~\ref{sec:semantics-inv}); the cases $\beta$, $\zeta$, $\delta$, constructors, application congruence, frozen application, $\iota$ on a constructor and on a \code{Nat} literal, projections (Sections~\ref{sec:semantics-cases}--\ref{sec:semantics-iota}); the passage to \code{Sound}.
-\item \lead{Status} \stProved{} every node. \stOpen{} \code{srcEval\_sound} (Chapter~\ref{chap:statements}): the rules \code{recIota}, \code{quotMk}, \code{quotLift} and \code{casesFrozen} have no step lemma in the library.
+\item \lead{Main results} The invariant \code{SemSim} (Section~\ref{sec:semantics-inv}); the cases $\beta$, $\zeta$, $\delta$, constructors, application congruence, frozen application, $\iota$ on a constructor, on a \code{Nat} literal and on a recursor, projections, quotients and \code{casesOn} on a frozen proof (Sections~\ref{sec:semantics-cases}--\ref{sec:semantics-iota}); the decodes of the stored records; the passage to \code{Sound}.
+\item \lead{Status} \stProved{} every node: a step lemma for every rule of \code{SrcEval}. \stOpen{} \code{srcEval\_sound} (Chapter~\ref{chap:statements}), the induction that assembles them.
 \item \lead{Nodes} \bpnodes{chap:semantics}
-\item \lead{Lean files} \leanfiles{proof/EraseProof/Semantics/}{Cases, Iota, Decode}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Semantics/}{Cases, Iota, Decode, DecodeAt, Rec, Frozen}.
 \item \lead{Route} A step is a derivation of con-leche's rules tier (\code{Red}, \leanfile{ConLeche/Rules/Rel.lean}), built from syntax; its soundness \code{red\_sound} (\leanfile{ConLeche/Model/Rules/Sound.lean}), at the inputs of the model (\code{Rules.RulesInputs.ofSem}), gives the equation of denotations wherever the redex is not the proof point.
 \end{itemize}
 
@@ -100,14 +100,14 @@ A term is read in con-leche through its marks: \code{toCL?} is transparent to me
 
 \begin{lemma}[Decoding the stored records]
   \label{lem:EraseProof-ConLecheAccepts-casesIotaAt}
-  \lean{EraseProof.Decode.isBVarAt_eq, EraseProof.Decode.params_of_zip, EraseProof.Decode.isConstAt_eq, EraseProof.Decode.spine_foldl, EraseProof.Decode.isMinorBody_eq, EraseProof.Decode.ctorAlts_spec, EraseProof.Decode.toCL?_foldl, EraseProof.Decode.toCL?_peelLams, EraseProof.Decode.clLams_mkAppN, EraseProof.Decode.forall₂_fbv, EraseProof.Decode.mapM_param, EraseProof.Decode.blockOf?_shape, EraseProof.ConLecheAccepts.casesIotaAt, EraseProof.Decode.ctorName?, EraseProof.Decode.blockSplitRecs_ctors, EraseProof.Decode.blockSplitCtors_ctors, EraseProof.Decode.blockSplit_ctors, EraseProof.Decode.ctorRecords_names, EraseProof.Decode.ctorLookup_names, EraseProof.ConLecheAccepts.find?_former, EraseProof.ConLecheAccepts.find?_quot}
+  \lean{EraseProof.Decode.isBVarAt_eq, EraseProof.Decode.params_of_zip, EraseProof.Decode.isConstAt_eq, EraseProof.Decode.spine_foldl, EraseProof.Decode.isMinorBody_eq, EraseProof.Decode.ctorAlts_spec, EraseProof.Decode.toCL?_foldl, EraseProof.Decode.toCL?_peelLams, EraseProof.Decode.clLams_mkAppN, EraseProof.Decode.forall₂_fbv, EraseProof.Decode.mapM_param, EraseProof.Decode.blockOf?_shape, EraseProof.ConLecheAccepts.casesIotaAt, EraseProof.Decode.ctorName?, EraseProof.Decode.blockSplitRecs_ctors, EraseProof.Decode.blockSplitCtors_ctors, EraseProof.Decode.blockSplit_ctors, EraseProof.Decode.ctorRecords_names, EraseProof.Decode.ctorLookup_names, EraseProof.ConLecheAccepts.find?_quot}
   \leanok
   \uses{def:EraseProof-SemCases-CasesIotaAt, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-ConLecheAccepts-namesClosed}
-  \srcloc{proof/EraseProof/Semantics/Decode.lean}{34}
-  \lead{In short} \hl{Acceptance gives \code{CasesIotaAt} for a recognized \code{casesOn} of a one-member block}, and the stored former and quotient constants.
+  \srcloc{proof/EraseProof/Semantics/Decode.lean}{31}
+  \lead{In short} \hl{Acceptance gives \code{CasesIotaAt} for a recognized \code{casesOn} of a one-member block}, and the stored quotient constants.
   \begin{itemize}
   \item \code{ConLecheAccepts.casesIotaAt}: the records of the value, the recursor and the constructors;
-  \item \code{ConLecheAccepts.find?\_former}, \code{find?\_quot}: the former's capabilities, the quotient records;
+  \item \code{ConLecheAccepts.find?\_quot}: the quotient records;
   \item \code{Decode.*}: the shape of the recognizer's input, read through \code{toCL?}.
   \end{itemize}
 \end{lemma}
@@ -155,9 +155,70 @@ A term is read in con-leche through its marks: \code{toCL?} is transparent to me
   \lead{Idea} A \code{Red} between the \code{unmark} readings, built from the stored records, after the congruence at the evaluated major premise.
 \end{proof}
 
+\begin{lemma}[Decoding the stored records of a block member]
+  \label{lem:EraseProof-ConLecheAccepts-recIotaAt}
+  \lean{EraseProof.Decode.appHead_toCL, EraseProof.Decode.ctorHead_toCL, EraseProof.Decode.blockCtorCount_of, EraseProof.Decode.formerCv?, EraseProof.Decode.blockSplit_formers, EraseProof.Decode.formers_at, EraseProof.Decode.ctorsOf, EraseProof.Decode.ctors_names, EraseProof.Decode.eq_of_flatten_eq, EraseProof.Decode.clSpine_go, EraseProof.Decode.clSpine_mkAppN, EraseProof.Decode.clBvar?_eq, EraseProof.Decode.eq_fbv, EraseProof.Decode.nodup_of_nodup, EraseProof.Decode.rule_decode, EraseProof.ConLecheAccepts.blockStored, EraseProof.Decode.forallDom?_toCL, EraseProof.Decode.forallArity_toCL, EraseProof.Decode.minorArity_eq, EraseProof.Decode.blockCtorCount_length, EraseProof.Decode.ctorsOf_idxOf, EraseProof.Decode.defn_nodup, EraseProof.Decode.casesDecode, EraseProof.Decode.casesOnOf?_ind, EraseProof.Decode.iotaNoCert_of, EraseProof.ConLecheAccepts.casesFrozenAt, EraseProof.ConLecheAccepts.projAt, EraseProof.Decode.checkDecl_nodup, EraseProof.Decode.foldlM_nodupNames, EraseProof.ConLecheAccepts.find?_of_mem, EraseProof.Decode.getAppArgs_loop, EraseProof.Decode.getAppArgs_back, EraseProof.Decode.clSpine_go_acc, EraseProof.Decode.getAppFn_toCL, EraseProof.Decode.piBinders_forallE, EraseProof.Decode.piBinders_get, EraseProof.Decode.piBinders_length, EraseProof.Decode.clPiBody_toCL, EraseProof.Decode.noMData_forallDom, EraseProof.Decode.mapM_getElem?, EraseProof.Decode.recShape_minor, EraseProof.Decode.clSpine_mkAppN_args, EraseProof.Decode.clLams_of_zero, EraseProof.Decode.eq_bvars, EraseProof.Decode.ihShape_zero, EraseProof.ConLecheAccepts.recIotaAt}
+  \leanok
+  \uses{def:EraseProof-SemCases-CasesIotaAt, lem:EraseProof-ConLecheAccepts-casesIotaAt, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-ConLecheAccepts-namesClosed}
+  \srcloc{proof/EraseProof/Semantics/DecodeAt.lean}{26}
+  \lead{In short} \hl{Acceptance gives the decodes the $\iota$ steps read}, in a block of any size: \code{CasesIotaAt}, \code{CasesFrozenAt}, \code{ProjAt} and \code{RecIotaAt}.
+  \begin{itemize}
+  \item \code{ConLecheAccepts.blockStored}: a member's former lists the block and its own constructors, and a constructor is stored under its own inductive;
+  \item \code{rule\_decode}, \code{casesDecode}: with \code{RulesCanonical}, the stored rule of a constructor has the shape the steps read;
+  \item \code{ConLecheAccepts.casesFrozenAt}, \code{projAt}, \code{recIotaAt}: the decodes (\code{recShape\_minor}, \code{iotaNoCert\_of}, \code{ihShape\_zero});
+  \item \code{Decode.clSpine\_*}, \code{piBinders\_*}, \code{forallArity\_toCL}, \code{ctorHead\_toCL}, \code{getAppFn\_toCL}: the reading \code{toCL?} of spines and $\Pi$s;
+  \item \code{checkDecl\_nodup}, \code{defn\_nodup}, \code{foldlM\_nodupNames}, \code{ctors\_names}: con-leche's distinct names.
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/Kernel/Install.lean} (\code{blockFormers}, \code{blockCtors}); \leanfile{ConLeche/Kernel/Inductives/RecCheck.lean} (\code{targetRecPins}); DV-38.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The recognizer's value has the generated shape and the fold stores exactly that value.
+\end{proof}
+
+\begin{lemma}[Cases: recursor iota and quotients]
+  \label{lem:EraseProof-SemCases-srcEval_sound_recIota}
+  \lean{EraseProof.SemCases.RecIotaAt, EraseProof.SemCases.subst_params, EraseProof.SemCases.mem_of_mapM_getElem, EraseProof.SemCases.mapM_getElem_forall₂, EraseProof.SemCases.map_of_mapM, EraseProof.SemCases.forall₂_map, EraseProof.SemCases.iota_red, EraseProof.SemCases.recIota_red, EraseProof.SemCases.foldl_app_const, EraseProof.SemCases.natLitCtor_maj, EraseProof.SemCases.recSim, EraseProof.SemCases.simAt_append, EraseProof.SemCases.simAt_refl, EraseProof.SemCases.simAt_single, EraseProof.SemCases.srcEval_sound_recIota, EraseProof.SemCases.QuotLiftAt, EraseProof.SemCases.quotLift_red, EraseProof.SemCases.srcEval_sound_quotLift, EraseProof.SemCases.srcEval_sound_quotMk}
+  \leanok
+  \uses{def:EraseProof-SemSim, lem:EraseProof-SemCases-semSim-trans, lem:EraseProof-SemCases-red-betas, lem:EraseProof-ConLecheAccepts-recIotaAt}
+  \srcloc{proof/EraseProof/Semantics/Rec.lean}{31}
+  \lead{In short} The cases \code{recIota}, \code{quotLift} and \code{quotMk}: congruence at the evaluated arguments, then con-leche's $\iota$ at the stored rule of the major's constructor.
+  \begin{itemize}
+  \item \code{RecIotaAt}: the recursor's stored rule applies the constructor's minor premise to the fields and to one recursive call per recursive field;
+  \item \code{QuotLiftAt}: the quotient's lift is the stored recursor of the \code{Quot} basis pin, whose one rule applies the function to the packed element;
+  \item \code{recIota\_red}, \code{quotLift\_red}, \code{iota\_red}, \code{recSim}, \code{subst\_params}: the \code{Red} derivation and the congruence;
+  \item \code{srcEval\_sound\_recIota}, \code{quotLift}, \code{quotMk}: the cases.
+  \end{itemize}
+  \lead{Reference} \code{Red.iota} (\leanfile{ConLeche/Rules/Rel.lean}); \code{quotLiftA} (\leanfile{ConLeche/Kernel/Basis/Quot.lean}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} A \code{Red} between the \code{unmark} readings, built from the stored records, after the congruence at the evaluated major premise.
+\end{proof}
+
+\begin{lemma}[Case: casesOn on a frozen proof]
+  \label{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}
+  \lean{EraseProof.SemCases.CasesFrozenAt, EraseProof.SemCases.eval_of_isAlwaysZero, EraseProof.SemCases.proof_pt, EraseProof.SemCases.hasFvar_mkAppN, EraseProof.SemCases.denoteSpine_of, EraseProof.SemCases.defEqList_refl, EraseProof.SemCases.certs_infer, EraseProof.SemCases.reads_of_certs, EraseProof.SemCases.major_pt, EraseProof.SemCases.casesFrozen_redSem, EraseProof.SemCases.forall₂_map_same, EraseProof.SemCases.mapM_unmark_take, EraseProof.SemCases.forall₂_mem_right, EraseProof.SemCases.srcEval_sound_casesFrozen}
+  \leanok
+  \uses{def:EraseProof-SemSim, lem:EraseProof-SemCases-srcEval-sound-casesIota, lem:EraseProof-ConLecheAccepts-recIotaAt}
+  \srcloc{proof/EraseProof/Semantics/Frozen.lean}{37}
+  \lead{In short} \hl{A recognized \code{casesOn} on a proof that is no constructor reduces, on the readings, to the alternative at the projections of the discriminant}.
+  \begin{itemize}
+  \item \code{CasesFrozenAt}: the stored records of the step;
+  \item \code{casesFrozen\_redSem}, \code{major\_pt}, \code{proof\_pt}: $\iota$ is a claim conditional on the point, vacuous because con-leche types the discriminant as a proof, which denotes the point;
+  \item \code{certs\_infer}, \code{reads\_of\_certs}: a constructor without fields fires with no certificate (a K rule), one with fields by the full-grade certificate (\code{FrozenFieldsCert});
+  \item \code{srcEval\_sound\_casesFrozen}: the case.
+  \end{itemize}
+  \lead{Reference} \code{Red.iota\_sound} (\leanfile{ConLeche/Model/Rules/IotaSound.lean}); DV-25, DV-33.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Reduce by $\delta$ and $\beta$ to the recursor at the discriminant, and apply the semantic $\iota$ at a constructor application built for the step.
+\end{proof}
+
 \section*{Caveats}
 \begin{itemize}
-\item The $\iota$ cases take \code{CasesIotaAt} and \code{ProjAt} as premises; acceptance gives \code{CasesIotaAt} for a one-member block.
+\item The $\iota$ cases take the decodes \code{CasesIotaAt}, \code{CasesFrozenAt}, \code{ProjAt}, \code{RecIotaAt} and \code{QuotLiftAt} as premises; acceptance gives them (Lemma~\ref{lem:EraseProof-ConLecheAccepts-recIotaAt}).
 \item The invariant is conditional on the proof point: it says nothing where \code{t} denotes it (DV-34).
 \item A step that forms a redex asks con-leche to type it (DV-33).
 \end{itemize}

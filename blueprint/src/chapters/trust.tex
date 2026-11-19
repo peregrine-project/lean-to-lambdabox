@@ -8,8 +8,8 @@
 \item \lead{Main results} The axiom footprint of every declaration is within \code{propext},
   \code{Classical.choice} and \code{Quot.sound}; the model hypothesis is an argument, never an
   axiom.
-\item \lead{Status} \stProved{} the checks pass on the statement definitions and the tests;
-  \stOpen{} the theorems. \stShipping{} the eraser, trusted as built.
+\item \lead{Status} \stProved{} the checks pass on the statement definitions, the five proved theorems and the tests;
+  \stOpen{} the six other theorems. \stShipping{} the eraser, trusted as built.
 \item \lead{Nodes} \bpnodes{chap:trust}
 \item \lead{Lean files} \leanfile{proof/EraseProof/} (the verification library);
   \leanfile{LeanToLambdaBox/} (the shipping code); \leanfile{LeanToLambdaBox/ConLeche.lean} (the
@@ -93,8 +93,10 @@ The \code{Meta} path & out-of-fragment inputs keep the traversal with the elabor
 \begin{itemize}
 \item \lead{The gap} the kernel cannot run con-leche's fold on an inductive block: the installer
   hashes names with an opaque hash, and $\iota$ and level comparison use well-founded functions.
-  The test programs check the fold equation of \code{hacc}, and any certificate that needs
-  $\iota$, by compiled evaluation (\code{\#eval}), which trusts Lean's compiler.
+  The programs with an inductive type, NV-1 and NV-2, take the fold equation of \code{hacc} as a
+  premise of the theorem \code{Test.NV1.hacc}, \code{Test.NV2.hacc}, and a compiled \code{\#guard}
+  checks it, which trusts Lean's compiler (DV-40). Any certificate that needs $\iota$ is
+  checked by compiled evaluation as well. NV-0 has no inductive type and is kernel-checked.
 \item \lead{What the kernel checks} every other hypothesis; inductive-free programs are
   kernel-checked end to end.
 \end{itemize}
@@ -151,5 +153,7 @@ The eraser is Lean meta-code. Its traversal is total, bounded by fuel, and gener
 monad. \code{\#erase} runs it with the pure backend on programs in the fragment, and with the
 \code{CoreM} backend, which asks the elaborator for types, on the others. The census of its
 partial, opaque, unsafe and monadic declarations follows.
+
+The statements are about the shipping code of the branch the blueprint is built from, which includes the entries S-58 and S-59 of \code{doc/SHIPPING-CHANGES.md}: the pure path's recursor fixpoint takes the \code{direct} form only if the inductive's declared sort, read through \code{mdata}, may be \code{Prop} (\code{rec\_direct}, Chapter~\ref{chap:core}). Both changes are exercised by \leanfile{tests/regress/rec\_direct\_pure.lean}.
 
 \input{generated/census-shipping}

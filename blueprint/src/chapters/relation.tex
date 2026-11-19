@@ -68,7 +68,7 @@
   \lean{EraseProof.Erases, EraseProof.BoxCert, EraseProof.noCert, EraseProof.ErasesAlt, EraseProof.ErasesInd, EraseProof.ErasesDecl, EraseProof.ErasesDeps}
   \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-CLCert, def:EraseProof-LBEval}
-  \srcloc{proof/EraseProof/Spec.lean}{1321}
+  \srcloc{proof/EraseProof/Spec.lean}{1531}
   \lead{In short} \hl{\code{Erases cert $\sigma$ $\Gamma$ e t}: the $\lambda_\Box$ term \code{t} erases the marked term \code{e}}, with no typing premise.
   \begin{itemize}
   \item \code{BoxCert}, \code{noCert}: what a mark asks of its \code{box} --- nothing, or con-leche's certificate;
@@ -83,7 +83,7 @@
   \lean{EraseProof.RecFixOf, EraseProof.recBlockOf?, EraseProof.EmitsConst, EraseProof.BlockNamesInj, EraseProof.ArityTypes, EraseProof.blockKername, EraseProof.IndIdOf, EraseProof.SpecialSpine, EraseProof.ctorFields, EraseProof.recMembers, EraseProof.recLets}
   \leanok
   \uses{def:EraseProof-Erases}
-  \srcloc{proof/EraseProof/Spec.lean}{1290}
+  \srcloc{proof/EraseProof/Spec.lean}{1500}
   \lead{In short} The $\lambda_\Box$ names and fixpoints that \code{visitRec} builds for an inductive block and its recursors.
   \begin{itemize}
   \item \code{blockKername}, \code{IndIdOf}, \code{BlockNamesInj}, \code{EmitsConst}, \code{ArityTypes}: block names and the declarations emitted;

@@ -23,7 +23,7 @@ program's records as con-leche's fold takes them.
   \label{def:EraseProof-toCL}
   \lean{EraseProof.toCL?, EraseProof.Name.toCL, EraseProof.Level.toCL, EraseProof.cvOf?, EraseProof.hintOf, EraseProof.quotKindOf, EraseProof.ruleOf?, EraseProof.recOf?, EraseProof.piLen, EraseProof.mentionsAny, EraseProof.hasDomainMentioning, EraseProof.piResult, EraseProof.appHeadConst, EraseProof.blockShapeOK, EraseProof.blockOf?, EraseProof.declOf?, EraseProof.recMotivesOK}
   \leanok
-  \srcloc{proof/EraseProof/Spec.lean}{61}
+  \srcloc{proof/EraseProof/Spec.lean}{62}
   \lead{In short} \hl{\code{toCL?} reads a Lean \code{Expr} as con-leche's \code{Expr}}, and the helpers read a declaration's records.
   \begin{itemize}
   \item \code{toCL?}: drops binder names, infos, \code{nonDep} and \code{mdata}; \code{none} on a free variable or a metavariable;
@@ -37,18 +37,34 @@ program's records as con-leche's fold takes them.
 
 \begin{definition}[The program as con-leche takes it]
   \label{def:EraseProof-DeclsOf}
-  \lean{EraseProof.DeclsOf?, EraseProof.NoMarkKeys, EraseProof.HasFVar, EraseProof.ClosedDecls, EraseProof.NoMarkKeysDecls, EraseProof.RulesCanonical, EraseProof.RuleShape, EraseProof.IHShape, EraseProof.clSpine, EraseProof.clLams, EraseProof.clPis, EraseProof.clBvar?, EraseProof.clSpine.go, EraseProof.ConLecheAccepts}
+  \lean{EraseProof.DeclsOf?, EraseProof.NoMarkKeys, EraseProof.HasFVar, EraseProof.ClosedDecls, EraseProof.NoMarkKeysDecls, EraseProof.NoMData, EraseProof.RulesCanonical, EraseProof.RuleShape, EraseProof.IHShape, EraseProof.clSpine, EraseProof.clLams, EraseProof.clPis, EraseProof.clBvar?, EraseProof.clSpine.go, EraseProof.ConLecheAccepts}
   \leanok
   \uses{def:EraseProof-toCL}
-  \srcloc{proof/EraseProof/Spec.lean}{277}
+  \srcloc{proof/EraseProof/Spec.lean}{295}
   \lead{In short} \code{DeclsOf?} is con-leche's input for the program; \code{ConLecheAccepts} says its pure fold accepts it.
   \begin{itemize}
   \item \code{DeclsOf?}: the records oldest first; \code{none} on a repeated name, a mark key, or a constant it cannot read;
-  \item \code{ConLecheAccepts P env}: \code{checkDeclsPure} at the standard fuel, without \code{Nat.div} and \code{Nat.mod} pins, returns \code{env}, and every stored recursor has the generated rule shape (\code{RulesCanonical}, \code{RuleShape}, \code{IHShape});
-  \item \code{NoMarkKeys}, \code{NoMarkKeysDecls}, \code{HasFVar}, \code{ClosedDecls}: no mark key in an expression or in a closure's declarations, a free variable, no free variable in a closure (statements \code{hclean} and \code{markOf\_det});
+  \item \code{ConLecheAccepts P env}: \code{checkDeclsPure} at the standard fuel, without \code{Nat.div} and \code{Nat.mod} pins, returns \code{env}, every stored recursor has the generated rule shape and selects its rules by constructor (\code{RulesCanonical}, \code{RuleShape}, \code{IHShape}), and every projection table names its structure's constructor (\code{TablesCanonical});
+  \item \code{NoMarkKeys}, \code{NoMarkKeysDecls}, \code{HasFVar}, \code{ClosedDecls}: no mark key in an expression or in a closure's declarations, a free variable, no free variable in a closure (statements \code{hclean} and \code{markOf\_det}); \code{NoMData}: a structural test that an expression has no \code{mdata};
   \item \code{clSpine}, \code{clLams}, \code{clPis}, \code{clBvar?}: spines, leading $\lambda$s and $\Pi$s and bound variables of con-leche's terms.
   \end{itemize}
   \lead{Reference} \leanfile{ConLeche/MainTheorem.lean}, DV-3, DV-38, DV-39.
+\end{definition}
+
+\begin{definition}[Selection of rules and projection tables]
+  \label{def:EraseProof-RulesSelected}
+  \lean{EraseProof.clPiBody, EraseProof.clFieldOf, EraseProof.blockCtors, EraseProof.minorIHField, EraseProof.RuleSelects, EraseProof.recKExpectedAt, EraseProof.RulesSelected, EraseProof.TablesCanonical}
+  \leanok
+  \uses{def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Spec.lean}{330}
+  \lead{In short} \hl{The parts of \code{RulesCanonical} and \code{TablesCanonical} that the $\iota$ and projection steps read}: rules select by constructor, K flags are the expected ones, projection tables name their structure's constructor.
+  \begin{itemize}
+  \item \code{RulesSelected}, \code{RuleSelects}: the rules of \code{T.rec} are one per constructor of \code{T}, each firing \code{.plain}, the rule of its own constructor, with recursive calls of the block's recursors on the fields the minor premise names;
+  \item \code{blockCtors}, \code{minorIHField}, \code{clFieldOf}, \code{clPiBody}: the block's constructors in order, and the field an inductive hypothesis recurses on;
+  \item \code{recKExpectedAt}: the K flag con-leche's block check expects (one member, a sort zero at every valuation, one constructor without fields);
+  \item \code{TablesCanonical}: every stored projection table names its structure's single constructor, stored with the table's counts and level parameters.
+  \end{itemize}
+  \lead{Reference} \leanfile{ConLeche/Kernel/Inductives/RecCheck.lean} (\code{recKExpected}); \leanfile{ConLeche/Rules/Rel.lean} (\code{Red.proj}); DV-38.
 \end{definition}
 
 \begin{lemma}[The reading commutes with substitution]
@@ -111,17 +127,19 @@ for a typing judgement.
 
 \begin{definition}[Run-time certificates]
   \label{def:EraseProof-CLCert}
-  \lean{EraseProof.CLCert, EraseProof.CLTyped, EraseProof.CLOk, EraseProof.CLTypedAt, EraseProof.CLFormer, EraseProof.CLProof, EraseProof.CLVerdict, EraseProof.CLErasable, EraseProof.CtxBinder, EraseProof.lamTele, EraseProof.openLams, EraseProof.MarksCert, EraseProof.ProgCert}
+  \lean{EraseProof.CLCert, EraseProof.CLTyped, EraseProof.CLOk, EraseProof.CLTypedAt, EraseProof.CLFormer, EraseProof.CLProof, EraseProof.CLVerdict, EraseProof.CLErasable, EraseProof.CtxBinder, EraseProof.lamTele, EraseProof.openLams, EraseProof.MarksCert, EraseProof.ProgCert, EraseProof.CLProofTerm, EraseProof.CLCertProof, EraseProof.IotaNoCertAt, EraseProof.FrozenFieldsCert}
   \leanok
   \uses{def:EraseProof-DeclsOf}
-  \srcloc{proof/EraseProof/Spec.lean}{448}
+  \srcloc{proof/EraseProof/Spec.lean}{593}
   \lead{In short} \hl{con-leche's own inference stands in for typing}: a redex, a mark or a program is certified when the checker infers a type for it.
   \begin{itemize}
   \item \code{CLTyped}, \code{CLTypedAt}: inference accepts the closed term, at some fuel and at \code{checkFuel};
   \item \code{CLOk}: the certificate of a source evaluation rule, the closed redex it forms;
   \item \code{CLFormer}, \code{CLProof}, \code{CLVerdict}, \code{CLErasable}: the type is a type-former type or a proposition;
   \item \code{CLCert}, \code{CtxBinder}, \code{lamTele}, \code{openLams}: a subterm under binders, closed by a telescope;
-  \item \code{MarksCert}, \code{ProgCert}: every mark of the marked input, and the main term of the program, is certified.
+  \item \code{CLProofTerm}, \code{CLCertProof}: the proof verdict alone, for a closed term and for a subterm under binders;
+  \item \code{IotaNoCertAt}, \code{FrozenFieldsCert}: con-leche's $\iota$ step fires on a constructor major without a certificate, resp. with the full-grade certificate of the constructor's fields at the projections of a proof;
+  \item \code{MarksCert}, \code{ProgCert}: every mark of the marked input, and a marking of the value of every constant of the closure, is certified (\code{ProgCert}'s third conjunct gives \code{ValuesMarkedOf}).
   \end{itemize}
   \lead{Reference} \code{isErasable} (\code{MR E/Extract.v:18}), DV-33, DV-37.
 \end{definition}
@@ -131,7 +149,7 @@ for a typing judgement.
   \lean{EraseProof.Sound, EraseProof.CLStrictType, EraseProof.FirstOrderValue, EraseProof.peanoLB, EraseProof.foErase, EraseProof.FrozenLeaf}
   \leanok
   \uses{def:EraseProof-CLCert}
-  \srcloc{proof/EraseProof/Spec.lean}{1528}
+  \srcloc{proof/EraseProof/Spec.lean}{1748}
   \lead{In short} \code{Sound} says the source value means what the input means in every con-leche model of the environment.
   \begin{itemize}
   \item \code{Sound}: \code{unmark v} has a con-leche form that denotes what the input denotes, wherever that is not the proof point;
@@ -160,15 +178,15 @@ Each step of con-leche's pure fold installs the constants of its declaration und
 
 \begin{lemma}[Stored records of the program]
   \label{lem:EraseProof-ConLecheAccepts-stored}
-  \lean{EraseProof.eq_of_nodup_map, EraseProof.find?_pushDelta_old, EraseProof.find?_pushDelta_new, EraseProof.stdAxiomOk_sorryAx, EraseProof.checkDecl_pushes, EraseProof.foldlM_checkDecl_find?, EraseProof.checkDeclsPure_find?, EraseProof.mapM_eq_some, EraseProof.DeclsOf?.mem, EraseProof.cvOf?_eq_some, EraseProof.ConLecheAccepts.stored, EraseProof.find?_of_single, EraseProof.findDecl_mem, EraseProof.ConLecheAccepts.find?_defn, EraseProof.ConLecheAccepts.find?_thm, EraseProof.ConLecheAccepts.find?_opaque, EraseProof.quotAt_sound, EraseProof.ConLecheAccepts.find?_axiom, EraseProof.find?_ne_none, EraseProof.genRecCheck_recs_nodup, EraseProof.blockRun_nodup, EraseProof.blockSplitRecs_mem, EraseProof.blockSplitCtors_mem, EraseProof.blockSplit_mem, EraseProof.readBlock_rec_mem, EraseProof.readBlock_single_mem, EraseProof.recOf?_eq_some, EraseProof.blockOf?_records, EraseProof.ConLecheAccepts.block, EraseProof.ConLecheAccepts.find?_rec, EraseProof.ConLecheAccepts.find?_single}
+  \lean{EraseProof.eq_of_nodup_map, EraseProof.find?_pushDelta_old, EraseProof.find?_pushDelta_new, EraseProof.stdAxiomOk_sorryAx, EraseProof.checkDecl_pushes, EraseProof.foldlM_checkDecl_find?, EraseProof.checkDeclsPure_find?, EraseProof.mapM_eq_some, EraseProof.DeclsOf?.mem, EraseProof.cvOf?_eq_some, EraseProof.ConLecheAccepts.stored, EraseProof.find?_of_single, EraseProof.findDecl_mem, EraseProof.ConLecheAccepts.find?_defn, EraseProof.ConLecheAccepts.find?_thm, EraseProof.ConLecheAccepts.find?_opaque, EraseProof.quotAt_sound, EraseProof.ConLecheAccepts.find?_axiom, EraseProof.find?_ne_none, EraseProof.genRecCheck_recs_nodup, EraseProof.blockRun_nodup, EraseProof.blockSplitRecs_mem, EraseProof.blockSplitCtors_mem, EraseProof.blockSplit_mem, EraseProof.readBlock_rec_mem, EraseProof.recOf?_eq_some, EraseProof.blockOf?_records, EraseProof.ConLecheAccepts.block, EraseProof.ConLecheAccepts.find?_rec}
   \leanok
   \uses{def:EraseProof-DeclsOf, lem:EraseProof-ConLecheAccepts-accepted}
-  \srcloc{proof/EraseProof/Bridge/CLStore.lean}{27}
+  \srcloc{proof/EraseProof/Bridge/CLStore.lean}{26}
   \lead{In short} \hl{The environment the fold returns holds each record of the program, translated}: definitions, theorems, opaques, axioms, and a block's recursors, former and constructors.
   \begin{itemize}
   \item \code{checkDeclsPure\_find?}, \code{checkDecl\_pushes}, \code{find?\_pushDelta\_*}: each step pushes its constants, and later steps keep them;
   \item \code{ConLecheAccepts.find?\_defn}, \code{find?\_thm}, \code{find?\_opaque}, \code{find?\_axiom}: the record of a constant;
-  \item \code{ConLecheAccepts.block}, \code{find?\_rec}, \code{find?\_single}: a block's recursors and, for a one-member block, its former and constructors;
+  \item \code{ConLecheAccepts.block}, \code{find?\_rec}: a block's recursors;
   \item \code{blockSplit*\_mem}, \code{readBlock\_*\_mem}, \code{genRecCheck\_recs\_nodup}, \code{quotAt\_sound}: the install-computed records.
   \end{itemize}
   \lead{Reference} \leanfile{ConLeche/Kernel/Install.lean} (\code{declConstants}).

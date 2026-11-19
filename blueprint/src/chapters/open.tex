@@ -3,8 +3,8 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} List what the final theorem does not say, and what is not done.
-\item \lead{Status} \stOpen{} ten theorems of Chapter~\ref{chap:statements} and the planned lemma
-  of Chapter~\ref{chap:bridge}; \stProved{} \code{erases\_correct} and \code{collectDeps\_sub}, the statement definitions, the lemmas of Chapters~\ref{chap:bridge}--\ref{chap:core},
+\item \lead{Status} \stOpen{} six theorems of Chapter~\ref{chap:statements} and the planned lemma
+  of Chapter~\ref{chap:bridge}; \stProved{} \code{erases\_correct}, \code{erasePure\_erases}, \code{collectDeps\_ok\_of}, \code{collectDeps\_sub} and \code{markOf\_det}, the statement definitions, the lemmas of Chapters~\ref{chap:bridge}--\ref{chap:core},
   and the hypotheses of the final theorem on three programs (Chapter~\ref{chap:tests}).
 \end{itemize}
 
@@ -75,8 +75,9 @@ generated from \code{proof/ROOTS.txt}.
 \toprule
 Milestone & Content \\
 \midrule
-Meaning of the evaluation & \code{srcEval\_sound}: the step lemmas of Chapter~\ref{chap:semantics} cover every rule of \code{SrcEval} but \code{recIota}, \code{quotMk}, \code{quotLift} and \code{casesFrozen}; the induction that assembles them is open \\
-The shipping traversal & \code{erasePure\_erases} (the traversal's invariant is Chapter~\ref{chap:core}) and \code{collectDeps\_ok\_of}, with the determinism, existence and agreement of the marking \\
-Final & \code{erase\_correct}, its first-order corollary, and the end-to-end test programs \\
+Meaning of the evaluation & \code{srcEval\_sound}: the step lemmas of Chapter~\ref{chap:semantics} cover every rule of \code{SrcEval}; the induction that assembles them is open \\
+The marking & \code{markOf\_exists}: the input has a marking wherever the traversal erases it (\code{markOf\_det} is proved) \\
+The certificates & \code{sound\_nonvacuous} and \code{clCert\_proof\_pt} \\
+Final & \code{erase\_correct}, its first-order corollary, and the conclusion on the test programs \\
 \bottomrule
 \end{tabular}

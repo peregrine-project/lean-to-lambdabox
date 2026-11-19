@@ -7,7 +7,7 @@
 \item \lead{Main results} con-leche cannot decide erasability, so the eraser's decisions are marks
   on the input, and con-leche certifies each of them (Section~\ref{sec:resolution-marks}).
 \item \lead{Status} \stProved{} the definitions of the marks and of the certificates exist and are
-  pinned (Chapter~\ref{chap:statements}). \stOpen{} the theorems about them.
+  pinned (Chapter~\ref{chap:statements}). \stOpen{} the theorems that use them to prove \code{srcEval\_sound} and \code{erase\_correct}.
 \item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean}.
 \end{itemize}
 
@@ -68,8 +68,8 @@ Certificates & decidable runs of con-leche's verified checker. Two are premises 
   against the argument position it fills.
 \item \lead{Every mark} con-leche certifies every mark and every reduced discriminant in the
   context of its enclosing binders (opened as con-leche opens them; a \code{let} with its value).
-  The same holds for the marked value of every constant that the emitted program holds a body
-  for.
+  The same holds for a marking of the value of every constant of the closure that has one,
+  whether or not the emitted program holds a body for it (\code{ProgCert}, DV-37).
 \item \lead{Proof verdict} a certified proof denotes the proof point under every valuation of its
   binders (\code{clCert\_proof\_pt}).
 \item \lead{Type-former verdict} the checker's typing verdict only; the model has no criterion

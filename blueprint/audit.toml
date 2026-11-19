@@ -82,6 +82,21 @@ targets = ["EraseProof"]
 "ConLeche.Verify.Inductives.RecCheckScope" = 'Inferred types are closed (\code{infer\_full\_bvarClosed}).'
 "ConLeche.Verify.Rules.Bridge" = 'The bridge from accepting runs to the relations of the checker (\code{inferTypeCore\_bridge}).'
 "ConLeche.Verify.Subst" = 'Agreement of the two instantiations of the checker (\code{instantiate1Lift\_eq\_instantiate1}).'
+"ConLeche.Kernel.Basis.Builder" = 'The term builders of the basis declarations (\code{BasisDSL.ap2}, \code{ap4}, \code{bv}).'
+"ConLeche.Kernel.Basis.Nat" = 'The pinned \code{Nat} basis (\code{natA}, \code{natBasis}, \code{natRecA}).'
+"ConLeche.Kernel.Basis.Quot" = 'The pinned quotient basis (\code{quotA}, \code{quotIndMk}, \code{quotIndMotive}).'
+"ConLeche.Kernel.Inductives.StructInstall" = 'The check of the field domains by the structure installer (\code{checkStructDomsAt}).'
+"ConLeche.Model.Env.Laws" = 'The non-zero family of an environment model (\code{Model.FamNZ}).'
+"ConLeche.Model.Rules.CertsSound" = 'The soundness of the telescope arity of the certificates (\code{Model.Rules.teleArity\_sound}).'
+"ConLeche.Model.Rules.IotaSound" = 'The semantic soundness of the $\iota$ step (\code{Red.iota\_sound}).'
+"ConLeche.Model.Rules.RedSound" = 'The soundness of transitivity of the reduction relation (\code{Red.trans\_sound}).'
+"ConLeche.Verify.EnvPreds" = 'The universe-level shorthands of the environment predicates (\code{uN}, \code{vN}).'
+"ConLeche.Verify.Inductives.ClassMatchRun" = 'Equivalence of lists in the class match (\code{isEquivList\_self}).'
+"ConLeche.Verify.Inductives.DirectInv" = 'The direct invariant of the sum constructors (\code{FieldSorts}, \code{SumCtorRun}, \code{SumCtorsRun}).'
+"ConLeche.Verify.Knot" = 'The fuelled full-grade $\iota$ certificates (\code{iotaCertsFullFueled}).'
+"ConLeche.Verify.PropWhen" = 'The soundness of the zero-ness test of a sort (\code{PropWhen.zeronessOf\_sound}).'
+"ConLeche.Verify.Rules.Certs" = 'The bridge from the full $\iota$ certificates to the rules tier (\code{Rules.iotaCertsFull\_bridge}).'
+"ConLeche.Verify.Rules.Defs" = 'The bridge theorems of the rules tier (\code{DefEqBridge}, \code{InferBridge}, \code{InferIOBridge}).'
 
 # Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
 # sources"). `repository`: this repository, linked at the commit the site is built from
