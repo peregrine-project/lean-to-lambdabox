@@ -248,7 +248,9 @@ EraseProof.Steps.visitExpr_lit_step propext,Classical.choice,Quot.sound
 EraseProof.Steps.visitExpr_quot_step propext,Classical.choice,Quot.sound
 EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.projAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.recIotaAt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.RecIH.canonical propext
 EraseProof.Test.RecIH.canonical_with propext
