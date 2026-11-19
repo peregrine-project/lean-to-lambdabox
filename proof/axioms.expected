@@ -242,7 +242,9 @@ EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
 EraseProof.Test.RecIH.canonical propext
+EraseProof.Test.RecIH.dup_defn_levels propext
 EraseProof.Test.RecIH.dup_levels propext
+EraseProof.Test.RecIH.not_plain propext
 EraseProof.Test.RecIH.wrong_arity propext
 EraseProof.Test.RecIH.wrong_field propext
 EraseProof.Test.RecIH.wrong_levels propext

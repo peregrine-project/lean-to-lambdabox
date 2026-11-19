@@ -41,7 +41,7 @@ theorem erases_correct : erases_correct_statement := by
     exact erases_correct_casesLitZero hbinj hnat hco hn hlen hm hmv halt ihm ihalt
   | casesLitSucc hco hn hlen hm hmv _ _ halt _ ihm ihalt =>
     exact erases_correct_casesLitSucc hbinj hnat hco hn hlen hm hmv halt ihm ihalt
-  | casesFrozen hco hlen hcs hcn hm _ _ halt _ ih =>
+  | casesFrozen hco hlen hcs hcn hm _ _ _ halt _ ih =>
     exact erases_correct_casesFrozen hco hlen hcs hcn hm halt ih
   | quotMk hc hk _ _ iha => exact erases_correct_quotMk hc hk iha
   | quotLift hc hk _ _ hc' hk' hok _ _ ihf ihq ihb =>

@@ -7,7 +7,8 @@ import EraseProof.Test.Run
 `RulesCanonical` holds, in the kernel, of an environment with the recursor of a `Nat`-like family
 (one inductive hypothesis, on the field of its constructor), and fails when the recursive call is at
 other levels than the recursor's own, when the recursor's level parameters repeat, when the call has
-the wrong number of arguments, or when it recurses on a field the minor premise does not name.
+the wrong number of arguments, or when it recurses on a field the minor premise does not name, or when a rule of `T.rec` does not fire
+`.plain`. It also fails when a stored definition has repeated level parameters.
 -/
 
 namespace EraseProof.Test.RecIH
@@ -60,6 +61,16 @@ theorem wrong_arity : RulesCanonical (env [nm "u"] [.param (nm "u")] [3, 2, 0]) 
   krfl
 
 theorem wrong_field : RulesCanonical (env [nm "u"] [.param (nm "u")] [3, 2, 1, 1]) = false := by
+  krfl
+
+theorem not_plain : RulesCanonical
+    ⟨(env [nm "u"] [.param (nm "u")] [3, 2, 1, 0]).consts.map fun
+      | .recInfo v m r k rs => .recInfo v m r k (rs.map fun rl => { rl with fire := .levels [] })
+      | c => c, []⟩ = false := by
+  krfl
+
+theorem dup_defn_levels : RulesCanonical
+    ⟨[.defnInfo ⟨nm "d", [nm "u", nm "u"], kN⟩ kZ .abbrev], []⟩ = false := by
   krfl
 
 end EraseProof.Test.RecIH
