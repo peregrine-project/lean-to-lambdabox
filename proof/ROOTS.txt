@@ -28,3 +28,4 @@ EraseProof.Steps.visitExpr_quot_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_rec_step EraseProof.erasePure_erases
 EraseProof.coreEnv_value EraseProof.erasePure_erases
 EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
+EraseProof.coreEnv_of EraseProof.erasePure_erases

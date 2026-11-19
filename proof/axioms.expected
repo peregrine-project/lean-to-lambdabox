@@ -237,3 +237,4 @@ EraseProof.Test.RecIH.wrong_lams propext
 EraseProof.Test.RecIH.wrong_levels propext
 EraseProof.coreEnv_value propext,Classical.choice,Quot.sound
 EraseProof.ctorPropBoxed_of propext,Classical.choice,Quot.sound
+EraseProof.coreEnv_of propext,Classical.choice,Quot.sound

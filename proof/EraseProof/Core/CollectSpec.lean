@@ -300,67 +300,161 @@ theorem sortDecided_arity {iv : InductiveVal} {b : Bool} (h : sortDecided iv = .
   unfold sortDecided at h
   split at h <;> first | (rename_i hs; rw [hs]; rfl) | (rename_i hs _; rw [hs]; rfl) | cases h
 
+/-- A successful `forIn` whose body only yields ran the body successfully on every element. Port
+of `ML-V Core/CollectSpec.lean:328`. -/
+theorem forIn_ok {ε α : Type} {f : α → Unit → Except ε (ForInStep Unit)}
+    (hf : ∀ a s, f a () = .ok s → s = .yield ()) :
+    ∀ {l : List α} {u : Unit}, forIn l () f = .ok u → ∀ a ∈ l, ∃ s, f a () = .ok s
+  | [], _, _, a, ha => nomatch ha
+  | b :: l, u, h, a, ha => by
+    rw [List.forIn_cons] at h
+    obtain ⟨s, hs, h⟩ := ok_of_bind h
+    have := hf b s hs
+    subst this
+    rcases List.mem_cons.1 ha with rfl | ha
+    · exact ⟨_, hs⟩
+    · exact forIn_ok hf h a ha
+
+/-- The checks of one step of the closure besides the names it reads: `declExclusion` accepts the
+declaration, no constructor of a recognized `casesOn` has an index field, and a companion is the
+recursor of a recognized `casesOn` or the view's recursor of an inductive with one constructor.
+Part of `ML-V Core/CollectSpec.lean:342 closureStep_spec`. -/
+theorem closureStep_extra {ci : ConstantInfo} {ns : List Name} {ro : Option ConstantInfo}
+    (h : closureStep view cfg ci = .ok (ns, ro)) :
+    declExclusion view cfg ci = .ok () ∧
+    (∀ d I R ctors, ci = .defnInfo d → recognizeCasesOn view ci = some (I, R, ctors) →
+      ∀ cv, .ctorInfo cv ∈ ctors → (indexFields cv.numParams cv.type).all (·.isNone) = true) ∧
+    ∀ r, ro = some r →
+      (∃ d I R ctors, ci = .defnInfo d ∧ recognizeCasesOn view ci = some (I, R, ctors) ∧
+        r = .recInfo R) ∨
+      ∃ iv, ci = .inductInfo iv ∧ iv.ctors.length = 1 ∧
+        viewFind view (mkRecName iv.name) = [r] := by
+  unfold closureStep at h
+  obtain ⟨u, hu, h⟩ := ok_of_bind h
+  obtain ⟨ty, -, h⟩ := ok_of_bind h
+  refine ⟨hu, ?_⟩
+  cases ci with
+  | defnInfo d =>
+    dsimp only at h
+    split at h
+    · rename_i I R ctors hrec
+      obtain ⟨_, hfor, h⟩ := ok_of_bind h
+      cases h
+      refine ⟨fun d' I' R' ctors' hd hrec' cv hcv => ?_,
+        fun r hr => .inl ⟨d, I, R, ctors, rfl, hrec, by cases hr; rfl⟩⟩
+      cases hd
+      rw [hrec] at hrec'
+      simp only [Option.some.injEq, Prod.mk.injEq] at hrec'
+      obtain ⟨rfl, rfl, rfl⟩ := hrec'
+      obtain ⟨s, hs⟩ := forIn_ok (by
+        intro a s hs
+        split at hs
+        · split at hs
+          · cases hs; rfl
+          · cases hs
+        · cases hs; rfl) hfor _ hcv
+      dsimp only at hs
+      exact (ite_ok_then hs fun _ h => nomatch h).1
+    · rename_i hrec
+      refine ⟨fun d' I' R' ctors' hd hrec' => (by cases hd; rw [hrec] at hrec'; cases hrec'), ?_⟩
+      intro r hr
+      rcases hp : preDef? view cfg (.defnInfo d) with _ | p <;> rw [hp] at h <;>
+      · obtain ⟨_, -, h⟩ := ok_of_bind h
+        obtain ⟨_, -, h⟩ := ok_of_bind h
+        cases h; cases hr
+  | inductInfo iv =>
+    refine ⟨nofun, fun r hr => .inr ⟨iv, rfl, ?_⟩⟩
+    cases h
+    split at hr
+    · rename_i c r' R hc hv
+      cases hr
+      exact ⟨by simp [hc], hv⟩
+    · cases hr
+  | thmInfo _ | ctorInfo _ | axiomInfo _ | quotInfo _ | recInfo _ =>
+    cases h; exact ⟨nofun, nofun⟩
+  | opaqueInfo _ =>
+    obtain ⟨_, -, h⟩ := ok_of_bind h; cases h; exact ⟨nofun, nofun⟩
+
 /-! ## The closure -/
 
-/-- How a declaration entered the closure: scanned by `closureStep`, with its read names in `C`
-and its companion in `l`; or as a companion recursor, with the names of its type in `C`. Port of
-`ML-V Core/CollectSpec.lean:452`, without the recognized names and the scanning declaration. -/
+/-- `n` names a declaration of `l` that is not a recursor, or a recursor that `declExclusion`
+accepts. Port of `ML-V Core/CollectSpec.lean:440`. -/
+def Covered (view : EnvView) (cfg : ErasureConfig) (l : List ConstantInfo) (n : Name) : Prop :=
+  ∃ y ∈ l, y.name = n ∧ ∀ R, y = .recInfo R → declExclusion view cfg y = .ok ()
+
+/-- `Covered` is monotone in the list. Port of `ML-V Core/CollectSpec.lean:444`. -/
+theorem Covered.mono {l l' : List ConstantInfo} (hl : ∀ x ∈ l, x ∈ l') {n : Name}
+    (h : Covered view cfg l n) : Covered view cfg l' n :=
+  let ⟨y, hy, hn, hr⟩ := h
+  ⟨y, hl y hy, hn, hr⟩
+
+/-- A covered name is a name of the list. Port of `ML-V Core/CollectSpec.lean:894`. -/
+theorem Covered.mem {l : List ConstantInfo} {n : Name} (h : Covered view cfg l n) :
+    n ∈ l.map (·.name) :=
+  let ⟨_, hy, hn, _⟩ := h
+  hn ▸ List.mem_map_of_mem hy
+
+/-- How a declaration entered the closure: scanned by `closureStep`, with its read names in `C`,
+its companion in `l` and, for a recognized `casesOn`, its name in `cs`; or as the companion
+recursor of a scanned declaration of `l`, with the names of its type in `C`. Port of
+`ML-V Core/CollectSpec.lean:452`. -/
 def Scanned (view : EnvView) (cfg : ErasureConfig) (C : Name → Prop) (l : List ConstantInfo)
-    (ci : ConstantInfo) : Prop :=
-  (∃ ns ro, closureStep view cfg ci = .ok (ns, ro) ∧ (∀ n ∈ ns, C n) ∧ ∀ r, ro = some r → r ∈ l) ∨
-  ∃ R, ci = .recInfo R ∧ ∃ tys, exprConsts cfg R.type = .ok tys ∧ ∀ n ∈ tys, C n
+    (cs : List Name) (ci : ConstantInfo) : Prop :=
+  (∃ ns ro, closureStep view cfg ci = .ok (ns, ro) ∧ (∀ n ∈ ns, C n) ∧
+    (∀ r, ro = some r → r ∈ l) ∧ (∀ r d, ro = some r → ci = .defnInfo d → ci.name ∈ cs)) ∨
+  (∃ R, ci = .recInfo R ∧ (∃ tys, exprConsts cfg R.type = .ok tys ∧ ∀ n ∈ tys, C n) ∧
+    ∃ cj ∈ l, ∃ ns, closureStep view cfg cj = .ok (ns, some ci))
 
-/-- `Scanned` is monotone in the predicate and the list. Port of
+/-- `Scanned` is monotone in the predicate, the list and the recognized names. Port of
 `ML-V Core/CollectSpec.lean:460`. -/
-theorem Scanned.mono {C C' : Name → Prop} {l l' : List ConstantInfo} {ci : ConstantInfo}
-    (hC : ∀ n, C n → C' n) (hl : ∀ x ∈ l, x ∈ l') (h : Scanned view cfg C l ci) :
-    Scanned view cfg C' l' ci := by
-  rcases h with ⟨ns, ro, h1, h2, h3⟩ | ⟨R, h1, tys, h2, h3⟩
-  · exact .inl ⟨ns, ro, h1, fun n hn => hC n (h2 n hn), fun r hr => hl r (h3 r hr)⟩
-  · exact .inr ⟨R, h1, tys, h2, fun n hn => hC n (h3 n hn)⟩
+theorem Scanned.mono {C C' : Name → Prop} {l l' : List ConstantInfo} {cs cs' : List Name}
+    {ci : ConstantInfo} (hC : ∀ n, C n → C' n) (hl : ∀ x ∈ l, x ∈ l') (hcs : ∀ m ∈ cs, m ∈ cs')
+    (h : Scanned view cfg C l cs ci) : Scanned view cfg C' l' cs' ci := by
+  rcases h with ⟨ns, ro, h1, h2, h3, h4⟩ | ⟨R, h1, ⟨tys, h2, h3⟩, cj, hcj, ns, h4⟩
+  · exact .inl ⟨ns, ro, h1, fun n hn => hC n (h2 n hn), fun r hr => hl r (h3 r hr),
+      fun r d hr hd => hcs _ (h4 r d hr hd)⟩
+  · exact .inr ⟨R, h1, ⟨tys, h2, fun n hn => hC n (h3 n hn)⟩, cj, hl cj hcj, ns, h4⟩
 
-/-- A name `findConst` finds is a name of the list. -/
-theorem mem_names {l : List ConstantInfo} {n : Name} {y : ConstantInfo}
-    (h : findConst l n = some y) : n ∈ l.map (·.name) :=
-  (findDecl_eq_some (l := l) h).2 ▸ List.mem_map_of_mem (findDecl_eq_some (l := l) h).1
-
-/-- `dropKnown` drops a prefix of names of the accumulator. Port of
-`ML-V Core/CollectSpec.lean:471`, without the recursor checks. -/
+/-- `dropKnown` drops a prefix of names of the accumulator, recursors only when `declExclusion`
+accepts them. Port of `ML-V Core/CollectSpec.lean:471`. -/
 theorem dropKnown_ok {acc : List ConstantInfo} :
     ∀ {todo rest : List Name}, dropKnown view cfg acc todo = .ok rest →
-    ∃ pre, todo = pre ++ rest ∧ ∀ m ∈ pre, m ∈ acc.map (·.name)
+    ∃ pre, todo = pre ++ rest ∧ ∀ m ∈ pre, Covered view cfg acc m
   | [], rest, h => by rw [dropKnown] at h; cases h; exact ⟨[], rfl, nofun⟩
   | n :: todo, rest, h => by
     rw [dropKnown] at h
-    have step : ∀ y, findConst acc n = some y → dropKnown view cfg acc todo = .ok rest →
-        ∃ pre, n :: todo = pre ++ rest ∧ ∀ m ∈ pre, m ∈ acc.map (·.name) := by
-      intro y hy h
+    have step : ∀ y, findConst acc n = some y →
+        (∀ R, y = .recInfo R → declExclusion view cfg y = .ok ()) →
+        dropKnown view cfg acc todo = .ok rest →
+        ∃ pre, n :: todo = pre ++ rest ∧ ∀ m ∈ pre, Covered view cfg acc m := by
+      intro y hy hr h
       obtain ⟨pre, hpre, hcov⟩ := dropKnown_ok h
       refine ⟨n :: pre, by rw [hpre]; rfl, fun m hm => ?_⟩
       rcases List.mem_cons.1 hm with rfl | hm
-      · exact mem_names hy
+      · obtain ⟨h1, h2⟩ := findDecl_eq_some (l := acc) hy
+        exact ⟨y, h1, h2, hr⟩
       · exact hcov m hm
     split at h
     · rename_i y R hy
-      obtain ⟨_, -, h⟩ := ok_of_bind h
-      exact step _ hy h
-    · rename_i y _ hy
-      exact step _ hy h
+      obtain ⟨_, hu, h⟩ := ok_of_bind h
+      exact step _ hy (fun _ _ => hu) h
+    · rename_i y hnr hy
+      exact step _ hy (fun R hR => (hnr R hR).elim) h
     · cases h
       exact ⟨[], rfl, nofun⟩
 
 /-- **A run of the closure**, from an accumulator of the view's declarations scanned up to the
-work list: its result holds the view's declarations, the accumulator and the work list's names,
-and each of its declarations is scanned with its read names in it. Port of
-`ML-V Core/CollectSpec.lean:510`, without the program: the view's answers replace the program's
-declarations. -/
+work list: its result holds the view's declarations, the accumulator and the recognized names,
+covers the work list's names, and each of its declarations is scanned with its read names covered.
+Port of `ML-V Core/CollectSpec.lean:510`, without the program: the view's answers replace the
+program's declarations. -/
 theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
     {cases : List Name} {res : List ConstantInfo × List Name},
     closure view cfg f todo acc cases = .ok res → (∀ y ∈ acc, view.find? y.name = some y) →
-    (∀ ci ∈ acc, Scanned view cfg (fun n => n ∈ acc.map (·.name) ∨ n ∈ todo) acc ci) →
+    (∀ ci ∈ acc, Scanned view cfg (fun n => Covered view cfg acc n ∨ n ∈ todo) acc cases ci) →
     (∀ y ∈ res.1, view.find? y.name = some y) ∧ (∀ ci ∈ acc, ci ∈ res.1) ∧
-      (∀ n ∈ todo, n ∈ res.1.map (·.name)) ∧
-      ∀ ci ∈ res.1, Scanned view cfg (· ∈ res.1.map (·.name)) res.1 ci
+      (∀ m ∈ cases, m ∈ res.2) ∧ (∀ n ∈ todo, Covered view cfg res.1 n) ∧
+      ∀ ci ∈ res.1, Scanned view cfg (Covered view cfg res.1) res.1 res.2 ci
   | 0, todo, acc, cases, res, h, hvw, hsc => by
     rw [closure] at h
     obtain ⟨todo', hd, h⟩ := ok_of_bind h
@@ -369,8 +463,8 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
     · cases h
       rw [List.append_nil] at hpre
       subst hpre
-      exact ⟨hvw, fun _ h => h, hcov, fun ci hci =>
-        (hsc ci hci).mono (fun n hn => hn.elim id (hcov n)) (fun _ h => h)⟩
+      exact ⟨hvw, fun _ h => h, fun _ h => h, hcov, fun ci hci =>
+        (hsc ci hci).mono (fun n hn => hn.elim id (hcov n)) (fun _ h => h) (fun _ h => h)⟩
     · cases h
   | f + 1, todo, acc, cases, res, h0, hvw, hsc => by
     rw [closure] at h0
@@ -382,8 +476,8 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
       cases h
       rw [List.append_nil] at hpre
       subst hpre
-      exact ⟨hvw, fun _ h => h, hcov, fun ci hci =>
-        (hsc ci hci).mono (fun n hn => hn.elim id (hcov n)) (fun _ h => h)⟩
+      exact ⟨hvw, fun _ h => h, fun _ h => h, hcov, fun ci hci =>
+        (hsc ci hci).mono (fun n hn => hn.elim id (hcov n)) (fun _ h => h) (fun _ h => h)⟩
     | cons n todo'' =>
       subst hpre
       dsimp only at h
@@ -397,22 +491,24 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
         rw [ite_eq_right hname] at h
         have hcn : ci.name = n := by simpa using hname
         obtain ⟨⟨ns, ro⟩, hcs, h⟩ := ok_of_bind h
+        have hdex := (closureStep_extra hcs).1
         have hvw1 : ∀ y ∈ ci :: acc, view.find? y.name = some y := by
           intro y hy
           rcases List.mem_cons.1 hy with rfl | hy
           · rw [hcn]; exact hf
           · exact hvw y hy
         have sub : ∀ {l : List ConstantInfo}, (∀ x ∈ ci :: acc, x ∈ l) →
-            ∀ m ∈ acc.map (·.name), m ∈ l.map (·.name) :=
-          fun hl => List.map_subset _ fun x hx => hl x (List.mem_cons_of_mem _ hx)
-        have self : ∀ {l : List ConstantInfo}, (∀ x ∈ ci :: acc, x ∈ l) → n ∈ l.map (·.name) :=
-          fun hl => hcn ▸ List.mem_map_of_mem (hl ci List.mem_cons_self)
+            ∀ m, Covered view cfg acc m → Covered view cfg l m :=
+          fun hl _ hm => hm.mono fun x hx => hl x (List.mem_cons_of_mem _ hx)
+        have self : ∀ {l : List ConstantInfo}, (∀ x ∈ ci :: acc, x ∈ l) → Covered view cfg l n :=
+          fun hl => ⟨ci, hl ci List.mem_cons_self, hcn, fun _ _ => hdex⟩
         -- old declarations stay scanned
-        have hold : ∀ (todo1 : List Name) (l : List ConstantInfo),
-            (∀ m ∈ todo'', m ∈ todo1) → (∀ x ∈ ci :: acc, x ∈ l) →
-            ∀ cj ∈ acc, Scanned view cfg (fun m => m ∈ l.map (·.name) ∨ m ∈ todo1) l cj := by
-          intro todo1 l ht hl cj hcj
-          refine (hsc cj hcj).mono (fun m hm => ?_) (fun x hx => hl x (List.mem_cons_of_mem _ hx))
+        have hold : ∀ (todo1 : List Name) (l : List ConstantInfo) (cs1 : List Name),
+            (∀ m ∈ todo'', m ∈ todo1) → (∀ x ∈ ci :: acc, x ∈ l) → (∀ m ∈ cases, m ∈ cs1) →
+            ∀ cj ∈ acc, Scanned view cfg (fun m => Covered view cfg l m ∨ m ∈ todo1) l cs1 cj := by
+          intro todo1 l cs1 ht hl hcs1 cj hcj
+          refine (hsc cj hcj).mono (fun m hm => ?_)
+            (fun x hx => hl x (List.mem_cons_of_mem _ hx)) hcs1
           rcases hm with hm | hm
           · exact .inl (sub hl m hm)
           · simp only [List.mem_append, List.mem_cons] at hm
@@ -421,7 +517,8 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
             · exact .inl (self hl)
             · exact .inr (ht m hm)
         have hpost : ∀ (l : List ConstantInfo), (∀ x ∈ ci :: acc, x ∈ l) →
-            (∀ m ∈ todo'', m ∈ l.map (·.name)) → ∀ m ∈ pre ++ n :: todo'', m ∈ l.map (·.name) := by
+            (∀ m ∈ todo'', Covered view cfg l m) →
+            ∀ m ∈ pre ++ n :: todo'', Covered view cfg l m := by
           intro l hl ht m hm
           simp only [List.mem_append, List.mem_cons] at hm
           rcases hm with hm | rfl | hm
@@ -430,15 +527,19 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
           · exact ht m hm
         cases ro with
         | none =>
-          obtain ⟨r1, r3, r5, r6⟩ := closure_ok h hvw1 (fun cj hcj => by
+          obtain ⟨r1, r3, r4, r5, r6⟩ := closure_ok h hvw1 (fun cj hcj => by
             rcases List.mem_cons.1 hcj with rfl | hcj
-            · exact .inl ⟨ns, none, hcs, fun m hm => .inr (List.mem_append_left _ hm), nofun⟩
-            · exact hold _ _ (fun m hm => List.mem_append_right _ hm) (fun _ h => h) cj hcj)
-          exact ⟨r1, fun x hx => r3 x (List.mem_cons_of_mem _ hx),
+            · exact .inl ⟨ns, none, hcs, fun m hm => .inr (List.mem_append_left _ hm), nofun,
+                nofun⟩
+            · exact hold _ _ _ (fun m hm => List.mem_append_right _ hm) (fun _ h => h)
+                (fun _ h => h) cj hcj)
+          exact ⟨r1, fun x hx => r3 x (List.mem_cons_of_mem _ hx), r4,
             hpost _ r3 (fun m hm => r5 m (List.mem_append_right _ hm)), r6⟩
         | some r =>
           obtain ⟨R, rfl, hRv⟩ := (closureStep_spec hcs).2.2.2.2.2.2 _ rfl
           dsimp only at h
+          have hcsub : ∀ {b : Bool}, ∀ m ∈ cases, m ∈ (if b = true then n :: cases else cases) :=
+            fun m hm => by split <;> simp [hm]
           by_cases hfa : (findConst acc (ConstantInfo.recInfo R).name).isSome = true
           · rw [ite_eq_left hfa] at h
             obtain ⟨y, hy⟩ := Option.isSome_iff_exists.1 hfa
@@ -448,60 +549,72 @@ theorem closure_ok : ∀ {f : Nat} {todo : List Name} {acc : List ConstantInfo}
               rw [hy2, hRv] at this
               cases this; rfl
             subst hyr
-            obtain ⟨r1, r3, r5, r6⟩ := closure_ok h hvw1 (fun cj hcj => by
+            obtain ⟨r1, r3, r4, r5, r6⟩ := closure_ok h hvw1 (fun cj hcj => by
               rcases List.mem_cons.1 hcj with rfl | hcj
               · exact .inl ⟨ns, some _, hcs, fun m hm => .inr (List.mem_append_left _ hm),
-                  fun r hr => by cases hr; exact List.mem_cons_of_mem _ hy1⟩
-              · exact hold _ _ (fun m hm => List.mem_append_right _ hm) (fun _ h => h) cj hcj)
-            exact ⟨r1, fun x hx => r3 x (List.mem_cons_of_mem _ hx),
+                  fun r hr => by cases hr; exact List.mem_cons_of_mem _ hy1,
+                  fun _ d _ hd => by subst hd; simp [hcn]⟩
+              · exact hold _ _ _ (fun m hm => List.mem_append_right _ hm) (fun _ h => h) hcsub
+                  cj hcj)
+            exact ⟨r1, fun x hx => r3 x (List.mem_cons_of_mem _ hx), fun m hm => r4 m (hcsub m hm),
               hpost _ r3 (fun m hm => r5 m (List.mem_append_right _ hm)), r6⟩
           · rw [ite_eq_right hfa] at h
             obtain ⟨tys, htys, h⟩ := ok_of_bind h
             have hl2 : ∀ x ∈ ci :: acc, x ∈ ConstantInfo.recInfo R :: ci :: acc :=
               fun x hx => List.mem_cons_of_mem _ hx
-            obtain ⟨r1, r3, r5, r6⟩ := closure_ok h
+            obtain ⟨r1, r3, r4, r5, r6⟩ := closure_ok h
               (fun y hy => by
                 rcases List.mem_cons.1 hy with rfl | hy
                 · exact hRv
                 · exact hvw1 y hy)
               (fun cj hcj => by
                 rcases List.mem_cons.1 hcj with rfl | hcj
-                · exact .inr ⟨R, rfl, tys, htys, fun m hm => .inr (by simp [hm])⟩
+                · exact .inr ⟨R, rfl, ⟨tys, htys, fun m hm => .inr (by simp [hm])⟩, ci,
+                    List.mem_cons_of_mem _ List.mem_cons_self, ns, hcs⟩
                 rcases List.mem_cons.1 hcj with rfl | hcj
                 · exact .inl ⟨ns, some _, hcs, fun m hm => .inr (by simp [hm]),
-                    fun r hr => by cases hr; exact List.mem_cons_self⟩
-                · exact hold _ _ (fun m hm => by simp [hm]) hl2 cj hcj)
+                    fun r hr => by cases hr; exact List.mem_cons_self,
+                    fun _ d _ hd => by subst hd; simp [hcn]⟩
+                · exact hold _ _ _ (fun m hm => by simp [hm]) hl2 hcsub cj hcj)
             exact ⟨r1, fun x hx => r3 x (hl2 x (List.mem_cons_of_mem _ hx)),
+              fun m hm => r4 m (hcsub m hm),
               hpost _ (fun x hx => r3 x (hl2 x hx)) (fun m hm => r5 m (by simp [hm])), r6⟩
 
 /-! ## The checks after the closure -/
 
-/-- A successful fragment test ran the closure from the term's constants, and found no
-collision. Port of `ML-V Core/CollectSpec.lean:802`, without `eliminatedUndecided`. -/
+/-- A successful fragment test ran the closure from the term's constants, decided the sort of every
+inductive the traversal may eliminate, held no inductive under `remove_irrel_constr_args`, and found
+no collision. Port of `ML-V Core/CollectSpec.lean:802`. -/
 theorem collectDeps_ok {e : Expr} {decls : List ConstantInfo}
     (h : collectDeps view cfg e = .ok decls) :
     ∃ cs cases, exprConsts cfg e = .ok cs ∧
       closure view cfg collectFuel cs [] [] = .ok (decls, cases) ∧
+      eliminatedUndecided decls cases = none ∧
+      (∀ iv, .inductInfo iv ∈ decls → cfg.remove_irrel_constr_args = false) ∧
       findCollision decls = none ∧ findBlockCollision decls = none := by
   unfold collectDeps at h
   obtain ⟨cs, hcs, h⟩ := ok_of_bind h
   obtain ⟨⟨ds, cases⟩, hcl, h⟩ := ok_of_bind h
-  have key : ∀ x, (match findCollision ds with
+  have key : ∀ x, eliminatedUndecided ds cases = none →
+      (∀ iv, .inductInfo iv ∈ ds → cfg.remove_irrel_constr_args = false) →
+      (match findCollision ds with
       | some (a, b) => (throw (EraseError.nameCollision a b) : Except EraseError _)
       | none => match findBlockCollision ds with
         | some (a, b) => throw (EraseError.nameCollision a b)
         | none => pure ds) = .ok x →
       ∃ cs' cases', exprConsts cfg e = .ok cs' ∧
         closure view cfg collectFuel cs' [] [] = .ok (x, cases') ∧
+        eliminatedUndecided x cases' = none ∧
+        (∀ iv, .inductInfo iv ∈ x → cfg.remove_irrel_constr_args = false) ∧
         findCollision x = none ∧ findBlockCollision x = none := by
-    intro x hx
+    intro x hel hirr hx
     cases hc : findCollision ds with
     | some p => rw [hc] at hx; cases hx
     | none =>
       rw [hc] at hx
       cases hb : findBlockCollision ds with
       | some p => rw [hb] at hx; cases hx
-      | none => rw [hb] at hx; cases hx; exact ⟨cs, cases, hcs, hcl, hc, hb⟩
+      | none => rw [hb] at hx; cases hx; exact ⟨cs, cases, hcs, hcl, hel, hirr, hc, hb⟩
   dsimp only at h
   cases he : eliminatedUndecided ds cases with
   | some n => rw [he] at h; cases h
@@ -511,8 +624,16 @@ theorem collectDeps_ok {e : Expr} {decls : List ConstantInfo}
     split at h
     · split at h
       · cases h
-      · exact key _ h
-    · exact key _ h
+      · rename_i hno
+        refine key _ he (fun iv hiv => ?_) h
+        obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1
+          (List.find?_isSome.2 ⟨_, hiv, rfl⟩ : (ds.find? (· matches .inductInfo _)).isSome)
+        have hp := List.find?_some hx
+        cases x with
+        | inductInfo iv' => exact (hno iv' hx).elim
+        | _ => simp at hp
+    · rename_i hf
+      exact key _ he (fun _ _ => by simpa using hf) h
 
 /-! ## The `casesOn` recognizer on the closure -/
 
@@ -661,39 +782,37 @@ theorem recs_mention {P : List ConstantInfo} {env : ConLeche.Env} (hP : ConLeche
 end CollectSpec
 
 open CollectSub CollectSpec Decls in
-/-- **What the fragment test's closure satisfies**: on a program con-leche accepts, read through a
-view that agrees with it, the closure that a successful `Erasure.collectDeps` returns for a term
-con-leche types has distinct kernames (DV-14) and λ□ block names, syntactic arities as inductive
-types, holds the constants of the term and is closed under what the source semantics and the
+/-- **What the fragment test's closure satisfies**, on a closure that is part of a program
+con-leche accepts (`SubEnv`): distinct kernames (DV-14) and λ□ block names, syntactic arities as
+inductive types, the constants of the term, and closed under what the source semantics and the
 traversal read (`DepClosed`): the type of every recursor of the program names each member of its
 block (`recs_mention`, from `blockShapeOK`), and the fragment test reads a recursor's block only
-through its type. Port of `ML-V Core/CollectSpec.lean:1422`
-(`L4 Core/Collect.lean:214`), with con-leche's acceptance where that file has Metalean's
-`ProgEnv`. Reference: the closure property of `MR E/ErasureFunction.v:1602 erase_global_deps`. -/
-theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
-    {view : EnvView} {cfg : ErasureConfig} (hP : ConLecheAccepts P env)
-    (hview : ViewAgrees view P) (hty : CLTyped env e) (h : collectDeps view cfg e = .ok decls) :
+through its type. Port of `ML-V Core/CollectSpec.lean:1422` (`L4 Core/Collect.lean:214`), with
+con-leche's acceptance where that file has Metalean's `ProgEnv`. Reference: the closure property
+of `MR E/ErasureFunction.v:1602 erase_global_deps`. -/
+theorem collectDeps_spec_sub {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
+    {view : EnvView} {cfg : ErasureConfig} (hP : ConLecheAccepts P env) (hsub : SubEnv decls P)
+    (h : collectDeps view cfg e = .ok decls) :
     KernameInj decls ∧ DepClosed decls ∧ ConstsIn (fun c => (findDecl decls c).isSome) e ∧
       BlockNamesInj decls ∧ ArityTypes decls := by
-  obtain ⟨cs, cases, hcs, hcl, hcol, hbc⟩ := CollectSpec.collectDeps_ok h
-  have hsub : ∀ ci ∈ decls, ci ∈ P :=
-    closure_sub hP hview hcl nofun (KnownIn.exprConsts (CLTyped.knownIn hP hty) hcs)
-  obtain ⟨hvw, -, hcov, hscan⟩ := closure_ok hcl nofun nofun
+  obtain ⟨cs, cases, hcs, hcl, -, -, hcol, hbc⟩ := CollectSpec.collectDeps_ok h
+  have hsub : ∀ ci ∈ decls, ci ∈ P := fun ci hci => (findDecl_mem (hsub ci hci)).1
+  obtain ⟨hvw, -, -, hcov, hscan⟩ := closure_ok hcl nofun nofun
   have inD : ∀ {n}, n ∈ decls.map (·.name) → (findDecl decls n).isSome = true :=
     fun h => findDecl_isSome_iff.2 h
   have htype : ∀ ci ∈ decls, ∃ tys, exprConsts cfg ci.type = .ok tys ∧
       ∀ n ∈ tys, n ∈ decls.map (·.name) := by
     intro ci hci
-    rcases hscan ci hci with ⟨ns, ro, hcs', hns, -⟩ | ⟨R, rfl, tys, htys, hc⟩
+    rcases hscan ci hci with ⟨ns, ro, hcs', hns, -⟩ | ⟨R, rfl, ⟨tys, htys, hc⟩, -⟩
     · obtain ⟨ty, hty', hsub'⟩ := (closureStep_spec hcs').1
-      exact ⟨ty, hty', fun n hn => hns n (hsub' n hn)⟩
-    · exact ⟨tys, htys, hc⟩
+      exact ⟨ty, hty', fun n hn => (hns n (hsub' n hn)).mem⟩
+    · exact ⟨tys, htys, fun n hn => (hc n hn).mem⟩
   have hscanned : ∀ ci ∈ decls, (∀ R, ci ≠ .recInfo R) → ∃ ns ro,
       closureStep view cfg ci = .ok (ns, ro) ∧ (∀ n ∈ ns, n ∈ decls.map (·.name)) ∧
       ∀ r, ro = some r → r ∈ decls := by
     intro ci hci hnr
-    rcases hscan ci hci with h | ⟨R, rfl, -⟩
-    · exact h
+    rcases hscan ci hci with ⟨ns, ro, h1, h2, h3, -⟩ | ⟨R, rfl, -⟩
+    · exact ⟨ns, ro, h1, fun n hn => (h2 n hn).mem, h3⟩
     · exact absurd rfl (hnr R)
   have hrall : ∀ R, .recInfo R ∈ decls → ∀ n ∈ R.all, n ∈ decls.map (·.name) := by
     intro R hR n hn
@@ -737,7 +856,7 @@ theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e :
     · have hself : ci.name ∈ decls.map (·.name) := List.mem_map_of_mem hci
       rcases hscan ci hci with ⟨ns, ro, hcs', hns, -⟩ | ⟨R, rfl, -⟩
       · rcases (closureStep_spec hcs').2.1 n hn with h | h
-        · exact inD (hns n h)
+        · exact inD (hns n h).mem
         · exact inD (h ▸ hself)
       · simp only [ConstantInfo.all, List.mem_singleton] at hn
         exact inD (hn ▸ hself)
@@ -747,10 +866,27 @@ theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e :
       exact inD (hns _ ((closureStep_spec hcs').2.2.2.2.2.1 cv rfl))
     · subst hR; exact inD (hrall _ hci n hn)
   exact ⟨KernameInj.of_findCollision hcol, hdep,
-    ConstsIn_mono (fun c h => inD (hcov c h)) (exprConsts_consts hcs),
+    ConstsIn_mono (fun c h => inD (hcov c h).mem) (exprConsts_consts hcs),
     BlockNamesInj.of_findBlockCollision hbc, fun iv ⟨ci, hci, he⟩ => by
       subst he
       obtain ⟨-, b, hb⟩ := hind _ hci
       exact sortDecided_arity hb⟩
+
+open CollectSub CollectSpec Decls in
+/-- **What the fragment test's closure satisfies**: on a program con-leche accepts, read through a
+view that agrees with it, the closure that a successful `Erasure.collectDeps` returns for a term
+con-leche types is part of the program (`closure_sub`), so it has the facts of
+`collectDeps_spec_sub`. Port of `ML-V Core/CollectSpec.lean:1422` (`L4 Core/Collect.lean:214`),
+with con-leche's acceptance where that file has Metalean's `ProgEnv`. Reference: the closure
+property of `MR E/ErasureFunction.v:1602 erase_global_deps`. -/
+theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
+    {view : EnvView} {cfg : ErasureConfig} (hP : ConLecheAccepts P env)
+    (hview : ViewAgrees view P) (hty : CLTyped env e) (h : collectDeps view cfg e = .ok decls) :
+    KernameInj decls ∧ DepClosed decls ∧ ConstsIn (fun c => (findDecl decls c).isSome) e ∧
+      BlockNamesInj decls ∧ ArityTypes decls := by
+  obtain ⟨cs, cases, hcs, hcl, -⟩ := CollectSpec.collectDeps_ok h
+  obtain ⟨ds, hds, -⟩ := id hP
+  exact collectDeps_spec_sub hP (fun ci hci => findDecl_self (DeclsOf?.nodup hds)
+    (closure_sub hP hview hcl nofun (KnownIn.exprConsts (CLTyped.knownIn hP hty) hcs) ci hci)) h
 
 end EraseProof
