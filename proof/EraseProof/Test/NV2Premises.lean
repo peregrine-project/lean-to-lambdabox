@@ -1,6 +1,7 @@
 import EraseProof.Statements
 import EraseProof.Test.NV2Data
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-2: the hypotheses of the final theorem
@@ -591,14 +592,12 @@ def kAlt2 : ConLeche.Expr := .app kLamK kMk
 def kE : ConLeche.Expr := .app (.app (.app (.app (.const (nm2 "B" "casesOn") [k1]) kMotB) kT) kAlt1) kAlt2
 theorem toCL_e : toCL? e = some kE := by krfl
 theorem t_e : ConLeche.inferTypeCore .verified false envNV2 100 0 kE = .ok (.app kMotB kT) := by krfl
-/-- the evaluation environment of the final theorem -/
-abbrev σ : EvalEnv := evalEnvOf view cfg P
 
 /-! ## `hacc`, `hty`, `hview`, `hfrag`, `hnopre`, `hrun` -/
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv2full = .ok envNV2) : ConLecheAccepts P envNV2 :=
-  ⟨nv2full, decls, hfold, by krfl⟩
+  ⟨nv2full, decls, hfold, by krfl, by krfl⟩
 
 theorem hty : CLTyped envNV2 e := ⟨kE, 100, .app kMotB kT, toCL_e, t_e⟩
 
@@ -727,8 +726,8 @@ theorem hmark : MarkOf D cfg [] e eM := by
 /-! ## `hcert`: con-leche types the marked input and certifies its four marks
 
 The marks of `eM`: `B` in the first alternative (no binder), `B` under the source λ `k`, and the
-η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The emitted environment holds
-no constant, so no body is asked of. -/
+η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The closure's one value is
+`B.casesOn`'s, whose marking has no mark (`mark_casesOnVal`). -/
 
 /-- the context of the η-variable `α`: `val : α`, `α : Type`, innermost first -/
 def Γη : List CtxBinder := [(.bvar 0, none), (.sort l1, none)]
@@ -756,30 +755,32 @@ theorem marks_eM : MarksCert envNV2 [] eM :=
   ⟨⟨⟨⟨trivial, ⟨trivial, trivial⟩⟩, trivial⟩, ⟨⟨trivial, cert_B0⟩, trivial⟩⟩,
     ⟨⟨⟨trivial, cert_Bk⟩, trivial⟩, ⟨⟨trivial, cert_α⟩, trivial⟩⟩⟩
 
-theorem hcert : ProgCert envNV2 D cfg p0 eM := by
+/-- con-leche types `B.casesOn`'s value as a whole, at `checkFuel`. -/
+theorem typedAt_casesOn : CLTypedAt envNV2 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
+
+theorem hcert : ProgCert envNV2 D cfg eM := by
   refine ⟨typedAt_eM, marks_eM, ?_⟩
-  intro lenv t hp ci hci v cb hv hl _
-  cases hp
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
-  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> try cases hv
-  rw [show lookupConst [(mutualBlockKername [`Box], .inductiveDecl ⟨.finite, 1, [bodyBox]⟩),
-    (mutualBlockKername [`B], .inductiveDecl ⟨.finite, 0, [bodyB]⟩)]
-      (toKername (ConstantInfo.defnInfo B_casesOn).name) = none by krfl] at hl
-  cases hl
+  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
+  exact ⟨_, mark_casesOnVal (.inr rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
 
 /-! ## `hev`: an explicit derivation of `eM ⇓ Box.mk □□B B.f`, its certificates by the kernel at
 `envNV2` (none needs ι: the motive is constant) -/
 
-theorem find_f : findDecl P `B.f = some (.ctorInfo Bf_ctor) := by krfl
-theorem find_t : findDecl P `B.t = some (.ctorInfo Bt_ctor) := by krfl
-theorem find_mk : findDecl P `Box.mk = some (.ctorInfo Boxmk_ctor) := by krfl
+/-- the evaluation environment of `hev`: the closure -/
+abbrev σD : EvalEnv := evalEnvOf view cfg D
+
+theorem find_f : findDecl D `B.f = some (.ctorInfo Bf_ctor) := by krfl
+theorem find_t : findDecl D `B.t = some (.ctorInfo Bt_ctor) := by krfl
+theorem find_mk : findDecl D `Box.mk = some (.ctorInfo Boxmk_ctor) := by krfl
 
 theorem ok_f : CLOk envNV2 cF := ⟨⟨kF, 100, kB, by krfl, by krfl⟩, kF, 100, kB, by krfl, by krfl⟩
 theorem ok_t : CLOk envNV2 cT := ⟨⟨kT, 100, kB, by krfl, by krfl⟩, kT, 100, kB, by krfl, by krfl⟩
 
-theorem ev_f : SrcEval envNV2 σ cF cF :=
+theorem ev_f : SrcEval envNV2 σD cF cF :=
   SrcEval.ctor (c := `B.f) (us := []) (as := []) (vs := []) find_f rfl rfl (by simp) ok_f
-theorem ev_t : SrcEval envNV2 σ cT cT :=
+theorem ev_t : SrcEval envNV2 σD cT cT :=
   SrcEval.ctor (c := `B.t) (us := []) (as := []) (vs := []) find_t rfl rfl (by simp) ok_t
 
 /-- `B` is a type former for con-leche. -/
@@ -793,7 +794,7 @@ def vM : Expr := .app (.app cMk (markErase (markErase tB))) cF
 def etaVal : Expr := markEta (.lam `val (markErase tB) (.app (.app cMk (markErase (markErase tB))) (.bvar 0)) .default)
 
 theorem ok_v : CLOk envNV2 vM := ⟨⟨.app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩, .app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩
-theorem ev_v : SrcEval envNV2 σ vM vM :=
+theorem ev_v : SrcEval envNV2 σD vM vM :=
   SrcEval.ctor (c := `Box.mk) (us := []) (cv := Boxmk_ctor) (as := [markErase (markErase tB), cF])
     (vs := [markErase (markErase tB), cF]) find_mk rfl rfl (by
       intro i a v ha hv
@@ -801,7 +802,7 @@ theorem ev_v : SrcEval envNV2 σ vM vM :=
       · exact SrcEval.frozen erasable_mB
       · exact ev_f) ok_v
 
-theorem not_short {x : Expr} (h : ∀ c us, x.getAppFn ≠ .const c us) : ¬ ShortSpine σ x := by
+theorem not_short {x : Expr} (h : ∀ c us, x.getAppFn ≠ .const c us) : ¬ ShortSpine σD x := by
   rintro ⟨c, us, ar, h1, -⟩
   exact h c us h1
 
@@ -814,13 +815,13 @@ theorem ok_eta1 : CLOk envNV2 (.app mkM (markErase tB)) :=
 theorem ok_eta2 : CLOk envNV2 (.app etaVal cF) :=
   ⟨⟨.app (.lam kB (.app (.app kMk kB) (.bvar 0))) kF, 100, kBox kB, by krfl, by krfl⟩, .app (.app kMk kB) kF, 100, kBox kB, by krfl, by krfl⟩
 
-theorem ev_inner : SrcEval envNV2 σ (.app mkM (markErase tB)) etaVal :=
+theorem ev_inner : SrcEval envNV2 σD (.app mkM (markErase tB)) etaVal :=
   SrcEval.etaBeta (n := `α) (A := .sort l1)
     (b := markEta (.lam `val (.bvar 0) (.app (.app cMk (markErase (.bvar 1))) (.bvar 0)) .default))
     (bi := .implicit) (not_short (by intro c us h; cases h)) SrcEval.etaLam
     (SrcEval.frozen erasable_B) ok_eta1 SrcEval.etaLam
 
-theorem ev_body : SrcEval envNV2 σ (.app (.app mkM (markErase tB)) cF) vM :=
+theorem ev_body : SrcEval envNV2 σD (.app (.app mkM (markErase tB)) cF) vM :=
   SrcEval.etaBeta (n := `val) (A := markErase tB)
     (b := .app (.app cMk (markErase (markErase tB))) (.bvar 0)) (bi := .default)
     (not_short (by intro c us h; cases h)) ev_inner ev_f ok_eta2 ev_v
@@ -830,16 +831,21 @@ theorem ok_beta : CLOk envNV2 (.app lamKM mkM) :=
   ⟨⟨.app kLamK (.lam (.sort k1) (.lam (.bvar 0) (.app (.app kMk (.bvar 1)) (.bvar 0)))), 100,
     kBox kB, by krfl, by krfl⟩, .app kLamK kMk, 100, kBox kB, by krfl, by krfl⟩
 
-theorem ev_alt2 : SrcEval envNV2 σ alt2M vM :=
+theorem ev_alt2 : SrcEval envNV2 σD alt2M vM :=
   SrcEval.beta (n := `k) (A := kTy) (b := .app (.app (.bvar 0) (markErase tB)) cF) (bi := .default)
     (not_short (by intro c us h; cases h)) (SrcEval.atom trivial) SrcEval.etaLam ok_beta ev_body
 
 /-- `CLOk` of the saturated `casesOn` with its evaluated major. -/
 theorem ok_cases : CLOk envNV2 eM := ⟨⟨kEM, 100, .app kMotB kT, by krfl, by krfl⟩, kE, 100, .app kMotB kT, by krfl, by krfl⟩
 
-theorem hev : SrcEval envNV2 σ eM vM :=
+/-- con-leche's ι step at `B.rec` fires on `B.t` with no certificate: `B` is never `Prop`. -/
+theorem iota_t : IotaNoCertAt envNV2 `B cT :=
+  ⟨`B.t, [], ⟨nm2 "B" "rec", [nm "u"], kRecType⟩, 3, 3, false, [kRule "f" 1, kRule "t" 0],
+    kRule "t" 0, ⟨nm2 "B" "t", [], kB⟩, 0, 0, nm "B", rfl, by krfl, by krfl, by krfl, by krfl⟩
+
+theorem hev : SrcEval envNV2 σD eM vM :=
   SrcEval.casesIota (c := `B.casesOn) (us := [l1]) (iv := B_ind) (as := [motB, cT, alt1M, alt2M])
     (m := cT) (mv := cT) (i := 1) (fs := []) (alt := alt2M) (by krfl) rfl rfl ev_t
-    ⟨`B.t, [], Bt_ctor, [], find_t, rfl, rfl, rfl, rfl, rfl⟩ ok_cases rfl ev_alt2
+    ⟨`B.t, [], Bt_ctor, [], find_t, rfl, rfl, rfl, rfl, rfl⟩ ok_cases iota_t rfl ev_alt2
 
 end EraseProof.Test.NV2

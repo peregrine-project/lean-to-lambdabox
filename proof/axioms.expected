@@ -3,11 +3,6 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
-EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
-EraseProof.ErasesAlt.absN propext,Classical.choice,Quot.sound
-EraseProof.RecLam.hasFVar_recLetTerm propext,Classical.choice,Quot.sound
-EraseProof.ErasesDeps.toBvar propext,Classical.choice,Quot.sound
 EraseProof.erases_correct propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_value propext,Classical.choice,Quot.sound
@@ -25,11 +20,7 @@ EraseProof.SemCases.srcEval_sound_casesLitSucc propext,Classical.choice,Quot.sou
 EraseProof.SemCases.srcEval_sound_proj propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.Pure.isErasable_ren propext,Quot.sound
-EraseProof.Pure.typeLevel_ren propext,Quot.sound
-EraseProof.MarkOf.fvarsIn propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -126,8 +117,13 @@ EraseProof.Test.NV1.hmark propext,Quot.sound
 EraseProof.Test.NV1.hnopre propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hty propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hview propext,Classical.choice,Quot.sound
-EraseProof.Test.NV1.lookup_casesOn propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.iota_f propext
+EraseProof.Test.NV1.mark_casesOnVal propext,Quot.sound
+EraseProof.Test.NV1.mark_cb1 propext,Quot.sound
+EraseProof.Test.NV1.mark_cb2 propext,Quot.sound
+EraseProof.Test.NV1.mark_cb3 propext,Quot.sound
 EraseProof.Test.NV1.mark_ctor propext,Quot.sound
+EraseProof.Test.NV1.mark_lam_self propext
 EraseProof.Test.NV1.mark_neg propext,Quot.sound
 EraseProof.Test.NV1.negL_eq propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.not_short propext
@@ -138,6 +134,7 @@ EraseProof.Test.NV1.ok_f propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.ok_t propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.preDef_none propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.sub propext
+EraseProof.Test.NV1.typedAt_casesOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.typedAt_e propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.typedAt_neg propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.altsMap_all propext,Classical.choice,Quot.sound
@@ -173,6 +170,7 @@ EraseProof.Test.NV2.hpure propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hrun propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hty propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hview propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.iota_t propext
 EraseProof.Test.NV2.mark_alt1 propext,Quot.sound
 EraseProof.Test.NV2.mark_alt2 propext,Quot.sound
 EraseProof.Test.NV2.mark_ctor propext,Quot.sound
@@ -199,6 +197,7 @@ EraseProof.Test.NV2.stBox_Box propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.sub propext
 EraseProof.Test.NV2.t_e propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.toCL_e -
+EraseProof.Test.NV2.typedAt_casesOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.typedAt_eM propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.visitAlt1_run propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.visitAlt2_run propext,Classical.choice,Quot.sound
@@ -227,14 +226,24 @@ EraseProof.Test.DeclOf.nv1_head_accepted propext
 EraseProof.Test.DeclOf.nested_rejected propext
 EraseProof.Test.DeclOf.stray_rejected propext
 EraseProof.Test.DeclOf.unsafe_rejected propext
-EraseProof.StateOK.empty propext,Classical.choice,Quot.sound
-EraseProof.StateOK.kername propext,Classical.choice,Quot.sound
-EraseProof.knNotBlock_of_emits propext,Classical.choice,Quot.sound
-EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound
-EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound
-EraseProof.register_inductive_ok propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_recIota propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotLift propext,Classical.choice,Quot.sound
+EraseProof.SemCases.srcEval_sound_quotMk propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
 EraseProof.CLOk.gradedU propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.casesIotaAt propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_former propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_quot propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.casesFrozenAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.projAt propext,Classical.choice,Quot.sound
+EraseProof.ConLecheAccepts.recIotaAt propext,Classical.choice,Quot.sound
+EraseProof.Test.RecIH.canonical propext
+EraseProof.Test.RecIH.canonical_with propext
+EraseProof.Test.RecIH.dup_defn_levels propext
+EraseProof.Test.RecIH.dup_levels propext
+EraseProof.Test.RecIH.not_plain propext
+EraseProof.Test.RecIH.wrong_arity propext
+EraseProof.Test.RecIH.wrong_field propext
+EraseProof.Test.RecIH.wrong_head propext
+EraseProof.Test.RecIH.wrong_lams propext
+EraseProof.Test.RecIH.wrong_levels propext
+EraseProof.SemCases.srcEval_sound_casesFrozen propext,Classical.choice,Quot.sound
+EraseProof.erasePure_erases propext,Classical.choice,Quot.sound

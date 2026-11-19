@@ -14,8 +14,7 @@ through `DeclsOf?`: a safe definition of `P` is stored with its translated type,
 and value; a theorem with its translated type and no value; a safe opaque and a safe axiom as an
 axiom with their translated type, except an axiom named `sorryAx`, which is stored as nothing. Of
 a safe inductive block, every recursor is stored as its translated record with one install-computed
-firing mode on its rules; of a one-member block, the former with install-computed capabilities and
-every constructor as its translated record, under the former's name.
+firing mode on its rules.
 -/
 
 open Lean Erasure
@@ -611,41 +610,6 @@ theorem readBlock_rec_mem {nP : Nat} {block : List ConLeche.ConstantInfo} {p : C
   rw [hrecs]
   exact List.mem_map_of_mem hrs
 
-/-- **A one-member block installs its former and its constructors as their records**, each
-constructor under the former's name and the block's parameter count, which the record carries
-(`CL ConLeche/Kernel/Install.lean:27 blockFormers`, `:32 blockCtors`; a one-member block groups
-every constructor under its member, `CL ConLeche/Kernel/Inductives/BlockShape.lean:324
-blockGroups`). -/
-theorem readBlock_single_mem {nP : Nat} {block rest : List ConLeche.ConstantInfo}
-    {p : ConLeche.BlockShape} (h : ConLeche.readBlock nP block = .ok p) {cvT : ConLeche.ConstantVal}
-    {caps : ConLeche.IndCaps} (hb : block = .indInfo cvT caps :: rest)
-    (hno : ∀ {cv caps'}, ConLeche.ConstantInfo.indInfo cv caps' ∉ rest) :
-    (∃ caps', .indInfo cvT caps' ∈ ConLeche.blockConstants p) ∧
-      ∀ {cv nP' nF T}, .ctorInfo cv nP' nF T ∈ block →
-        nP' = p.nP ∧ .ctorInfo cv p.nP nF cvT.name ∈ ConLeche.blockConstants p := by
-  obtain ⟨-, -, -, -, -, -, -, cvTs, cs, rs, nIdxs, hsp, hk, -, hnI, -, hcs, hmem, -⟩ :=
-    ConLeche.readBlock_inv h
-  obtain ⟨-, hc, hT⟩ := blockSplit_mem hsp
-  obtain rfl := hT hb hno
-  obtain ⟨n0, rfl⟩ : ∃ n0, nIdxs = [n0] := by
-    match nIdxs, hnI, hk with
-    | [n0], _, _ => exact ⟨n0, rfl⟩
-    | [], h1, h2 => simp at h1 h2; omega
-    | _ :: _ :: _, h1, h2 => simp at h1 h2; omega
-  have hk1 : p.k = 1 := by simpa using hk.symm
-  have hm : p.members = [⟨cvT, cvT, n0, cs.map fun c => (c.1, c.2.2)⟩] := by
-    rw [hmem, hk1]; simp [ConLeche.blockGroups]
-  constructor
-  · refine ⟨ConLeche.blockCapsAt p 0 (ConLeche.blockIsRec p),
-      List.mem_append_left _ (List.mem_append_left _ ?_)⟩
-    simp [ConLeche.blockFormers, hm]
-  · intro cv nP' nF T hx
-    have hc' := hc hx
-    refine ⟨hcs _ hc', List.mem_append_left _ (List.mem_append_right _ ?_)⟩
-    simp only [ConLeche.blockCtors, ConLeche.BlockShape.ctorGroups, hm, List.map_cons,
-      List.map_nil, List.flatMap_cons, List.flatMap_nil, List.append_nil]
-    exact List.mem_map.mpr ⟨_, List.mem_map_of_mem hc', rfl⟩
-
 /-- What `recOf?` writes: a recursor record of the translated name, level parameters and type,
 the two sums, the K flag and the translated rules. -/
 theorem recOf?_eq_some {r : RecursorVal} {x : ConLeche.ConstantInfo} (h : recOf? r = some x) :
@@ -657,62 +621,19 @@ theorem recOf?_eq_some {r : RecursorVal} {x : ConLeche.ConstantInfo} (h : recOf?
     simp [hcv, hrs] at h
   exact ⟨_, _, rfl, rfl, h.symm⟩
 
-/-- **The records `blockOf?` writes for the block headed by `H`**: the block's recursors' records;
-and, at a one-member block, the former's record first, then no other former, the records of its
-constructors under its name. -/
+/-- **The records `blockOf?` writes for the block headed by `H`**: the block's recursors'
+records. -/
 theorem blockOf?_records {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.Declaration}
     (h : blockOf? P H = some d) :
     ∃ block, d = .indDecl block H.numParams ∧
-      (∀ {r : RecursorVal}, .recInfo r ∈ P → r.all = H.all → ∃ x, recOf? r = some x ∧ x ∈ block) ∧
-      (findConst P H.name = some (.inductInfo H) → H.all = [H.name] →
-        ∃ cvH rest, cvOf? H.toConstantVal = some cvH ∧ block = .indInfo cvH {} :: rest ∧
-          (∀ {cv caps}, ConLeche.ConstantInfo.indInfo cv caps ∉ rest) ∧
-          ∀ {cn : Name} {c : ConstructorVal}, cn ∈ H.ctors → findConst P cn = some (.ctorInfo c) →
-            ∃ cv, cvOf? c.toConstantVal = some cv ∧
-              .ctorInfo cv c.numParams c.numFields (Name.toCL H.name) ∈ rest) := by
+      ∀ {r : RecursorVal}, .recInfo r ∈ P → r.all = H.all → ∃ x, recOf? r = some x ∧ x ∈ block := by
   simp only [blockOf?, Option.bind_eq_some_iff, Option.some.injEq, bind, pure] at h
   obtain ⟨tys, htys, cvs, hcvs, -, -, types, htypes, ctors, hctors, recs, hrecs, rfl⟩ := h
-  refine ⟨_, rfl, fun {r} hr hall => ?_, fun hH hall => ?_⟩
-  · have hm := mapM_eq_some hrecs ▸ List.mem_map_of_mem (f := recOf?)
-      (List.mem_filterMap.mpr ⟨_, List.mem_reverse.mpr hr, (by simp [hall] : _ = some r)⟩)
-    obtain ⟨x, hx, he⟩ := List.mem_map.mp hm
-    exact ⟨x, he.symm, List.mem_append_right _ hx⟩
-  rw [hall] at htys
-  simp only [List.mapM_cons, List.mapM_nil, hH, Option.bind_eq_bind, Option.bind_some,
-    Option.pure_def, Option.some.injEq] at htys
-  subst htys
-  simp only [List.mapM_cons, List.mapM_nil, Option.bind_eq_bind, Option.pure_def,
-    Option.bind_eq_some_iff, Option.some.injEq] at hcvs htypes
-  obtain ⟨csH, hcsH, _, rfl, rfl⟩ := hcvs
-  obtain ⟨tH, ⟨cvH, hcvH, rfl⟩, _, rfl, rfl⟩ := htypes
-  simp only [List.zip_cons_cons, List.zip_nil_right, List.mapM_cons, List.mapM_nil,
-    Option.bind_eq_bind, Option.pure_def, Option.bind_eq_some_iff, Option.some.injEq] at hctors
-  obtain ⟨L, hL, _, rfl, rfl⟩ := hctors
-  have hLc := mapM_eq_some hL
-  refine ⟨cvH, L ++ recs, hcvH, by simp, fun {cv caps} hx => ?_, fun {cn c} hcn hc => ?_⟩
-  · rcases List.mem_append.mp hx with hx | hx
-    · obtain ⟨c, -, he⟩ := List.mem_map.mp (hLc ▸ List.mem_map_of_mem (f := some) hx)
-      cases hcv : cvOf? c.toConstantVal <;> simp [hcv] at he
-    · obtain ⟨r, -, he⟩ := List.mem_map.mp
-        (mapM_eq_some hrecs ▸ List.mem_map_of_mem (f := some) hx)
-      obtain ⟨_, _, -, -, he'⟩ := recOf?_eq_some he
-      cases he'
-  · have hcm := mapM_eq_some hcsH ▸ List.mem_map_of_mem (f := fun n => match findConst P n with
-      | some (.ctorInfo c) => some c
-      | _ => none) hcn
-    simp only [hc] at hcm
-    obtain ⟨c', hc', he⟩ := List.mem_map.mp hcm
-    cases he
-    cases hcv : cvOf? c.toConstantVal with
-    | none =>
-      have := hLc ▸ List.mem_map_of_mem (f := fun (c : ConstructorVal) => (cvOf? c.toConstantVal).bind fun cv =>
-        some (ConLeche.ConstantInfo.ctorInfo cv c.numParams c.numFields (Name.toCL H.name))) hc'
-      simp [hcv] at this
-    | some cv =>
-      refine ⟨cv, rfl, List.mem_append_left _ ?_⟩
-      have := hLc ▸ List.mem_map_of_mem (f := fun (c : ConstructorVal) => (cvOf? c.toConstantVal).bind fun cv =>
-        some (ConLeche.ConstantInfo.ctorInfo cv c.numParams c.numFields (Name.toCL H.name))) hc'
-      simpa [hcv] using this
+  refine ⟨_, rfl, fun {r} hr hall => ?_⟩
+  have hm := mapM_eq_some hrecs ▸ List.mem_map_of_mem (f := recOf?)
+    (List.mem_filterMap.mpr ⟨_, List.mem_reverse.mpr hr, (by simp [hall] : _ = some r)⟩)
+  obtain ⟨x, hx, he⟩ := List.mem_map.mp hm
+  exact ⟨x, he.symm, List.mem_append_right _ hx⟩
 
 /-- **The block of `P` headed by `H` is stored by con-leche's fold**: con-leche reads it
 (`CL ConLeche/Kernel/Inductives/BlockShape.lean:401 readBlock`) and every constant it installs
@@ -731,7 +652,7 @@ theorem ConLecheAccepts.block {P : List ConstantInfo} {env : ConLeche.Env}
   cases hb : blockOf? P H with
   | none => simp [declOf?, hs, hhn, hb] at hL
   | some d =>
-  obtain ⟨block, rfl, -, -⟩ := blockOf?_records hb
+  obtain ⟨block, rfl, -⟩ := blockOf?_records hb
   have hd : declOf? P (.inductInfo H) = some [.indDecl block H.numParams] := by
     simp [declOf?, hs, hhn, hb]
   obtain ⟨⟨e, e', hrun⟩, hst⟩ := h.stored hmem hd
@@ -764,47 +685,12 @@ theorem ConLecheAccepts.find?_rec {P : List ConstantInfo} {env : ConLeche.Env}
         (r.numParams + r.numMotives + r.numMinors + r.numIndices)
         (r.numParams + r.numMotives + r.numMinors) r.k (rules.map fun rl => { rl with fire := f })) := by
   obtain ⟨block, p, hb, hdf, hst⟩ := h.block hH hhead hs
-  obtain ⟨_, hbe, hrecs, -⟩ := blockOf?_records hb
+  obtain ⟨_, hbe, hrecs⟩ := blockOf?_records hb
   cases hbe
   obtain ⟨x, hx, hxb⟩ := hrecs hr hall
   obtain ⟨cv, rules, hcv, hrules, rfl⟩ := recOf?_eq_some hx
   obtain ⟨f, hf⟩ := readBlock_rec_mem hdf hxb
   obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
   exact ⟨_, rules, f, hcv, hrules, hst _ hf⟩
-
-/-- **A one-member block of `P` stores its former and its constructors as their records**: the
-former under its translated name, level parameters and type (with the capabilities the install
-computes), each constructor under its translated name, level parameters and type, with its
-parameter and field counts and the former's name as its family
-(`CL ConLeche/Kernel/Install.lean:27 blockFormers`, `:32 blockCtors`). con-leche's constructor
-record carries no index: a constructor's index is its position in its type's `ctors`, which
-`DeclsOf?` checks against `cidx` (`blockShapeOK`). Reference: the constructors
-`MR P/PCUICWcbvEval.v:303 eval_construct` reads. -/
-theorem ConLecheAccepts.find?_single {P : List ConstantInfo} {env : ConLeche.Env}
-    (h : ConLecheAccepts P env) {n : Name} {H : InductiveVal}
-    (hH : findDecl P n = some (.inductInfo H)) (hall : H.all = [n]) (hs : H.isUnsafe = false) :
-    (∃ cvH caps, cvOf? H.toConstantVal = some cvH ∧ env.find? (Name.toCL n) = some (.indInfo cvH caps)) ∧
-      ∀ {cn : Name} {c : ConstructorVal}, cn ∈ H.ctors → findDecl P cn = some (.ctorInfo c) →
-        ∃ cv, cvOf? c.toConstantVal = some cv ∧
-          env.find? (Name.toCL cn) = some (.ctorInfo cv c.numParams c.numFields (Name.toCL n)) := by
-  obtain ⟨-, hn⟩ := findDecl_mem hH
-  obtain ⟨block, p, hb, hdf, hst⟩ := h.block hH (by rw [hall]; rfl) hs
-  obtain ⟨_, hbe, -, hone⟩ := blockOf?_records hb
-  cases hbe
-  have hH' : findConst P H.name = some (.inductInfo H) := by rw [← hn] at hH; exact hH
-  obtain ⟨cvH, rest, hcvH, rfl, hno, hctors⟩ :=
-    hone hH' (by rw [hall]; rw [← hn]; rfl)
-  obtain ⟨⟨caps, hF⟩, hC⟩ := readBlock_single_mem hdf rfl hno
-  obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcvH
-  refine ⟨⟨_, caps, hcvH, ?_⟩, fun {cn c} hcn hc => ?_⟩
-  · have := hst _ hF
-    rw [← hn]; exact this
-  · obtain ⟨-, hcn'⟩ := findDecl_mem hc
-    obtain ⟨cv, hcv, hcr⟩ := hctors hcn hc
-    obtain ⟨hnP, hm⟩ := hC (List.mem_cons_of_mem _ hcr)
-    obtain ⟨tyc, -, rfl⟩ := cvOf?_eq_some hcv
-    refine ⟨_, hcv, ?_⟩
-    have := hst _ hm
-    rw [← hcn', hnP, ← hn]; exact this
 
 end EraseProof

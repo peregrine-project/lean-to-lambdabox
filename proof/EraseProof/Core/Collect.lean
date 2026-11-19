@@ -1,5 +1,5 @@
 import EraseProof.Bridge.CLNames
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 import EraseProof.Statements
 
 /-!
@@ -20,7 +20,7 @@ namespace EraseProof
 
 namespace CollectSub
 
-open Restrict
+open Decls
 
 /-- A successful `Except` bind ran its first part successfully. Port of
 `ML-V Oracle/Whnf.lean:71`. -/
@@ -222,49 +222,111 @@ theorem ite_ok_else {ε α : Type} {c : Prop} [Decidable c] {a b : Except ε α}
   · rw [ite_eq_left hc] at h; exact absurd h (ha x)
   · rw [ite_eq_right hc] at h; exact ⟨hc, h⟩
 
-/-- The safety and block checks `declExclusion` makes, on a declaration it accepts. Part of
-`ML-V Core/CollectSpec.lean:232 declExclusion_ok`. -/
+/-- The inductive types of a recursor's block, as `declExclusion` looks them up through the view.
+Port of `ML-V Core/CollectSpec.lean:220`. -/
+def recViewIvs (view : EnvView) (r : RecursorVal) : List InductiveVal :=
+  (r.all.flatMap (viewFind view)).filterMap fun | .inductInfo iv => some iv | _ => none
+
+/-- The constructors of inductive types, as `declExclusion` looks them up through the view. Port
+of `ML-V Core/CollectSpec.lean:224-228`. -/
+def recViewCvs (view : EnvView) (ivs : List InductiveVal) : List ConstructorVal :=
+  ((ivs.flatMap (·.ctors)).flatMap (viewFind view)).filterMap fun
+    | .ctorInfo cv => some cv
+    | _ => none
+
+/-- The checks `declExclusion` makes, on a declaration it accepts: a recursor's two shape tests,
+over the block it looks up through the view; an inductive's flags and its sort; on every other
+kind, the clause of `PhaseIDecl` (which reads no other declaration). Port of
+`ML-V Core/CollectSpec.lean:232 declExclusion_ok`, with the block checks of `PhaseIDecl`. -/
 theorem declExclusion_flags {cfg : ErasureConfig} {ci : ConstantInfo} {u : Unit}
     (h : declExclusion view cfg ci = .ok u) :
-    (∀ d, ci = .defnInfo d → d.safety = .safe ∧ d.all = [d.name]) ∧
-    (∀ t, ci = .thmInfo t → t.all = [t.name]) ∧
-    (∀ o, ci = .opaqueInfo o → o.isUnsafe = false ∧ o.all = [o.name]) ∧
-    (∀ a, ci = .axiomInfo a → a.isUnsafe = false) := by
+    (∀ R, ci = .recInfo R →
+      recStaysConstant cfg.nat R (recViewIvs view R) (recViewCvs view (recViewIvs view R)) = false ∧
+      recShapeInFragment R (recViewIvs view R) (recViewCvs view (recViewIvs view R)) = true) ∧
+    (∀ iv, ci = .inductInfo iv → iv.isUnsafe = false ∧ iv.numNested = 0 ∧
+      ∃ b, sortDecided iv = .ok b) ∧
+    ∀ decls, (∀ R, ci ≠ .recInfo R) → (∀ iv, ci ≠ .inductInfo iv) →
+      PhaseIDecl view cfg decls ci := by
   have thr : ∀ {α : Type} {e : EraseError} {f : Unit → Except EraseError α} (y : α),
       (throw e >>= f) ≠ .ok y := fun _ h => nomatch h
   have thr' : ∀ {α : Type} {e : EraseError} (y : α), (throw e : Except EraseError α) ≠ .ok y :=
     fun _ h => nomatch h
+  have none_of : ∀ {α : Type} {o : Option α}, ¬ o.isSome = true → o = none := fun {_ o} h => by
+    cases o <;> simp_all
   cases ci with
-  | defnInfo d =>
+  | recInfo r =>
     rw [declExclusion] at h
-    refine ⟨fun d' hd => ?_, nofun, nofun, nofun⟩
-    cases hd
-    obtain ⟨h1, h⟩ := ite_ok_then h thr
-    dsimp only at h
-    obtain ⟨-, h⟩ := ite_ok_else h thr
-    obtain ⟨-, h⟩ := ite_ok_else h thr
-    obtain ⟨h4, -⟩ := ite_ok_then h thr'
-    exact ⟨by revert h1; cases d.safety <;> simp, by simpa using h4⟩
+    refine ⟨fun R hR => ?_, nofun, fun _ hr => absurd rfl (hr r)⟩
+    cases hR
+    obtain ⟨h1, h⟩ := ite_ok_else h thr
+    have h1' : ¬ recStaysConstant cfg.nat r (recViewIvs view r)
+        (recViewCvs view (recViewIvs view r)) = true := h1
+    refine ⟨by simpa using h1', ?_⟩
+    revert h
+    show ((unless recShapeInFragment r (recViewIvs view r) (recViewCvs view (recViewIvs view r)) do
+      throw _ : Except EraseError Unit)) = _ → _
+    intro h
+    cases h2 : recShapeInFragment r (recViewIvs view r) (recViewCvs view (recViewIvs view r))
+    · rw [h2] at h; exact (thr' _ h).elim
+    · rfl
   | thmInfo t =>
     rw [declExclusion] at h
-    exact ⟨nofun, fun t' ht => by cases ht; simpa using (ite_ok_then h thr').1, nofun, nofun⟩
+    exact ⟨nofun, nofun, fun _ _ _ => by
+      show t.all = [t.name]; simpa using (ite_ok_then h thr').1⟩
+  | quotInfo _ => exact ⟨nofun, nofun, fun _ _ _ => trivial⟩
+  | defnInfo d =>
+    rw [declExclusion] at h
+    refine ⟨nofun, nofun, fun _ _ _ => ?_⟩
+    obtain ⟨h1, h⟩ := ite_ok_then h thr
+    dsimp only at h
+    obtain ⟨h2, h⟩ := ite_ok_else h thr
+    obtain ⟨h3, h⟩ := ite_ok_else h thr
+    obtain ⟨h4, -⟩ := ite_ok_then h thr'
+    refine ⟨by revert h1; cases d.safety <;> simp, by simpa using h4, ?_, none_of h3⟩
+    cases hf : (view.find? (Compiler.mkUnsafeRecName d.name)).isSome
+    · exact .inl (Option.not_isSome_iff_eq_none.mp (by simp [hf]))
+    · right
+      have h2' : ¬((view.find? (Compiler.mkUnsafeRecName d.name)).isSome &&
+          !(isStructuralRecursive (.defnInfo d) &&
+            (cfg.structural == .kernel || (preDef? view cfg (.defnInfo d)).isSome))) = true := h2
+      rw [hf] at h2'
+      revert h2'
+      cases isStructuralRecursive (.defnInfo d) <;> cases cfg.structural == .kernel <;>
+        cases (preDef? view cfg (.defnInfo d)).isSome <;> simp
   | opaqueInfo o =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, fun o' ho => ?_, nofun⟩
-    cases ho
+    refine ⟨nofun, nofun, fun _ _ _ => ?_⟩
     obtain ⟨h1, h⟩ := ite_ok_else h thr
     dsimp only at h
-    obtain ⟨-, h⟩ := ite_ok_else h thr
-    obtain ⟨-, h⟩ := ite_ok_else h thr
+    obtain ⟨h2, h⟩ := ite_ok_else h thr
+    obtain ⟨h3, h⟩ := ite_ok_else h thr
     obtain ⟨h4, -⟩ := ite_ok_then h thr'
-    exact ⟨by simpa using h1, by simpa using h4⟩
+    exact ⟨by simpa using h1, by simpa using h4, none_of h2, none_of h3⟩
   | axiomInfo a =>
     rw [declExclusion] at h
-    refine ⟨nofun, nofun, nofun, fun a' ha => ?_⟩
-    cases ha
-    obtain ⟨h1, -⟩ := ite_ok_else h thr
-    simpa using h1
-  | quotInfo _ | inductInfo _ | ctorInfo _ | recInfo _ => exact ⟨nofun, nofun, nofun, nofun⟩
+    refine ⟨nofun, nofun, fun _ _ _ => ?_⟩
+    obtain ⟨h1, h⟩ := ite_ok_else h thr
+    dsimp only at h
+    obtain ⟨h3, -⟩ := ite_ok_else h thr'
+    exact ⟨by simpa using h1, none_of h3⟩
+  | inductInfo iv =>
+    rw [declExclusion] at h
+    refine ⟨nofun, fun iv' hiv => ?_, fun _ _ hi => absurd rfl (hi iv)⟩
+    cases hiv
+    obtain ⟨h1, h⟩ := ite_ok_else h thr
+    dsimp only at h
+    obtain ⟨h2, h⟩ := ite_ok_else h thr
+    obtain ⟨b, hb, -⟩ := ok_of_bind h
+    exact ⟨by simpa using h1, by simpa using h2, b, hb⟩
+  | ctorInfo cv =>
+    rw [declExclusion] at h
+    refine ⟨nofun, nofun, fun _ _ _ => ?_⟩
+    obtain ⟨h1, h⟩ := ite_ok_else h thr
+    dsimp only at h
+    obtain ⟨h2, -⟩ := ite_ok_else h thr'
+    refine ⟨by simpa using h1, fun hp => ?_⟩
+    simp only [Bool.and_eq_true, not_and] at h2
+    exact Bool.eq_false_iff.2 (h2 (by rw [show cfg.1 = _ from hp]; rfl))
 
 /-- On a declaration of the program, a step of the closure reads names of the program and adds a
 recursor of the program as companion. Port of `ML-V Core/Collect.lean:463`. -/
@@ -277,7 +339,15 @@ theorem closureStep_sub (hP : ConLecheAccepts P env) (hview : ViewAgrees view P)
     rw [findDecl_self (DeclsOf?.nodup hds) hci]; rfl
   unfold closureStep at h
   obtain ⟨_, hex, h⟩ := ok_of_bind h
-  obtain ⟨hdef, hthm, hopq, hax⟩ := declExclusion_flags hex
+  obtain ⟨-, -, hph⟩ := declExclusion_flags hex
+  have hdef : ∀ d, ci = .defnInfo d → d.safety = .safe ∧ d.all = [d.name] := fun d hd => by
+    subst hd; exact ⟨(hph [] nofun nofun).1, (hph [] nofun nofun).2.1⟩
+  have hthm : ∀ t, ci = .thmInfo t → t.all = [t.name] := fun t ht => by
+    subst ht; exact hph [] nofun nofun
+  have hopq : ∀ o, ci = .opaqueInfo o → o.isUnsafe = false ∧ o.all = [o.name] := fun o ho => by
+    subst ho; exact ⟨(hph [] nofun nofun).1, (hph [] nofun nofun).2.1⟩
+  have hax : ∀ a, ci = .axiomInfo a → a.isUnsafe = false := fun a ha => by
+    subst ha; exact (hph [] nofun nofun).1
   have hc := hP.namesClosed hci (fun d hd => (hdef d hd).1) hax (fun o ho => (hopq o ho).1)
   obtain ⟨ty, hty, h⟩ := ok_of_bind h
   have hty' := KnownIn.exprConsts hc.type hty

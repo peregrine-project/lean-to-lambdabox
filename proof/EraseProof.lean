@@ -1,12 +1,16 @@
 import EraseProof.Bridge.CLAccept
 import EraseProof.Semantics.Cases
 import EraseProof.Semantics.Iota
+import EraseProof.Semantics.Rec
 import EraseProof.Semantics.Decode
+import EraseProof.Semantics.Frozen
+import EraseProof.Semantics.DecodeAt
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
 import EraseProof.Core.Collect
 import EraseProof.Core.CollectSpec
+import EraseProof.Core.CollectOk
 import EraseProof.Statements
 import EraseProof.Relation.Inst
 import EraseProof.Relation.Abstract
@@ -18,17 +22,34 @@ import EraseProof.Simulation.Ind
 import EraseProof.Simulation.Quot
 import EraseProof.Simulation.Rec
 import EraseProof.Simulation.Main
-import EraseProof.Source.Restrict
+import EraseProof.Source.Decls
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
+import EraseProof.Test.RecIH
 import EraseProof.Oracle.Rename
+import EraseProof.Oracle.Det
+import EraseProof.Oracle.Atom
 import EraseProof.Core.State
 import EraseProof.Core.RegisterInd
 import EraseProof.Core.Glue
+import EraseProof.Core.Steps
+import EraseProof.Core.StepsApp
+import EraseProof.Core.StepsRun
+import EraseProof.Core.StepsCtor
+import EraseProof.Core.StepsCases
+import EraseProof.Core.StepsCasesSat
+import EraseProof.Core.StepsQuot
+import EraseProof.Core.StepsRec
+import EraseProof.Core.NonRec
+import EraseProof.Core.CtorProp
+import EraseProof.Core.StepsProj
+import EraseProof.Core.Assemble
+import EraseProof.Core.CoreEnv
 /-!
 # Verification of the eraser
 
@@ -61,8 +82,8 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Simulation.RecFix`: the λ□ fixpoint of a recursor of a single inductive, unfolded.
 * `EraseProof.Simulation.Rec`: the recursor ι case of the relation-level simulation.
 * `EraseProof.Simulation.Main`: the relation-level simulation `erases_correct`.
-* `EraseProof.Source.Restrict`: source evaluation in the program restricts to a
-  dependency-closed sub-environment.
+* `EraseProof.Source.Decls`: the closure property of a list of declarations, and what its lookups
+  and the `casesOn` recognizer give.
 * `EraseProof.Bridge.CLRead`: con-leche's reading of the source semantics' operations on terms.
 * `EraseProof.Bridge.CLAccept`: what con-leche's acceptance of the program gives.
 * `EraseProof.Semantics.Cases`: the invariant of the meaning of source evaluation in con-leche's
@@ -70,9 +91,14 @@ The library root of the proof package: the correctness of the erasure behind `#e
   application and the value rules.
 * `EraseProof.Semantics.Iota`: its cases `casesOn` ι (on a constructor value and on a `Nat`
   literal), projection and frozen projection, and the premise of its `let` case.
-* `EraseProof.Semantics.Decode`: the stored records of a recognized `casesOn` (its value, recursor
-  and constructors), of a one-member block's former and of the quotient constants; the grading of a
-  certified term.
+* `EraseProof.Semantics.Rec`: its cases recursor ι, quotient lift and quotient constructor.
+* `EraseProof.Semantics.Decode`: the syntax a recognized `casesOn` is read through, a block's
+  constructor records and the stored quotient constants; the grading of a certified term.
+* `EraseProof.Semantics.Frozen`: its case `casesOn` on a frozen discriminant (a proof), reduced
+  by con-leche's semantic ι at a constructor application built for the step.
+* `EraseProof.Semantics.DecodeAt`: the stored former and constructors of a member of a block of any
+  size, the stored rule of a constructor, and the stored records the ι steps of a recognized
+  `casesOn`, of a projection and of a recursor read.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
@@ -80,11 +106,38 @@ The library root of the proof package: the correctness of the erasure behind `#e
   (`collectDeps_sub`).
 * `EraseProof.Core.CollectSpec`: the closure of the fragment test is closed under what the source
   semantics and the traversal read, with distinct kernames and block names (`collectDeps_spec`).
+* `EraseProof.Core.CollectOk`: the fragment test accepts a program whose read closure lies inside
+  the first-phase fragment (`collectDeps_ok_of`).
 * `EraseProof.Oracle.Rename`: the pure oracle commutes with a renaming of free variables and keeps
   its results within the free variables of its inputs and locals; so do the markings (`MarkOf`).
+* `EraseProof.Oracle.Det`: the marking is a function of its input (`markOf_det`).
+* `EraseProof.Oracle.Atom`: the oracle never answers `false` on an atom spine (`Pure.isErasable_atom`).
 * `EraseProof.Core.State`: the traversal's state invariant and the registration of constants.
 * `EraseProof.Core.RegisterInd`: the registration of an inductive block keeps the invariant.
 * `EraseProof.Core.Glue`: a returning run of `#erase`'s entry point on an input inside the
   fragment is a run of the pure path.
+* `EraseProof.Core.Steps`: the statement of the traversal's correctness at one fuel, over
+  markings under renamed locals, and its steps for `□`, free variables, the rejected terms,
+  metadata, λ and `let`.
+* `EraseProof.Core.StepsApp`: the steps for application spines and constants without a rule of
+  their own, and for `visitMutual`.
+* `EraseProof.Core.StepsRun`: runs of the traversal's environment helpers at the pure backend.
+* `EraseProof.Core.StepsCtor`: the η-expansion of a spine to its head's arity, and the step for
+  constructor spines.
+* `EraseProof.Core.StepsCases`: a `casesOn` alternative erased under its fields' binders
+  (`visitAlt`), and the λ□ `case` (`visitCasesOn`).
+* `EraseProof.Core.StepsCasesSat`: the step for `casesOn` spines: the `□`, reduced and `case`
+  branches of `visitCases`.
+* `EraseProof.Core.StepsQuot`: the step for spines headed by `Quot.mk` or `Quot.lift`.
+* `EraseProof.Core.StepsRec`: the step for spines headed by a recursor (`visitRec`).
+* `EraseProof.Core.NonRec`: a value `visitMutual` erases is of a one-member block and has a scope
+  without its own constant, by the order of con-leche's fold (`coreEnv_value`).
+* `EraseProof.Core.CtorProp`: the oracle boxes the constructor spines of inductives declared in
+  `Prop`, by con-leche's check of the constructors' conclusions (`ctorPropBoxed_of`).
+* `EraseProof.Core.StepsProj`: the steps for projections and Nat literals.
+* `EraseProof.Core.Assemble`: the induction on the traversal's fuel over the steps, and the
+  pure traversal's correctness (`erasePure_erases`).
+* `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
+  of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

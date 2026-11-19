@@ -50,12 +50,12 @@ def lamA : Expr := .lam `a (markErase tT) (.bvar 0) .default
 def beta2 : Expr := .app lamA idT
 
 
-/-! ## `hacc`: con-leche's pure fold accepts `P`, all three conjuncts by the kernel -/
+/-! ## `hacc`: con-leche's pure fold accepts `P`, all four conjuncts by the kernel -/
 
 theorem decls : DeclsOf? P = some nv0ds := by krfl
 theorem fold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) []
     nv0ds = .ok envNV0 := by krfl
-theorem hacc : ConLecheAccepts P envNV0 := ⟨nv0ds, decls, fold, by krfl⟩
+theorem hacc : ConLecheAccepts P envNV0 := ⟨nv0ds, decls, fold, by krfl, by krfl⟩
 
 /-! ## `hty`: con-leche infers a type for `e` -/
 
@@ -278,9 +278,9 @@ theorem mark_main {decls : List ConstantInfo} (hd : decls = P ∨ decls = D) :
   · exact MarkOf.erase (by rcases hd with rfl | rfl <;> krfl)
   · exact mark_idLam hd 1 (.inr rfl)
 
-/-! ## `hcert`: con-leche certifies every mark of the emitted program
+/-! ## `hcert`: con-leche certifies every mark of the input and of the closure's values
 
-`ê = e` has no mark. The emitted environment holds bodies for `nv0id` (no mark) and `nv0main`, whose
+`ê = e` has no mark. The closure's values are those of `nv0id` (no mark) and `nv0main`, whose
 one mark is the type argument `(α : Type) → α → α` of `nv0id`, at the top (no enclosing binder):
 con-leche types it with a sort, so it is a type former (`CLVerdict`, first disjunct). -/
 
@@ -298,9 +298,9 @@ theorem typedAt_id : CLTypedAt envNV0 (idLam (.param `u)) :=
 theorem typedAt_main : CLTypedAt envNV0 mainM :=
   ⟨.app (.app (.const (nm "nv0id") [.succ (.succ .zero)]) cTT) cIdT, cTT, by krfl, by krfl⟩
 
-theorem hcert : ProgCert envNV0 D cfg p0 e := by
+theorem hcert : ProgCert envNV0 D cfg e := by
   refine ⟨typedAt_e, trivial, ?_⟩
-  intro lenv t _ ci hci v cb hv _ _
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl <;> cases hv
   · exact ⟨_, mark_idLam (.inr rfl) _ (.inl rfl), typedAt_id, trivial⟩
@@ -309,8 +309,11 @@ theorem hcert : ProgCert envNV0 D cfg p0 e := by
 /-! ## `hev`: an explicit derivation of `e ⇓ fun α a => a`, its certificates by the kernel at
 `envNV0` -/
 
+/-- the evaluation environment of `hev`: the closure -/
+abbrev σD : EvalEnv := evalEnvOf view cfg D
+
 theorem not_short {x : Expr} {c : Name} {us : List Level} (h : x.getAppFn = .const c us)
-    (hs : specialArity σ c = none) : ¬ ShortSpine σ x := by
+    (hs : specialArity σD c = none) : ¬ ShortSpine σD x := by
   rintro ⟨c', us', ar, h1, h2, -⟩
   rw [h] at h1
   cases h1
@@ -332,21 +335,21 @@ theorem ok_beta1 : CLOk envNV0 beta1 :=
 theorem ok_beta2 : CLOk envNV0 beta2 := ⟨⟨.app (.lam cTT (.bvar 0)) cIdT, 100, cTT, by krfl, by krfl⟩, .app (.lam cTT (.bvar 0)) cIdT, 100, cTT, by krfl, by krfl⟩
 
 /-- δ of `nv0id.{2}`: its value, marked (no mark) and instantiated. -/
-theorem ev_id : SrcEval envNV0 σ (.const `nv0id [.succ (.succ .zero)]) id2 :=
+theorem ev_id : SrcEval envNV0 σD (.const `nv0id [.succ (.succ .zero)]) id2 :=
   SrcEval.delta (ci := .defnInfo id_def) (body := idLam (.param `u)) (by krfl)
-    (mark_idLam (.inl rfl) _ (.inl rfl)) (SrcEval.atom trivial)
+    (mark_idLam (.inr rfl) _ (.inl rfl)) (SrcEval.atom trivial)
 
-theorem ev_beta1 : SrcEval envNV0 σ (.app (.const `nv0id [.succ (.succ .zero)]) (markErase tT)) lamA :=
+theorem ev_beta1 : SrcEval envNV0 σD (.app (.const `nv0id [.succ (.succ .zero)]) (markErase tT)) lamA :=
   SrcEval.beta (n := `α) (A := .sort (.succ (.succ .zero))) (b := .lam `a (.bvar 0) (.bvar 0) .default)
     (bi := .default) (not_short rfl (by krfl)) ev_id (SrcEval.frozen erasable_tT) ok_beta1
     (SrcEval.atom trivial)
 
-theorem ev_mainM : SrcEval envNV0 σ mainM idT :=
+theorem ev_mainM : SrcEval envNV0 σD mainM idT :=
   SrcEval.beta (n := `a) (A := markErase tT) (b := .bvar 0) (bi := .default)
     (not_short rfl (by krfl)) ev_beta1 (SrcEval.atom trivial) ok_beta2 (SrcEval.atom trivial)
 
-theorem hev : SrcEval envNV0 σ e idT :=
-  SrcEval.delta (ci := .defnInfo main_def) (body := mainVal) (by krfl) (mark_main (.inl rfl)) ev_mainM
+theorem hev : SrcEval envNV0 σD e idT :=
+  SrcEval.delta (ci := .defnInfo main_def) (body := mainVal) (by krfl) (mark_main (.inr rfl)) ev_mainM
 
 /-! ## The marks coincide with the `□`s of `hrun`'s output
 

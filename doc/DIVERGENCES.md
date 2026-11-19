@@ -113,9 +113,9 @@ What the statements and the checks rely on without proof:
   `EraseProof.declOf?`, `EraseProof.blockOf?` and `EraseProof.blockShapeOK`) reads the program's
   declarations, a newest-first list of Lean `ConstantInfo`s, as con-leche's input;
   `EraseProof.ViewAgrees`; `EraseProof.SubEnv`, and the evaluation environment `EraseProof.EvalEnv`
-  (`EraseProof.evalEnvOf`), over the whole program in `EraseProof.erase_correct_statement` and over
-  the dependency closure in `EraseProof.erasePure_erases_statement`;
-  `EraseProof.collectDeps_sub_statement` and `EraseProof.markOf_agree_statement`.
+  (`EraseProof.evalEnvOf`), over the whole program in the conclusions of
+  `EraseProof.erase_correct_statement` and over the dependency closure in its hypothesis `hev`
+  (DV-41) and in `EraseProof.erasePure_erases_statement`; `EraseProof.collectDeps_sub_statement`.
 - **Reference artifact:** the well-formed global environment `wf_ext`
   (`pcuic/theories/PCUICTyping.v:507`; MC §3.6), whose declarations are a newest-first list
   searched by `lookup_env` (`common/theories/Environment.v:483`); MetaRocq's `erase_correct`
@@ -130,27 +130,25 @@ What the statements and the checks rely on without proof:
   parameter count, constructor positions, field counts, recursor counts) and the checks of the
   fields the traversal reads and con-leche does not (each type's `all` and `numIndices`, the head
   of each constructor's result type, `isRec`, the recursors being exactly the `T.rec` of the
-  block's members, `EraseProof.blockShapeOK`). Evaluation (`EvalEnv`) ranges over the whole program
-  and the λ□ dependencies over the closure the fragment test returns, which is a sub-environment of
-  the program (`EraseProof.collectDeps_sub_statement`: the constants it reads come from a type or a
-  value con-leche checked, from a record field `DeclsOf?` checks, or from a compiled pre-definition,
-  whose constants `ViewAgrees` puts in the program). The marking over the closure is the marking
-  over the program on the expressions the traversal reads (`EraseProof.markOf_agree_statement`).
-  `ViewAgrees` also requires that the compiled pre-definitions the view holds for the program's
+  block's members, `EraseProof.blockShapeOK`). The erasure relation of the conclusions (`EvalEnv`)
+  ranges over the whole program, and the source evaluation (DV-41) and the λ□ dependencies over the
+  closure the fragment test returns, which is a sub-environment of the program
+  (`EraseProof.collectDeps_sub_statement`: the constants it reads come from a type or a value
+  con-leche checked, from a record field `DeclsOf?` checks, or from a compiled pre-definition, whose
+  constants `ViewAgrees` puts in the program). `ViewAgrees` also requires that the compiled pre-definitions the view holds for the program's
   declarations name only constants of the program.
 - **Why it is forced:** the eraser reads Lean records through `Erasure.EnvView`, and con-leche
   checks its own `Declaration`s without the Lean fields (`induct`, `all`, `cidx`, `isRec`, the
   recursor list) that the traversal reads: a record con-leche accepts may still disagree with
-  another record the traversal reads, so the agreement is a check of the reading. Evaluation and
-  the λ□ dependencies range over different sets because a λ□ constant is found by its kername
+  another record the traversal reads, so the agreement is a check of the reading. The relation of
+  the conclusions and the λ□ dependencies range over different sets because a λ□ constant is found by its kername
   (DV-14), and kernames are injective only where `Erasure.collectDeps` checks it, on the closure;
   the λ□ environment the eraser emits holds the closure only. The view is outside what con-leche
   checks.
 - **What was considered instead:** con-leche's frontend on an export of the program, which is IO
   code (check C6) and not a function of the records; reading the records without checks, under
-  which `collectDeps_sub_statement` and `markOf_agree_statement` are false on records con-leche does
-  not read; one environment for acceptance and evaluation, which fails for programs whose names
-  collide outside the closure.
+  which `collectDeps_sub_statement` is false on records con-leche does not read; one environment
+  for acceptance and evaluation, which fails for programs whose names collide outside the closure.
 
 ### DV-4
 
@@ -619,8 +617,9 @@ What the statements and the checks rely on without proof:
   `welltyped Σ [] t` of `erases_correct` (`erasure/theories/ErasureCorrectness.v:51`), and
   `ind_arity_eq` (`common/theories/EnvironmentTyping.v:1651`) of a well-formed environment.
 - **What differs:** the source semantics evaluates the marked term, not the input. `MarkOf` is a
-  function of the input, the closure, the configuration and the locals (on a closure without free
-  variables, `markOf_det_statement`), defined wherever the traversal runs
+  function of the input and the closure (`markOf_det_statement`: for a closure whose types and
+  values mention no free variable, and a closed input at no locals, two markings of the input are
+  equal), defined wherever the traversal runs on the closure of a program con-leche accepts
   (`markOf_exists_statement`); every node the traversal asks the oracle about is marked `erase` when
   the oracle answers `true`. A frozen subterm is a value (`frozen`), no rule evaluates inside it, a
   frozen function applied is frozen (`frozenApp`, λ□'s `eval_box`), a projection of a frozen proof
@@ -758,13 +757,14 @@ What the statements and the checks rely on without proof:
 - **Our artifact:** `proof/EraseProof/Spec.lean`: `EraseProof.CLCert` (with `EraseProof.CLVerdict`,
   `EraseProof.CLFormer`, `EraseProof.CLProof`, `EraseProof.lamTele`, `EraseProof.openLams`,
   `EraseProof.CLTypedAt`), `EraseProof.MarksCert` and `EraseProof.ProgCert`, the hypothesis
-  `hcert` of `EraseProof.erase_correct_statement`, and `EraseProof.clCert_proof_pt_statement`.
+  `hcert` of `EraseProof.erase_correct_statement`, `EraseProof.ValuesMarkedOf` (a premise of
+  `EraseProof.erasePure_erases_statement`), and `EraseProof.clCert_proof_pt_statement`.
 - **Reference artifact:** `isErasable` (`erasure/theories/Extract.v:18`), asked of every `□` by
   `erases_box` (`erasure/theories/Extract.v:140`) and computed by `is_erasableb`
   (`erasure/theories/ErasureFunction.v:894`) with a type inference; MC §7.2.
 - **What differs:** the erased subterms are certified by runs of con-leche's checker on the given
   program, not by a typing derivation. `ProgCert` asks that con-leche types the marked input as a
-  whole and each constant's marked value the emitted environment holds a body for
+  whole and a marking of the value of every constant of the closure that has one
   (`EraseProof.CLTypedAt`), and that every `erase` mark and the discriminant of every `reduced` mark
   is certified in the context of its enclosing binders (`MarksCert`): the closed telescope of its
   binders is typed, and the subterm opened as con-leche opens binders has a type that is a
@@ -775,15 +775,26 @@ What the statements and the checks rely on without proof:
   evaluated values substituted, which no check repeats. The `□`s that the relation does not pair with
   a mark (the direct-mode placeholders of a recursor's fixpoint, DV-30) rest on declaration
   conditions and the fragment test, not on a certificate. The oracle's answers are checked on this
-  program, not proved.
+  program, not proved. The values certified are all those of the closure, also those the traversal
+  does not erase (a recognized `casesOn`'s, a theorem's), whose λ□ environment holds no body for
+  them: a program on which the oracle has no marking of such a value, or con-leche does not
+  certify it, is outside the theorem.
 - **Why it is forced:** con-leche has neither a typing judgement nor a semantic criterion for type
   formers (DV-32), so `isErasable` can be replaced only by what its checker decides; the oracle
   (`Erasure.Pure.isErasable`) is unverified, and the certificate recovers the property per program.
   The context of the binders is part of the check because con-leche types a term only closed, and
-  the domain of a binder must itself be checked.
+  the domain of a binder must itself be checked. The certificate covers every value of the
+  closure because the proof of `erasePure_erases` needs a marking of each value the traversal
+  erases (`ErasesDecl`) before it relates the value's run to the emitted program; its premise
+  `ValuesMarkedOf` is the first component of `ProgCert`'s third conjunct.
 - **What was considered instead:** a semantic predicate on the denotation of the mark, which is false
   for types (DV-32); verifying the oracle, which needs a typing metatheory for Lean; certificates
-  on the closed mark alone, which cannot type a mark that mentions its enclosing binders.
+  on the closed mark alone, which cannot type a mark that mentions its enclosing binders;
+  certifying only the values whose bodies the emitted environment holds, which the induction over
+  the traversal can read only with a bound on the final environment threaded through every step and
+  a proof that each traversal function keeps the registered constants; proving that the traversal's
+  run on a value gives it a marking (the core lemma of `markOf_exists_statement`), which needs an
+  invariant of every traversal function that the theorem does not otherwise use.
 
 ### DV-38
 
@@ -810,12 +821,42 @@ What the statements and the checks rely on without proof:
   by `classRuleOk`, :444). con-leche proves that syntax at install only
   (CL ConLeche/Model/Inductives/GenRuleSyn.lean:292) and states of the accepted environment's
   rules their scoping and `λ`-count (CL ConLeche/Verify/EnvWF.lean:217); it is true of every
-  accepted environment, is decidable, and is not derived from the fold here.
+  accepted environment, is decidable, and is not derived from the fold here. `RulesCanonical` also
+  requires that the rules of each recursor `T.rec` select by constructor (one rule per constructor
+  of `T`, in order, each headed by its own constructor's minor premise, with that constructor's
+  field count and as many arguments as the minor premise has binders,
+  `EraseProof.RulesSelected`) and that its K flag is the one con-leche's block check expects
+  (CL ConLeche/Kernel/Inductives/RecCheck.lean:463 recKExpected), which con-leche checks at install
+  and does not state of the accepted environment. It also requires that every recursor's level
+  parameters be distinct (CL ConLeche/Kernel/CheckerBase.lean:112, checked at install and not
+  stated of the accepted environment) and that every inductive hypothesis of a rule be a call of the
+  recursor `t.rec` of a member `t` of the block (the recursor itself for a one-member block) at the
+  recursor's own level parameters, with as many arguments as that recursor's major premise position
+  plus one, under as many `λ`s as the minor premise's binder at its position has leading `Π`s, on
+  the fields that the binders of the constructor's minor premise name, in order
+  (`EraseProof.IHShape`, `EraseProof.RuleSelects`; the generator's callee `rec_t`,
+  CL ConLeche/Kernel/Inductives/GenRec.lean:189 `classGenRule`).
+  It also requires that every rule of a recursor `T.rec` of a stored family fire `.plain`
+  (CL ConLeche/Kernel/Env.lean:118 `RecRuleFire`, the installer's mode at a member major; the other
+  modes are for auxiliary and quotient recursors) and that every stored definition's level
+  parameters be distinct (CL ConLeche/Kernel/CheckerBase.lean:112, checked at install and not stated
+  of the accepted environment).
+  Acceptance also requires `EraseProof.TablesCanonical`: every stored projection table names its
+  structure's single constructor, at that constructor's parameter and field counts and level
+  parameters; con-leche installs a table only from a structure's constructor but states of a stored
+  table only its lookup (CL ConLeche/Verify/EnvWF.lean:22 Env.findProj?_some).
   Acceptance also rejects a program whose declarations include an unsafe inductive: con-leche skips
   an unsafe block, so its constructors and recursors would be unchecked.
   It also rejects a program with a nested inductive (`numNested ≠ 0`, `EraseProof.blockShapeOK`): nested
   occurrences are outside the fragment (the simulation has no source ι for their recursors), and for a
   non-nested block the records' recursors name members of the block, which the closure's reads use.
+  It also requires that every recursor's type names every member of its block
+  (`EraseProof.blockShapeOK`): the fragment test reads a recursor's block only through its type,
+  and con-leche compares the type with the generated one up to definitional equality, so a type
+  that reaches a member only through a definition would pass. And it requires that every
+  recursor's minor premises be syntactic domains of its type without `mdata`: the traversal counts
+  a minor premise's binders with `Erasure.minorArity`, which stops at `mdata`, while con-leche's
+  reading `EraseProof.toCL?` drops it.
 - **Why it is forced:** the main theorem of con-leche is stated for every pin list, so the empty list
   needs no pin data, which comes from con-leche's pin generator and is outside the hygiene allow
   list of check C6; the binary's driver is IO code (check C6) and the cached fold reads a
@@ -823,7 +864,7 @@ What the statements and the checks rely on without proof:
 - **What was considered instead:** the binary's fold at `natOpPinSets`, which needs the generated
   pin data and a stream; acceptance defined by con-leche's frontend on an export of the program,
   which is not a function of the records. `RulesCanonical` proved from the fold's block branch (about 1000 lines of the installer's
-  machinery) instead of stated.
+  machinery) instead of stated, and likewise `TablesCanonical` from the structure installer.
 
 ### DV-39
 
@@ -874,3 +915,30 @@ What the statements and the checks rely on without proof:
   twins of these functions in con-leche, which the verification does not add (it never extends
   con-leche); restricting the non-vacuity programs to those without inductive types, which leaves
   every rule about `casesOn`, constructors and η-expanded constructors without an instance.
+
+### DV-41
+
+- **Our artifact:** `proof/EraseProof/Statements.lean`: the hypothesis `hev` of
+  `EraseProof.erase_correct_statement` and of `EraseProof.erase_correct_firstorder_statement`, and
+  the evaluation premise of `EraseProof.srcEval_sound_statement`: `EraseProof.SrcEval` in
+  `EraseProof.evalEnvOf view cfg decls`, over the closure `decls` the fragment test returns.
+- **Reference artifact:** MetaRocq's `erase_correct`
+  (`erasure/theories/ErasureFunctionProperties.v:657`), whose source evaluation `eval`
+  (`pcuic/theories/PCUICWcbvEval.v:230`; MC §5.6) is in the global environment `Σ`.
+- **What differs:** the source semantics is the program's evaluation in its dependency closure as
+  `#erase` computes it (`Erasure.collectDeps`): δ unfolds, and the `casesOn`, constructor,
+  recursor and projection rules look up, only declarations of the closure, and δ marks an unfolded
+  value with `EraseProof.MarkOf` over the closure. The closure is a sub-environment of the program
+  (`EraseProof.collectDeps_sub`), so con-leche's acceptance of the program and its models apply to
+  every declaration the evaluation reads. MetaRocq evaluates in the whole global environment.
+- **Why it is forced:** the marks are the eraser's oracle's decisions (`Erasure.Pure.isErasable`),
+  which it takes over the closure, and its reductions unfold the definitions of the list it reads;
+  the closure does not read the value of a recognized `casesOn`, whose constants may lie outside
+  it (a mutual `casesOn`'s value mentions `PUnit`), so the marking over the program can differ from
+  the marking over the closure, and δ over the program would mark unfolded values with decisions
+  the eraser does not take.
+- **What was considered instead:** evaluation over the program with a theorem that the marking
+  over the closure is the marking over the program on the expressions the traversal reads, which
+  needs an agreement theory of the oracle between two declaration lists and an invariant for the
+  `casesOn` values the closure does not read (about 2500 to 2900 lines); a change of the shipping
+  closure so that it reads those values, which still needs the agreement theory (about 1300 lines).

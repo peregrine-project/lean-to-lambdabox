@@ -440,7 +440,7 @@ theorem recShape_spec {P M : Nat} {type : Expr} {ns : List Nat} {motives : List 
   obtain ⟨u', hg', ihs, hihs, rfl⟩ := hgy
   have hg' := guard_some hg'
   refine ⟨by simp only [List.length_map, List.length_take]; omega, fun ih hih => ?_⟩
-  obtain ⟨z, -, hz⟩ := Restrict.mem_mapM hihs ih hih
+  obtain ⟨z, -, hz⟩ := Decls.mem_mapM hihs ih hih
   split at hz
   · simp only [Option.bind_eq_some_iff] at hz
     obtain ⟨last, -, hz⟩ := hz
@@ -642,13 +642,13 @@ alternative. -/
 theorem erases_natLitCtor (hnat : NatShaped σ) (hnc : NatCtors σ) {mj : Expr} {T : Name} {i : Nat}
     {fs : List Expr} (hcv : CtorValue σ T (natLitCtor mj) i fs) {mb : LBTerm}
     (hmb : Erases noCert σ [] mj mb) : Erases noCert σ [] (natLitCtor mj) mb := by
-  rcases Restrict.natLitCtor_cases mj with ⟨k, rfl⟩ | h
+  rcases Decls.natLitCtor_cases mj with ⟨k, rfl⟩ | h
   · exact erases_natLit hnat hnc hcv hmb
   · rw [h]; exact hmb
 
 /-- The constructor form of a value without loose bound variables has none. -/
 theorem lbv_natLitCtor {mj : Expr} (h : AbsFV.LBV 0 mj) : AbsFV.LBV 0 (natLitCtor mj) := by
-  rcases Restrict.natLitCtor_cases mj with ⟨k, rfl⟩ | hm
+  rcases Decls.natLitCtor_cases mj with ⟨k, rfl⟩ | hm
   · cases k with
     | zero => trivial
     | succ k => exact ⟨trivial, trivial⟩
@@ -707,7 +707,7 @@ theorem rec_core (hbinj : BlockNamesInj σ.decls) (hcl : CtorsListed σ.decls)
   obtain ⟨C, usC, cv, psC, hC, hind, hcidx, hpsC, hfsC, rfl⟩ := hcv
   obtain ⟨iid, as', hid', rfl, hlen', hallE, hpI, -⟩ := Erases.ctor_inv hC hmb
   obtain ⟨hTiv, -, hcget⟩ := recBlock?_single hall hblk
-  have hivT : iv.name = T := (Restrict.findDecl_eq_some hTiv).2
+  have hivT : iv.name = T := (Decls.findDecl_eq_some hTiv).2
   have hiid : iid = indid := by
     rw [hind, ← hivT, hid] at hid'; exact (Option.some.inj hid').symm
   subst hiid

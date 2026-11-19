@@ -1,5 +1,6 @@
 import EraseProof.Statements
 import EraseProof.Test.NV1Run
+import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-1: the hypotheses of the final theorem
@@ -80,7 +81,7 @@ theorem decls : DeclsOf? P = some nv1full := by krfl
 
 theorem hacc (hfold : ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel)
     [] nv1full = .ok envNV1) : ConLecheAccepts P envNV1 :=
-  ⟨nv1full, decls, hfold, by krfl⟩
+  ⟨nv1full, decls, hfold, by krfl, by krfl⟩
 
 /-! ## `hty`: con-leche infers a type for `e` at `envNV1` -/
 
@@ -191,32 +192,29 @@ theorem mark_neg {decls : List ConstantInfo} (hd : decls = P ∨ decls = D) :
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl)
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl))
 
-/-! ## `hcert`: con-leche certifies every mark of the emitted program: there is none
+/-! ## `hcert`: con-leche certifies every mark of the input and of the closure's values: there is none
 
-`ê = e` has no mark; of the closure's values, the emitted environment holds a body for `B.neg`
-only (not for the recognized `B.casesOn`), and `B.neg`'s marking has no mark. -/
+`ê = e` has no mark; the closure's values are `B.neg`'s and `B.casesOn`'s, and their markings
+(`mark_neg`, `mark_casesOnVal`) have no mark. -/
 
-/-- the emitted environment has no constant `B.casesOn` -/
-theorem lookup_casesOn : lookupConst [(toKername `B.neg, .constantDecl ⟨some negL⟩),
-    (mutualBlockKername [`B], .inductiveDecl ⟨.finite, 0, [bodyB]⟩)] (toKername `B.casesOn) = none := by
-  krfl
-
-/-- con-leche types the input and `B.neg`'s marked value as wholes, at `checkFuel`. -/
+/-- con-leche types the input and the closure's marked values as wholes, at `checkFuel`. -/
 theorem typedAt_e : CLTypedAt envNV1 e := ⟨.app (.const (nm2 "B" "neg") []) kF, kB, by krfl, by krfl⟩
 theorem typedAt_neg : CLTypedAt envNV1 negVal := ⟨kNegVal, .forallE kB (.app (.lam kB kB) (.bvar 0)), by krfl, by krfl⟩
+theorem typedAt_casesOn : CLTypedAt envNV1 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
 
-theorem hcert : ProgCert envNV1 D cfg p0 e := by
+theorem hcert : ProgCert envNV1 D cfg e := by
   refine ⟨typedAt_e, ⟨trivial, trivial⟩, ?_⟩
-  intro lenv t hp ci hci v cb hv hl _
-  cases hp
+  intro ci hci v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
-  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl <;> try cases hv
-  · rw [show (ConstantInfo.defnInfo B_casesOn).name = `B.casesOn from rfl, lookup_casesOn] at hl
-    cases hl
+  rcases hci with rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
+  · exact ⟨_, mark_casesOnVal (.inl rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
   · exact ⟨_, mark_neg (.inr rfl), typedAt_neg, by simp [MarksCert, negVal, tB, cT, cF]⟩
 
 /-! ## `hev`: an explicit derivation of `B.neg B.f ⇓ B.t`, its certificates by the kernel at
 `envNV1` (none needs ι: the motive is constant) -/
+
+/-- the evaluation environment of `hev`: the closure -/
+abbrev σD : EvalEnv := evalEnvOf view cfg D
 
 /-- `CLOk` of a constructor value -/
 theorem ok_f : CLOk envNV1 cF := ⟨⟨kF, 100, kB, by krfl, by krfl⟩, kF, 100, kB, by krfl, by krfl⟩
@@ -235,31 +233,36 @@ theorem ok_cases : CLOk envNV1 casesRedex :=
     .app (.lam kB kB) kF, by krfl, by krfl⟩
 
 /-- A constructor without arguments evaluates to itself (`SrcEval.ctor`). -/
-theorem ev_ctor {c : Name} {cv : ConstructorVal} (hd : findDecl σ.decls c = some (.ctorInfo cv))
+theorem ev_ctor {c : Name} {cv : ConstructorVal} (hd : findDecl σD.decls c = some (.ctorInfo cv))
     (hn : cv.numParams + cv.numFields = 0) (hok : CLOk envNV1 (.const c [])) :
-    SrcEval envNV1 σ (.const c []) (.const c []) :=
+    SrcEval envNV1 σD (.const c []) (.const c []) :=
   SrcEval.ctor (c := c) (us := []) (as := []) (vs := []) hd hn.symm rfl (by simp) hok
 
-theorem ev_f : SrcEval envNV1 σ cF cF := ev_ctor find_f rfl ok_f
-theorem ev_t : SrcEval envNV1 σ cT cT := ev_ctor find_t rfl ok_t
+theorem ev_f : SrcEval envNV1 σD cF cF := ev_ctor findD_f rfl ok_f
+theorem ev_t : SrcEval envNV1 σD cT cT := ev_ctor findD_t rfl ok_t
+
+/-- con-leche's ι step at `B.rec` fires on `B.f` with no certificate: `B` is never `Prop`. -/
+theorem iota_f : IotaNoCertAt envNV1 `B cF :=
+  ⟨`B.f, [], ⟨nm2 "B" "rec", [nm "u"], kRecType⟩, 3, 3, false, [kRule "f" 1, kRule "t" 0],
+    kRule "f" 1, ⟨nm2 "B" "f", [], kB⟩, 0, 0, nm "B", rfl, by krfl, by krfl, by krfl, by krfl⟩
 
 /-- ι: the major `B.f` selects the alternative `B.t` -/
-theorem ev_cases : SrcEval envNV1 σ casesRedex cT :=
+theorem ev_cases : SrcEval envNV1 σD casesRedex cT :=
   SrcEval.casesIota (c := `B.casesOn) (us := [.succ .zero]) (iv := B_ind) (as := [motNeg, cF, cT, cF])
     (m := cF) (mv := cF) (i := 0) (fs := []) (alt := cT) (by krfl) rfl rfl ev_f
-    ⟨`B.f, [], Bf_ctor, [], find_f, rfl, rfl, rfl, rfl, rfl⟩ ok_cases rfl ev_t
+    ⟨`B.f, [], Bf_ctor, [], findD_f, rfl, rfl, rfl, rfl, rfl⟩ ok_cases iota_f rfl ev_t
 
 theorem not_short {x : Expr} {c : Name} {us : List Level} (h : x.getAppFn = .const c us)
-    (hs : specialArity σ c = none) : ¬ ShortSpine σ x := by
+    (hs : specialArity σD c = none) : ¬ ShortSpine σD x := by
   rintro ⟨c', us', ar, h1, h2, -⟩
   rw [h] at h1
   cases h1
   rw [hs] at h2
   cases h2
 
-theorem hev : SrcEval envNV1 σ e cT :=
+theorem hev : SrcEval envNV1 σD e cT :=
   SrcEval.beta (n := `b) (A := tB) (b := negBody) (bi := .default) (not_short rfl (by krfl))
-    (SrcEval.delta (ci := .defnInfo neg_def) (body := negVal) (by krfl) (mark_neg (.inl rfl))
+    (SrcEval.delta (ci := .defnInfo neg_def) (body := negVal) (by krfl) (mark_neg (.inr rfl))
       (SrcEval.atom trivial))
     ev_f ok_beta ev_cases
 
