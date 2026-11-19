@@ -813,6 +813,9 @@ What the statements and the checks rely on without proof:
   accepted environment, is decidable, and is not derived from the fold here.
   Acceptance also rejects a program whose declarations include an unsafe inductive: con-leche skips
   an unsafe block, so its constructors and recursors would be unchecked.
+  It also rejects a program with a nested inductive (`numNested ≠ 0`, `EraseProof.blockShapeOK`): nested
+  occurrences are outside the fragment (the simulation has no source ι for their recursors), and for a
+  non-nested block the records' recursors name members of the block, which the closure's reads use.
 - **Why it is forced:** the main theorem of con-leche is stated for every pin list, so the empty list
   needs no pin data, which comes from con-leche's pin generator and is outside the hygiene allow
   list of check C6; the binary's driver is IO code (check C6) and the cached fold reads a
@@ -826,7 +829,9 @@ What the statements and the checks rely on without proof:
 
 - **Our artifact:** `proof/EraseProof/Spec.lean`: `EraseProof.NoMarkKeys`, the hypothesis `hclean`
   of `EraseProof.erase_correct_statement` (also in `EraseProof.srcEval_sound_statement` and
-  `EraseProof.markOf_exists_statement`) and a condition of `EraseProof.DeclsOf?`.
+  `EraseProof.markOf_exists_statement`; its closure form `EraseProof.NoMarkKeysDecls` is a premise of
+  `EraseProof.srcEval_sound_statement` and `EraseProof.erase_correct_firstorder_statement`) and a
+  condition of `EraseProof.DeclsOf?`.
 - **Reference artifact:** none: PCUIC terms carry no metadata, so MetaRocq's erasure has nothing
   that could be mistaken for a mark.
 - **What differs:** the input and the types and values of the program carry no `mdata` node whose

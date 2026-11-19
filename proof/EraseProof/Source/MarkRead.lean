@@ -20,11 +20,6 @@ open Lean Erasure
 
 namespace EraseProof
 
-/-- No type and no value of the declarations has an `mdata` with the marks' key (the condition
-`DeclsOf?` puts on the program). Reference: none (DV-32). -/
-def NoMarkKeysDecls (ds : List ConstantInfo) : Bool :=
-  ds.all fun ci => NoMarkKeys ci.type && (ci.value? true).all NoMarkKeys
-
 /-- `e'` is `e` with some of its `mdata` nodes removed: at the nodes `MarkOf` visits (the binder
 domains and the types it keeps stay as they are). Reference: none (DV-32). -/
 inductive DropMD : Expr → Expr → Prop
