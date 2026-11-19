@@ -169,7 +169,6 @@ def statements : Array (Name × Name) := #[
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
 def unproved : Array Name := #[
-  `EraseProof.erase_correct,
   `EraseProof.erase_correct_firstorder,
   `EraseProof.sound_nonvacuous,
   `EraseProof.clCert_proof_pt,

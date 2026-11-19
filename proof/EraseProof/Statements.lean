@@ -107,8 +107,8 @@ of the closure that has one, and certifies each of their marks, as a proof or a 
 of its enclosing binders, the discriminant of each reduced `casesOn` as a proof (`hcert`), and
 `ê` evaluates to `v` in the closure, as `#erase` computes it (`hev`, DV-41), then `p` is an untyped λ□
 program whose main term is an erasure of `ê`, and whose environment holds erasures of its
-dependencies, with every `□` of a mark, and the discriminant of every reduced `casesOn`,
-con-leche-certified; the main term evaluates in λ□ (at
+dependencies, both over the closure, with every `□` of a mark, and the discriminant of every
+reduced `casesOn`, con-leche-certified; the main term evaluates in λ□ (at
 `default_wcbv_flags`) to an erasure of `v`; and `v` means what `e` means in every con-leche model
 of `env` (`Sound`). Reference: `erase_correct` (`MR E/ErasureFunctionProperties.v:657`), with
 subject reduction (`MR P/PCUICSR.v`) replaced by `Sound`; MC §7.3–7.4.
@@ -134,15 +134,11 @@ Scope.
 * The λ□ inductive declarations are related only in their parameter count, constructor counts and
   arities, and `propositional` (`ErasesInd`); their names, `kelim` and projection lists
   (`projs`) are output metadata that no theorem relates.
-* `ErasesDeps` is stated over `evalEnvOf view cfg P`, whose `findDecl` reads `P`, while the
-  absence of two constants with one λ□ name is checked on the closure only (`findCollision`): a
-  constant of `P` outside the closure with the λ□ name of a closure constant may serve as the
-  source of that dependency's erasure. The emitted program is fixed by `hrun`, so this makes the
-  conclusion weaker than a statement over the closure, not the program wrong.
-* `hev` evaluates in the closure (`evalEnvOf view cfg decls`): δ unfolds only declarations the
-  eraser reads, marked over them. The closure is part of `P` (`collectDeps_sub_statement`), so
-  con-leche's acceptance of `P` applies to it; MetaRocq evaluates in the whole global environment
-  (DV-41).
+* `hev` evaluates in the closure (`evalEnvOf view cfg decls`), and the erasure relation of the
+  conclusion (`Erases`, `ErasesDeps`, with the markings `ErasesDecl` reads) is over the closure
+  too: δ unfolds only declarations the eraser reads, marked over them, as the eraser marks them.
+  The closure is part of `P` (`collectDeps_sub_statement`), so con-leche's acceptance of `P`
+  applies to it; MetaRocq evaluates in the whole global environment (DV-3, DV-41).
 * The marks are the shipping oracle's (`Erasure.Pure.isErasable`, read through `MarkOf`), which is
   not verified; `hcert` checks each of its answers on this program. It asks this of the value of
   every constant of the closure, also of a value the traversal does not erase (a recognized
@@ -175,9 +171,9 @@ def erase_correct_statement.{w} : Prop :=
     (hcert  : ProgCert env decls cfg ê) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
     ∃ lenv tb vb, p = .untyped lenv (some tb) ∧
-      Erases (CLCert env) (evalEnvOf view cfg P) [] ê tb ∧
-      ErasesDeps (CLCert env) (evalEnvOf view cfg P) lenv tb ∧
-      Erases noCert (evalEnvOf view cfg P) [] v vb ∧
+      Erases (CLCert env) (evalEnvOf view cfg decls) [] ê tb ∧
+      ErasesDeps (CLCert env) (evalEnvOf view cfg decls) lenv tb ∧
+      Erases noCert (evalEnvOf view cfg decls) [] v vb ∧
       LBEval defaultFlags lenv tb vb ∧
       Sound.{w} env e v
 
@@ -201,9 +197,9 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
-    (hfo    : FirstOrderValue (evalEnvOf view cfg P) v) →
+    (hfo    : FirstOrderValue (evalEnvOf view cfg decls) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧
-      LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg P) v []) ∧
+      LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg decls) v []) ∧
       CLTyped env v ∧ (∀ s, FrozenLeaf v s → CLErasable env s) ∧ Sound.{w} env e v
 
 /-- The statement of `sound_nonvacuous`: `Sound`'s antecedent has content. If con-leche accepts
