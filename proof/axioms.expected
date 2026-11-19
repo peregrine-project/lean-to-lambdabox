@@ -27,7 +27,6 @@ EraseProof.SemCases.srcEval_sound_projFrozen propext,Classical.choice,Quot.sound
 EraseProof.SemCases.zeta_hpt propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_thm propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
-EraseProof.ConLecheAccepts.find?_axiom propext,Classical.choice,Quot.sound
 EraseProof.Pure.isErasable_ren propext,Quot.sound
 EraseProof.Pure.typeLevel_ren propext,Quot.sound
 EraseProof.MarkOf.fvarsIn propext,Classical.choice,Quot.sound
@@ -222,6 +221,7 @@ EraseProof.Test.NV2.withApp_bodyK propext
 EraseProof.Test.NV2.withApp_e propext
 EraseProof.markOf_read propext,Classical.choice,Quot.sound
 EraseProof.markOf_read_delta propext,Classical.choice,Quot.sound
+EraseProof.collectDeps_spec propext,Classical.choice,Quot.sound
 EraseProof.Test.DeclOf.inBlock_accepted propext
 EraseProof.Test.DeclOf.nv1_head_accepted propext
 EraseProof.Test.DeclOf.nested_rejected propext
