@@ -48,7 +48,9 @@ EraseProof.Steps.visitExpr_lit_step EraseProof.erasePure_erases
 EraseProof.Steps.visitExpr_quot_step EraseProof.erasePure_erases
 EraseProof.CLOk.gradedU EraseProof.srcEval_sound
 EraseProof.ConLecheAccepts.casesIotaAt EraseProof.srcEval_sound
-EraseProof.ConLecheAccepts.find?_former EraseProof.srcEval_sound
 EraseProof.SemCases.srcEval_sound_casesFrozen EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.casesFrozenAt EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.projAt EraseProof.srcEval_sound
+EraseProof.ConLecheAccepts.recIotaAt EraseProof.srcEval_sound
 EraseProof.ctorPropBoxed_of EraseProof.erasePure_erases
 EraseProof.coreEnv_of EraseProof.erasePure_erases
