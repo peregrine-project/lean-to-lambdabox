@@ -903,11 +903,14 @@ What the statements and the checks rely on without proof:
 
 ### DV-40
 
-- **Our artifact:** `proof/EraseProof/Test/NV1Premises.lean` and `proof/EraseProof/Test/NV2Premises.lean`:
-  `EraseProof.Test.NV1.hacc` and `EraseProof.Test.NV2.hacc` take the fold equation
+- **Our artifact:** `proof/EraseProof/Test/NV1Premises.lean`, `proof/EraseProof/Test/NV2Premises.lean`,
+  `proof/EraseProof/Test/NV3Premises.lean` and `proof/EraseProof/Test/NV4Premises.lean`:
+  `EraseProof.Test.NV1.hacc` to `EraseProof.Test.NV4.hacc` take the fold equation
   `ConLeche.checkDeclsPure … = .ok env` as a premise, and a `#guard` in each file checks it by
   compiled evaluation (`EraseProof/Test/NV0Premises.lean` proves it in the kernel: NV-0 has no
-  inductive type).
+  inductive type). In NV-3 and NV-4, `hty`, `hcert` and `hev` also take the premise `hg`: con-leche
+  infers a type for the terms of `EraseProof.Test.NV3.guardTerms` (NV-3), and the runs of
+  `EraseProof.Test.NV4.guards` succeed (NV-4); a `#guard` checks each by compiled evaluation.
 - **Reference artifact:** `erase_correct` (`erasure/theories/ErasureFunctionProperties.v:657`),
   whose hypotheses (`wf_ext` among them, `pcuic/theories/PCUICTyping.v:507`) have no
   non-vacuity requirement: MetaRocq does not exhibit a program that satisfies them.
@@ -915,15 +918,24 @@ What the statements and the checks rely on without proof:
   every hypothesis in the kernel for NV-0. For a program with an inductive type (NV-1, NV-2) the
   hypothesis `hacc` is discharged in the kernel except the one equation that con-leche's fold
   accepts the declarations and returns the stated environment; that equation is the premise of
-  the theorem `hacc`, and the build fails if the compiled `#guard` finds it false. The instances
-  are therefore conditional on a computed, not a kernel-checked, fact. MetaRocq counterpart: none.
+  the theorem `hacc`, and the build fails if the compiled `#guard` finds it false. In NV-3 and
+  NV-4 the con-leche runs of `hty`, `hcert` and `hev` that compare a λ with the `Π` it fills,
+  where the two bodies differ (a minor premise of `Nat.rec`, `Nat.casesOn` or `P.casesOn` against
+  its `motive` applied, the proof `fun a b h => h` of `Quot.lift`, and the proof of `P` built
+  with `False.rec`), are premises in the same way; every other run of these instances is proved
+  in the kernel, among them the ι certificates of `recIota`, `casesLitZero`, `casesLitSucc` and
+  the zero-field `casesFrozen` (`EraseProof.IotaNoCertAt`) and of `quotLift` (`iotaCaseAt`). The
+  instances are therefore conditional on computed, not kernel-checked, facts. MetaRocq
+  counterpart: none.
 - **Why it is forced:** the kernel cannot reduce the fold on an inductive block. The block
   installer keeps its tables in `Std.HashMap`s (CL ConLeche/Kernel/FEnv.lean:36 FBase) hashed by
   Lean's `mixHash` (CL ConLeche/Kernel/Expr.lean:49 hashData), which is opaque to the kernel; and the
   checks that follow call the well-founded instantiateList
   (CL ConLeche/Kernel/ExprOps.lean:551 instantiateList) and leqCore
-  (CL ConLeche/Kernel/Level.lean:87 leqCore), which the kernel does not unfold to a value. A
-  program without an inductive type reduces to the end, which is why NV-0 needs no premise.
+  (CL ConLeche/Kernel/Level.lean:87 leqCore), which the kernel does not unfold to a value; so does
+  con-leche's binder congruence on two `Π`s that are not syntactically equal, which opens both
+  bodies with instantiateList (CL ConLeche/Kernel/Core.lean:1478 defeqBinders). A program without
+  an inductive type reduces to the end, which is why NV-0 needs no premise.
 - **What was considered instead:** `native_decide` or `ofReduceBool`, which adds the compiler to
   the trust base and is forbidden; a symbolic proof that the fold accepts the block, which needs
   the installer's `Std.HashMap` reasoning and every comparison above proved by hand; kernel-reducible
