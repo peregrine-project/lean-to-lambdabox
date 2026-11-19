@@ -435,21 +435,24 @@ def recKExpectedAt (env : ConLeche.Env) (cvT : ConLeche.ConstantVal) (caps : Con
 
 /-- The rules of the recursor named `R`, with type `ty`, prefix length `rP` and K flag `isK`, select
 by constructor: for `R = T.rec`, `T` is a stored family, the rules are one per constructor of `T`, in
-`T`'s order, each the rule of its own constructor (`RuleSelects`), and the K flag is the expected one
-(`recKExpectedAt`). Other recursors (the quotient's) are not constrained. -/
+`T`'s order, each firing `.plain` (con-leche's installer's mode at a member major,
+`CL ConLeche/Kernel/Env.lean:118 RecRuleFire`) and each the rule of its own constructor
+(`RuleSelects`), and the K flag is the expected one (`recKExpectedAt`). Other recursors (the quotient's) are not constrained. -/
 def RulesSelected (env : ConLeche.Env) (R : ConLeche.Name) (ty : ConLeche.Expr) (rP : Nat)
     (isK : Bool) (rules : List ConLeche.RecRule) : Bool :=
   match R with
   | .str T "rec" => match env.find? T with
     | some (.indInfo cvT caps) =>
-      rules.map (·.ctor) == caps.ctors && rules.all (RuleSelects env ty rP (blockCtors env caps)) &&
+      rules.map (·.ctor) == caps.ctors && rules.all (·.fire == .plain) &&
+        rules.all (RuleSelects env ty rP (blockCtors env caps)) &&
         isK == recKExpectedAt env cvT caps
     | _ => false
   | _ => true
 
 /-- Every recursor stored in `env` has `majorIdx + 1` leading `Π`s in its type, every one of its
 stored rules has the generated shape (`RuleShape`), and its rules select by constructor and its K
-flag is the expected one (`RulesSelected`). It is decidable, and the kernel evaluates it on an
+flag is the expected one (`RulesSelected`); every stored definition has distinct level parameters
+(`CL ConLeche/Kernel/CheckerBase.lean:112`). It is decidable, and the kernel evaluates it on an
 environment literal. con-leche stores the rules its generator writes
 (`CL ConLeche/Kernel/Inductives/GenRec.lean:189 classGenRule`, stored by `classRuleOk`, `:444`) and
 proves their syntax only at install (`CL ConLeche/Model/Inductives/GenRuleSyn.lean:292
@@ -462,6 +465,7 @@ def RulesCanonical (env : ConLeche.Env) : Bool :=
     | .recInfo v mI rP isK rules => clPis v.type == mI + 1 && ConLeche.Name.nodup v.levelParams &&
         rules.all (RuleShape env v.levelParams rP) &&
         RulesSelected env v.name v.type rP isK rules
+    | .defnInfo v _ _ => ConLeche.Name.nodup v.levelParams
     | _ => true
 
 /-- Every stored projection table names its structure's single constructor: the structure is
@@ -1171,7 +1175,8 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
       IotaNoCertAt env iv.name (.const ``Nat.succ []) → as[casesMajor iv + 2]? = some alt →
       SrcEval env σ (.app alt (.lit (.natVal k))) v → SrcEval env σ (mkAppN (.const c us) as.toArray) v
   /-- A `casesOn` reduced at erasure time (`markReduced` discriminant): con-leche types the
-  discriminant as a proof (`CLProofTerm`); if the constructor has fields, the inductive has no
+  discriminant, read unmarked, as a proof (`CLProofTerm`); if the constructor has no fields, its ι step
+  fires with no certificate (`IotaNoCertAt`); if it has fields, the inductive has no
   indices and con-leche certifies the constructor telescope at the projections of the discriminant
   (`FrozenFieldsCert`, the certificate of its ι step on a proof); the alternative continues at the
   frozen projections of the discriminant, one per field (λ□: the shipping reduced form, the
@@ -1181,9 +1186,11 @@ inductive SrcEval (env : ConLeche.Env) (σ : EvalEnv) : Expr → Expr → Prop
   (`MR E/EWcbvEval.v:162`); DV-25. -/
   | casesFrozen {as : List Expr} : σ.casesOn? c = some iv → as.length = casesArity iv →
       iv.ctors = [cn] → findDecl σ.decls cn = some (.ctorInfo cv) →
-      as[casesMajor iv]? = some (markReduced d) → CLProofTerm env d →
+      as[casesMajor iv]? = some (markReduced d) → CLProofTerm env (unmark d) →
+      (cv.numFields = 0 → IotaNoCertAt env iv.name (.const cn us)) →
       (0 < cv.numFields →
-        iv.numIndices = 0 ∧ FrozenFieldsCert env iv.name cn us (as.take iv.numParams) d) →
+        iv.numIndices = 0 ∧
+          FrozenFieldsCert env iv.name cn us ((as.take iv.numParams).map unmark) (unmark d)) →
       as[casesMajor iv + 1]? = some alt →
       SrcEval env σ (mkAppN alt ((List.range cv.numFields).map fun j =>
         markErase (.proj iv.name j d)).toArray) v →

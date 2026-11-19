@@ -820,6 +820,11 @@ What the statements and the checks rely on without proof:
   stored recursor of the block at the recursor's own level parameters, with as many arguments as
   that recursor's major premise position plus one, on the fields that the binders of the
   constructor's minor premise name, in order (`EraseProof.IHShape`, `EraseProof.RuleSelects`).
+  It also requires that every rule of a recursor `T.rec` of a stored family fire `.plain`
+  (CL ConLeche/Kernel/Env.lean:118 `RecRuleFire`, the installer's mode at a member major; the other
+  modes are for auxiliary and quotient recursors) and that every stored definition's level
+  parameters be distinct (CL ConLeche/Kernel/CheckerBase.lean:112, checked at install and not stated
+  of the accepted environment).
   Acceptance also requires `EraseProof.TablesCanonical`: every stored projection table names its
   structure's single constructor, at that constructor's parameter and field counts and level
   parameters; con-leche installs a table only from a structure's constructor but states of a stored
