@@ -4,7 +4,16 @@
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.erase_correct propext,Classical.choice,Quot.sound
-EraseProof.Steps.travMonoAt propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_fvar_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_fail_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_mdata_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_lam_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_letE_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_proj_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_lit_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_app_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_ctor_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.exists_quot_step propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
