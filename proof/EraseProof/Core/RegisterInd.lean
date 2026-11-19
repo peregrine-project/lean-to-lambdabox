@@ -27,7 +27,7 @@ namespace EraseProof
 
 namespace RegisterInd
 
-open StateLemmas Restrict
+open StateLemmas Decls
 
 /-- A successful bind is a successful first step followed by a successful continuation. Port of
 `ML-V Oracle/Whnf.lean:71`. -/
@@ -536,7 +536,7 @@ theorem lookupInd_cons_self {bk : Kername} {mib : MutualInductiveBody} {l : Glob
 
 end RegisterInd
 
-open RegisterInd StateLemmas Restrict in
+open RegisterInd StateLemmas Decls in
 /-- `register_inductive` at the pure backend keeps the state invariant: on a registered type it
 returns the registered λ□ inductive and masks; otherwise it registers the type's whole block, each
 type at its position with masks that keep every field, and conses one λ□ block whose bodies erase

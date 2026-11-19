@@ -163,8 +163,7 @@ def statements : Array (Name × Name) := #[
   (`EraseProof.clCert_proof_pt, `EraseProof.clCert_proof_pt_statement),
   (`EraseProof.markOf_det, `EraseProof.markOf_det_statement),
   (`EraseProof.markOf_exists, `EraseProof.markOf_exists_statement),
-  (`EraseProof.collectDeps_sub, `EraseProof.collectDeps_sub_statement),
-  (`EraseProof.markOf_agree, `EraseProof.markOf_agree_statement)]
+  (`EraseProof.collectDeps_sub, `EraseProof.collectDeps_sub_statement)]
 
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
@@ -177,8 +176,7 @@ def unproved : Array Name := #[
   `EraseProof.sound_nonvacuous,
   `EraseProof.clCert_proof_pt,
   `EraseProof.markOf_det,
-  `EraseProof.markOf_exists,
-  `EraseProof.markOf_agree]
+  `EraseProof.markOf_exists]
 
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)

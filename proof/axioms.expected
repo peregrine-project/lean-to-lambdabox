@@ -3,7 +3,6 @@
 #   <axioms>: its `#print axioms`, comma-separated in the order propext, Classical.choice,
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
-EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
 EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.absN propext,Classical.choice,Quot.sound
 EraseProof.RecLam.hasFVar_recLetTerm propext,Classical.choice,Quot.sound
@@ -128,6 +127,7 @@ EraseProof.Test.NV1.hmark propext,Quot.sound
 EraseProof.Test.NV1.hnopre propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hty propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.hview propext,Classical.choice,Quot.sound
+EraseProof.Test.NV1.iota_f propext
 EraseProof.Test.NV1.lookup_casesOn propext,Classical.choice,Quot.sound
 EraseProof.Test.NV1.mark_ctor propext,Quot.sound
 EraseProof.Test.NV1.mark_neg propext,Quot.sound
@@ -175,6 +175,7 @@ EraseProof.Test.NV2.hpure propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hrun propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hty propext,Classical.choice,Quot.sound
 EraseProof.Test.NV2.hview propext,Classical.choice,Quot.sound
+EraseProof.Test.NV2.iota_t propext
 EraseProof.Test.NV2.mark_alt1 propext,Quot.sound
 EraseProof.Test.NV2.mark_alt2 propext,Quot.sound
 EraseProof.Test.NV2.mark_ctor propext,Quot.sound

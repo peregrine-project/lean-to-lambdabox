@@ -6,7 +6,8 @@ import EraseProof.Statements
 By `rfl`: substitution keeps marks in place, and `unmark_instantiate1'` needs `EtaLams`; `unmark`
 strips `erase`/`reduced` marks and η-contracts the `eta`-marked expansion `MarkOf` writes for an
 under-applied spine; marks are transparent to `toCL?`; `MarksCert` asks
-`CLCert` of a mark in the context of its enclosing binders, and `lamTele` closes a context.
+`CLCert` of a mark (`CLCertProof` of a reduced discriminant) in the context of its enclosing
+binders, and `lamTele` closes a context.
 -/
 
 open Lean Erasure
@@ -55,10 +56,10 @@ example (env : ConLeche.Env) (A B s : Expr) :
       (True ∧ CLCert env [(B, none), (A, none)] s) := rfl
 
 /-- A `let` body's marks are certified with the `let`'s value in the context, and the discriminant
-of a reduced `casesOn` is certified. -/
+of a reduced `casesOn` is certified as a proof. -/
 example (env : ConLeche.Env) (T s d : Expr) :
     MarksCert env [] (.letE `x T (.const `v []) (.app (markErase s) (markReduced d)) false) =
-      (True ∧ CLCert env [(T, some (.const `v []))] s ∧ CLCert env [(T, some (.const `v []))] d) :=
+      (True ∧ CLCert env [(T, some (.const `v []))] s ∧ CLCertProof env [(T, some (.const `v []))] d) :=
   rfl
 
 /-- The context of a mark closes it by λs and `let`s, outermost binder first. -/

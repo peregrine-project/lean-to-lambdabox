@@ -7,8 +7,8 @@ import EraseProof.Core.Collect
 closure that a successful `Erasure.collectDeps` returns for a term con-leche types has distinct
 kernames (`KernameInj`) and λ□ block names (`BlockNamesInj`), syntactic arities as inductive types
 (`ArityTypes`), holds every constant of the term, and is closed under what the source semantics
-and the traversal read (`DepClosed`), when every recursor of the program names the members of its
-block in its type. The proof reads the checks of the shipping code: `exprConsts`, `declExclusion`
+and the traversal read (`DepClosed`); every recursor of the program names the members of its block
+in its type (`blockShapeOK`). The proof reads the checks of the shipping code: `exprConsts`, `declExclusion`
 and `closureStep` on every scanned declaration, `dropKnown` on every read name, and
 `findCollision` and `findBlockCollision` on the result. The run of the closure is described
 without the program (`closure_ok`: every declaration it holds is the view's, scanned with its
@@ -22,7 +22,7 @@ namespace EraseProof
 
 namespace CollectSpec
 
-open CollectSub Restrict
+open CollectSub Decls
 
 /-! ## Kernames -/
 
@@ -622,24 +622,57 @@ theorem recog_cases {decls : List ConstantInfo} (hvw : ∀ y ∈ decls, view.fin
   rw [hind, both _ (.inr (.inl rfl)), hI₀]
   rfl
 
+/-- Every recursor of a program con-leche accepts names each member of its block in its type: the
+block's head passes `blockShapeOK`, which checks it of every recursor of `P` with the block's
+`all` (`declOf?` puts every recursor in the block of the inductive at the head of its `all`).
+Reference: none (DV-38). -/
+theorem recs_mention {P : List ConstantInfo} {env : ConLeche.Env} (hP : ConLecheAccepts P env) :
+    ∀ R, .recInfo R ∈ P → ∀ n ∈ R.all, mentionsAny [n] R.type = true := by
+  intro R hR n hn
+  obtain ⟨ds, hds, -⟩ := id hP
+  obtain ⟨L, hL, -⟩ := DeclsOf?.mem hds hR
+  simp only [declOf?] at hL
+  cases hb : R.all.head? with
+  | none => simp [hb] at hL
+  | some tn =>
+    cases hf : findConst P tn with
+    | none => simp [hb, hf] at hL
+    | some x =>
+      cases x with
+      | inductInfo t =>
+        simp only [hb, hf, Option.bind_some] at hL
+        have htall : t.all = R.all := by
+          cases hc : (t.all == R.all) with
+          | false => simp [hc] at hL
+          | true => exact beq_iff_eq.mp hc
+        obtain ⟨Hn, H, hH, hhead, hall, -⟩ := hP.head (findDecl_mem (c := tn) hf).1
+        obtain ⟨block, p, hblk, -, -⟩ := hP.block hH hhead (hP.ind_safe (findDecl_mem hH).1)
+        simp only [blockOf?, Option.bind_eq_some_iff, bind, pure] at hblk
+        obtain ⟨tys, -, cvs, -, u, hg, -⟩ := hblk
+        simp only [guard, blockShapeOK, Bool.and_eq_true, List.all_eq_true] at hg
+        split at hg
+        · rename_i hok
+          refine (hok.1.1.1.1.1.1 R ?_).1.2 n (by rw [hall, htall]; exact hn)
+          simp only [List.mem_filterMap, List.mem_reverse]
+          exact ⟨_, hR, by simp [hall, htall]⟩
+        · cases hg
+      | _ => simp [hb, hf] at hL
+
 end CollectSpec
 
-open CollectSub CollectSpec Restrict in
+open CollectSub CollectSpec Decls in
 /-- **What the fragment test's closure satisfies**: on a program con-leche accepts, read through a
 view that agrees with it, the closure that a successful `Erasure.collectDeps` returns for a term
 con-leche types has distinct kernames (DV-14) and λ□ block names, syntactic arities as inductive
 types, holds the constants of the term and is closed under what the source semantics and the
-traversal read (`DepClosed`). The hypothesis `hrecs`: the type of every recursor of the program
-names each member of its block, as the recursors Lean's kernel generates do (each member is the
-domain of a motive's major premise); `DeclsOf?` does not check it, and the fragment test reads a
-recursor's block only through its type. Port of `ML-V Core/CollectSpec.lean:1422`
+traversal read (`DepClosed`): the type of every recursor of the program names each member of its
+block (`recs_mention`, from `blockShapeOK`), and the fragment test reads a recursor's block only
+through its type. Port of `ML-V Core/CollectSpec.lean:1422`
 (`L4 Core/Collect.lean:214`), with con-leche's acceptance where that file has Metalean's
 `ProgEnv`. Reference: the closure property of `MR E/ErasureFunction.v:1602 erase_global_deps`. -/
 theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
     {view : EnvView} {cfg : ErasureConfig} (hP : ConLecheAccepts P env)
-    (hview : ViewAgrees view P) (hty : CLTyped env e)
-    (hrecs : ∀ R, .recInfo R ∈ P → ∀ n ∈ R.all, mentionsAny [n] R.type = true)
-    (h : collectDeps view cfg e = .ok decls) :
+    (hview : ViewAgrees view P) (hty : CLTyped env e) (h : collectDeps view cfg e = .ok decls) :
     KernameInj decls ∧ DepClosed decls ∧ ConstsIn (fun c => (findDecl decls c).isSome) e ∧
       BlockNamesInj decls ∧ ArityTypes decls := by
   obtain ⟨cs, cases, hcs, hcl, hcol, hbc⟩ := CollectSpec.collectDeps_ok h
@@ -665,7 +698,7 @@ theorem collectDeps_spec {P decls : List ConstantInfo} {env : ConLeche.Env} {e :
   have hrall : ∀ R, .recInfo R ∈ decls → ∀ n ∈ R.all, n ∈ decls.map (·.name) := by
     intro R hR n hn
     obtain ⟨tys, htys, hc⟩ := htype _ hR
-    exact hc n (mentionsAny_consts (hrecs R (hsub _ hR) n hn) (exprConsts_consts htys))
+    exact hc n (mentionsAny_consts (recs_mention hP R (hsub _ hR) n hn) (exprConsts_consts htys))
   have hind : ∀ iv, .inductInfo iv ∈ decls →
       (∀ n ∈ iv.ctors, n ∈ decls.map (·.name)) ∧ ∃ b, sortDecided iv = .ok b := by
     intro iv hiv
