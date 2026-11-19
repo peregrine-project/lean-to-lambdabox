@@ -4,10 +4,8 @@
 #             Quot.sound; `-` for none. sorryAx never occurs.
 # proof/scripts/check.sh compares this file with the computed .check/axioms.actual.
 EraseProof.SrcEval.restrict propext,Classical.choice,Quot.sound
-EraseProof.Erases.abstract propext,Classical.choice,Quot.sound
 EraseProof.ErasesAlt.absN propext,Classical.choice,Quot.sound
 EraseProof.RecLam.hasFVar_recLetTerm propext,Classical.choice,Quot.sound
-EraseProof.ErasesDeps.toBvar propext,Classical.choice,Quot.sound
 EraseProof.erases_correct propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.accepted propext,Classical.choice,Quot.sound
 EraseProof.SemCases.srcEval_sound_value propext,Classical.choice,Quot.sound
@@ -31,9 +29,7 @@ EraseProof.ConLecheAccepts.find?_opaque propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_axiom propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_rec propext,Classical.choice,Quot.sound
 EraseProof.ConLecheAccepts.find?_single propext,Classical.choice,Quot.sound
-EraseProof.Pure.isErasable_ren propext,Quot.sound
 EraseProof.Pure.typeLevel_ren propext,Quot.sound
-EraseProof.MarkOf.fvarsIn propext,Classical.choice,Quot.sound
 EraseProof.Test.bind_ok propext,Classical.choice,Quot.sound
 EraseProof.Test.forIn_toSubarray_size propext,Classical.choice,Quot.sound
 EraseProof.Test.runPure_bind propext,Classical.choice,Quot.sound
@@ -236,3 +232,8 @@ EraseProof.addAxiom_ok propext,Classical.choice,Quot.sound
 EraseProof.get_constant_kername_ok propext,Classical.choice,Quot.sound
 EraseProof.register_inductive_ok propext,Classical.choice,Quot.sound
 EraseProof.eraseEntry_pure propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_fvar_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_fail_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_mdata_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_lam_step propext,Classical.choice,Quot.sound
+EraseProof.Steps.visitExpr_letE_step propext,Classical.choice,Quot.sound
