@@ -37,15 +37,28 @@ inductive ConstSpine (h : Name) (vs : List Level) : Nat → Expr → Prop
   | const : ConstSpine h vs 0 (.const h vs)
   | app {k : Nat} {f a : Expr} : ConstSpine h vs k f → ConstSpine h vs (k + 1) (.app f a)
 
-/-- `e` is an evident proposition over `D`, the inductive form of `EvidentProp`. -/
+/-- `e` is the application spine `h.{vs} a₁ … aₖ` with `mdata` around any of its heads. -/
+inductive MSpine (h : Name) (vs : List Level) : Nat → Expr → Prop
+  | const : MSpine h vs 0 (.const h vs)
+  | app {k : Nat} {f a : Expr} : MSpine h vs k f → MSpine h vs (k + 1) (.app f a)
+  | mdata {k : Nat} {e : Expr} {m : MData} : MSpine h vs k e → MSpine h vs k (.mdata m e)
+
+/-- `e` is an evident proposition over `D`, the inductive form of `EvidentProp`, with `mdata`
+also inside the spine of its conclusion. -/
 inductive PropShape (D : List ConstantInfo) : Expr → Prop
   | forallE {b : Expr} {nm : Name} {t : Expr} {bi : BinderInfo} :
       PropShape D b → PropShape D (.forallE nm t b bi)
   | mdata {e : Expr} {m : MData} : PropShape D e → PropShape D (.mdata m e)
   | tail {h : Name} {ci : ConstantInfo} {k : Nat} {u : Level} {vs : List Level} {e : Expr} :
       findDecl D h = some ci → DeltaFree ci = true → arityShape ci.type = some (k, u) →
-      EvidentZero (Pure.instLevel ci.levelParams vs u) = true → ConstSpine h vs k e →
+      EvidentZero (Pure.instLevel ci.levelParams vs u) = true → MSpine h vs k e →
       PropShape D e
+
+theorem ConstSpine.toM {h : Name} {vs : List Level} {k : Nat} {e : Expr} (H : ConstSpine h vs k e) :
+    MSpine h vs k e := by
+  induction H with
+  | const => exact .const
+  | app _ ih => exact .app ih
 
 /-! ## From the Boolean definitions -/
 
@@ -91,7 +104,7 @@ theorem PropShape.of_evidentProp_tail {D : List ConstantInfo} {e : Expr}
       next n u hsh =>
         simp only [Bool.and_eq_true, beq_iff_eq] at H
         obtain ⟨rfl, hz⟩ := H
-        exact .tail hci hdf hsh hz (ConstSpine.of_getAppFn hfn)
+        exact .tail hci hdf hsh hz (ConstSpine.of_getAppFn hfn).toM
       next => cases H
     next => cases H
   next => cases H
@@ -159,6 +172,13 @@ theorem ConstSpine.inst {h : Name} {vs : List Level} {k : Nat} {T a : Expr}
   | const => intro d; exact .const
   | app _ ih => intro d; exact .app ih
 
+theorem MSpine.inst {h : Name} {vs : List Level} {k : Nat} {T a : Expr}
+    (H : MSpine h vs k T) : ∀ {d : Nat}, MSpine h vs k (T.instantiate1' a d) := by
+  induction H with
+  | const => intro d; exact .const
+  | app _ ih => intro d; exact .app ih
+  | mdata _ ih => intro d; exact .mdata ih
+
 theorem PropShape.inst {D : List ConstantInfo} {T a : Expr} (H : PropShape D T) :
     ∀ {d : Nat}, PropShape D (T.instantiate1' a d) := by
   induction H with
@@ -180,6 +200,14 @@ theorem ConstSpine.instLevels {h : Name} {vs : List Level} {k : Nat} {T : Expr} 
   | const => exact .const
   | app _ ih => exact .app ih
 
+theorem MSpine.instLevels {h : Name} {vs : List Level} {k : Nat} {T : Expr} {ps : List Name}
+    {us : List Level} (H : MSpine h vs k T) :
+    MSpine h (vs.map (Pure.instLevel ps us)) k (Pure.instLevels ps us T) := by
+  induction H with
+  | const => exact .const
+  | app _ ih => exact .app ih
+  | mdata _ ih => exact .mdata ih
+
 theorem PropShape.instLevels {D : List ConstantInfo} {T : Expr} {ps : List Name}
     {us : List Level} (H : PropShape D T) : PropShape D (Pure.instLevels ps us T) := by
   induction H with
@@ -197,6 +225,10 @@ theorem ConstSpine.ne_lam {h : Name} {vs : List Level} {k : Nat} {T : Expr}
 
 theorem ConstSpine.ne_forallE {h : Name} {vs : List Level} {k : Nat} {T : Expr}
     (H : ConstSpine h vs k T) : ∀ n t b bi, T ≠ .forallE n t b bi := by
+  cases H <;> intro n t b bi h <;> cases h
+
+theorem MSpine.ne_forallE {h : Name} {vs : List Level} {k : Nat} {T : Expr}
+    (H : MSpine h vs k T) : ∀ n t b bi, T ≠ .forallE n t b bi := by
   cases H <;> intro n t b bi h <;> cases h
 
 /-- The oracle's `spine` of a constant's spine. -/
@@ -236,20 +268,22 @@ theorem whnf_arityShape :
   | f + 1, _, w, _, _, .mdata H, h => by
     rw [whnf_mdata] at h; exact whnf_arityShape H h
 
-theorem whnf_constSpine {h : Name} {ci : ConstantInfo}
+theorem whnf_mspine {h : Name} {ci : ConstantInfo}
     (hf : findConst cx.decls h = some ci) (hd : DeltaFree ci = true) :
-    ∀ {f : Nat} {T w : Expr} {vs : List Level} {k : Nat}, ConstSpine h vs k T →
-      Pure.whnf cx f ls T = .ok w → w = T
+    ∀ {f : Nat} {T w : Expr} {vs : List Level} {k : Nat}, MSpine h vs k T →
+      Pure.whnf cx f ls T = .ok w → ConstSpine h vs k w
   | 0, _, _, _, _, _, H => absurd H (by rw [Pure.whnf]; exact MarkRead.throw_ne_ok)
   | f + 1, _, w, _, _, .const, H => by
-    rw [whnf_const_deltaFree hf hd] at H; cases H; rfl
+    rw [whnf_const_deltaFree hf hd] at H; cases H; exact .const
+  | f + 1, _, w, _, _, .mdata hg, H => by
+    rw [whnf_mdata] at H; exact whnf_mspine hf hd hg H
   | f + 1, _, w, _, _, .app (f := g) (a := a) hg, H => by
     obtain ⟨g', h1, h2⟩ := MarkRead.whnf_app_cases H
-    have := whnf_constSpine hf hd hg h1; subst this
+    have hg' := whnf_mspine hf hd hg h1
     rcases h2 with ⟨_, _, _, _, hl, -⟩ | rfl | ⟨r, us, args, rv, minors, wa, e, hsp, hr, -⟩
-    · exact absurd hl (hg.ne_lam _ _ _ _)
-    · rfl
-    · obtain ⟨args', hsp'⟩ := (ConstSpine.app (a := a) hg).spine_eq
+    · exact absurd hl (hg'.ne_lam _ _ _ _)
+    · exact .app hg'
+    · obtain ⟨args', hsp'⟩ := (ConstSpine.app (a := a) hg').spine_eq
       rw [hsp'] at hsp
       cases hsp
       rw [hf] at hr
@@ -265,8 +299,8 @@ theorem whnf_propShape :
   | f + 1, _, w, .mdata H, h => by
     rw [whnf_mdata] at h; exact whnf_propShape H h
   | f + 1, _, w, .tail h1 h2 h3 h4 h5, h => by
-    have := whnf_constSpine h1 h2 h5 h; subst this
-    exact ⟨.tail h1 h2 h3 h4 h5, h5.ne_mdata⟩
+    have hw := whnf_mspine h1 h2 h5 h
+    exact ⟨.tail h1 h2 h3 h4 hw.toM, hw.ne_mdata⟩
 
 theorem inferType_const {f : Nat} {Γ : List Expr} {c : Name} {us : List Level} {S : Expr}
     {ci : ConstantInfo} (hf : findConst cx.decls c = some ci)
@@ -279,13 +313,15 @@ theorem inferType_const {f : Nat} {Γ : List Expr} {c : Name} {us : List Level} 
 
 theorem inferType_constSpine_arity {h : Name} {ci : ConstantInfo} {n : Nat} {u0 : Level}
     (hf : findConst cx.decls h = some ci) (ha : arityShape ci.type = some (n, u0)) :
-    ∀ {f : Nat} {Γ : List Expr} {T S : Expr} {vs : List Level} {k : Nat}, ConstSpine h vs k T →
+    ∀ {f : Nat} {Γ : List Expr} {T S : Expr} {vs : List Level} {k : Nat}, MSpine h vs k T →
       Pure.inferType cx f ls Γ T = .ok S →
       ∃ m, ArityShape S m (Pure.instLevel ci.levelParams vs u0) ∧ m + k = n
   | 0, _, _, _, _, _, _, H => absurd H (by rw [Pure.inferType]; exact MarkRead.throw_ne_ok)
   | f + 1, Γ, _, S, _, _, .const, H => by
     rw [inferType_const hf H]
     exact ⟨n, (ArityShape.of_arityShape ha).instLevels, by omega⟩
+  | f + 1, Γ, _, S, _, _, .mdata hg, H => by
+    rw [Pure.inferType] at H; exact inferType_constSpine_arity hf ha hg H
   | f + 1, Γ, _, S, _, _, .app (f := g) (a := a) hg, H => by
     rw [Pure.inferType] at H
     obtain ⟨Tg, h1, H⟩ := MarkRead.ok_of_bind H
@@ -436,8 +472,23 @@ theorem isErasable_arity {fuel : Nat} {e : Expr} {c : Name} {us : List Level} {k
     (hn : arityShape ci.type = some (n, u)) (h : Pure.isErasable cx fuel ls e = .ok b) :
     b = true := by
   obtain ⟨T, ba, h1, h2, hyes, -⟩ := isErasable_of_not_thm hs hf hnt h
-  obtain ⟨m, has, -⟩ := inferType_constSpine_arity hf hn hs h1
+  obtain ⟨m, has, -⟩ := inferType_constSpine_arity hf hn hs.toM h1
   exact hyes (isArity_arityShape has h2)
+
+/-- A constant applied to a list of arguments is its spine. Copy of
+`ML-V Oracle/Atom.lean:500 ConstSpine.mkAppN`. -/
+theorem ConstSpine.mkAppN (c : Name) (us : List Level) (as : List Expr) :
+    ConstSpine c us as.length (Lean.mkAppN (.const c us) as.toArray) := by
+  rw [mkAppN_toArray]
+  suffices ∀ (f : Expr) (k : Nat), ConstSpine c us k f → ∀ as : List Expr,
+      ConstSpine c us (k + as.length) (as.foldl .app f) by
+    simpa using this _ 0 .const as
+  intro f k hf as
+  induction as generalizing f k with
+  | nil => simpa using hf
+  | cons a as ih =>
+    have := ih _ _ (ConstSpine.app (a := a) hf)
+    simpa [Nat.add_assoc, Nat.add_comm 1] using this
 
 end OracleAtom
 
