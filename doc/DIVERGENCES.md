@@ -913,8 +913,9 @@ What the statements and the checks rely on without proof:
 ### DV-40
 
 - **Our artifact:** `proof/EraseProof/Test/NV1Premises.lean`, `proof/EraseProof/Test/NV2Premises.lean`,
-  `proof/EraseProof/Test/NV3Premises.lean` and `proof/EraseProof/Test/NV4Premises.lean`:
-  `EraseProof.Test.NV1.hacc` to `EraseProof.Test.NV4.hacc` take the fold equation
+  `proof/EraseProof/Test/NV3Premises.lean`, `proof/EraseProof/Test/NV4Premises.lean` and
+  `proof/EraseProof/Test/NV5Premises.lean`:
+  `EraseProof.Test.NV1.hacc` to `EraseProof.Test.NV5.hacc` take the fold equation
   `ConLeche.checkDeclsPure … = .ok env` as a premise, and a `#guard` in each file checks it by
   compiled evaluation (`EraseProof/Test/NV0Premises.lean` proves it in the kernel: NV-0 has no
   inductive type). In NV-3 and NV-4, `hty`, `hcert` and `hev` also take the premise `hg`: con-leche
@@ -924,8 +925,8 @@ What the statements and the checks rely on without proof:
   whose hypotheses (`wf_ext` among them, `pcuic/theories/PCUICTyping.v:507`) have no
   non-vacuity requirement: MetaRocq does not exhibit a program that satisfies them.
 - **What differs:** the non-vacuity instances of `EraseProof.erase_correct_statement` discharge
-  every hypothesis in the kernel for NV-0. For a program with an inductive type (NV-1, NV-2) the
-  hypothesis `hacc` is discharged in the kernel except the one equation that con-leche's fold
+  every hypothesis in the kernel for NV-0. For a program with an inductive type (NV-1, NV-2,
+  NV-5) the hypothesis `hacc` is discharged in the kernel except the one equation that con-leche's fold
   accepts the declarations and returns the stated environment; that equation is the premise of
   the theorem `hacc`, and the build fails if the compiled `#guard` finds it false. In NV-3 and
   NV-4 the con-leche runs of `hty`, `hcert` and `hev` that compare a λ with the `Π` it fills,

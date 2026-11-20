@@ -38,6 +38,8 @@ import EraseProof.Test.NV3Data
 import EraseProof.Test.NV3Premises
 import EraseProof.Test.NV4Data
 import EraseProof.Test.NV4Premises
+import EraseProof.Test.NV5Data
+import EraseProof.Test.NV5Premises
 import EraseProof.Oracle.Rename
 import EraseProof.Oracle.Det
 import EraseProof.Oracle.Atom
@@ -61,6 +63,7 @@ import EraseProof.Core.ExistsInv
 import EraseProof.Core.ExistsSteps
 import EraseProof.Final
 import EraseProof.FirstOrder
+import EraseProof.Test.NV5Final
 import EraseProof.Test.NV4Final
 import EraseProof.Test.NV3Final
 import EraseProof.Test.NV2Final

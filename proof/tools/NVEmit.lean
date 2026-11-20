@@ -4,9 +4,10 @@ import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.NV3Premises
 import EraseProof.Test.NV4Premises
+import EraseProof.Test.NV5Premises
 
 /-!
-# The emitted programs of the non-vacuity instances NV-0 to NV-4, for check C11
+# The emitted programs of the non-vacuity instances NV-0 to NV-5, for check C11
 
 Run from `proof/` as `lake env lean --run tools/NVEmit.lean DIR`. For the non-vacuity instance NV-1
 (`inductive B | f | t` and `B.neg`, `EraseProof.Test.NV1`) it declares the program as the
@@ -16,8 +17,8 @@ up to binder names), runs `#erase`'s entry point `Erasure.eraseEntry` on the ter
 environment, and writes the program to `DIR/NV1.ast` and its attributes to `DIR/NV1.ast.inlinings`,
 printed as `#erase` prints them (`LeanToLambdaBox/Erasure/Command.lean`). It fails unless the
 printed program is byte-identical to the printing of `p0`, the program that `hrun` computes, and
-the list of constants to inline is the one `hrun` states (empty). NV-0, NV-2, NV-3 and NV-4 are
-emitted the same way (`Init` declares `Nat`, `Eq`, `False` and the quotient).
+the list of constants to inline is the one `hrun` states (empty). NV-0, NV-2, NV-3, NV-4 and NV-5
+are emitted the same way (`Init` declares `Nat`, `Eq`, `False` and the quotient).
 -/
 
 open Lean Elab Erasure EraseProof.Test
@@ -138,7 +139,12 @@ def main (args : List String) : IO UInt32 := do
         addDecl (.inductDecl [] 0 [⟨`P, .sort .zero, [⟨`P.mk, NV4.P_mk.type⟩]⟩] false)
         Meta.MetaM.run' (mkCasesOn `P))
     NV4.P NV4.e NV4.p0
-  return r1 ||| r0 ||| r2 ||| r3 ||| r4
+  let r5 ← emit "NV-5" s!"{dir}/NV5.ast"
+    (do declB
+        addDecl (.inductDecl [`u] 1 [⟨`W, NV5.W_ind.type, [⟨`W.mk, NV5.mkTy⟩]⟩] false)
+        addDecl (.defnDecl NV5.wrap_def))
+    NV5.P NV5.e NV5.p0
+  return r1 ||| r0 ||| r2 ||| r3 ||| r4 ||| r5
 
 end EraseProofNVEmit
 
