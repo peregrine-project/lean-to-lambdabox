@@ -1,0 +1,166 @@
+\chapter{Marks and the source semantics}\label{chap:source}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Define the marked source term, the weak call-by-value semantics on it, and the
+  fragment conditions; prove that marks commute with substitution and that every evaluation result is a value; relate lookups in the closure.
+\item \lead{Main results} \code{unmark} commutes with instantiation and a marking reads through \code{unmark} as the input (Section~\ref{sec:source-marks}); every evaluation result is a value (Section~\ref{sec:source-sem}); lookups and the \code{casesOn} recognizer read the closure alone (Section~\ref{sec:source-decls}).
+\item \lead{Status} \stProved{} every node of this chapter. \stOpen{} the existence of the marking (Chapter~\ref{chap:statements}); its determinism is proved (Chapter~\ref{chap:core}).
+\item \lead{Nodes} \bpnodes{chap:source}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Source/Marks, Source/MarkRead, Source/Value, Source/Decls}.
+\item \lead{Reference} \code{MR P/PCUICWcbvEval.v}; Chapter~\ref{chap:resolution}.
+\end{itemize}
+
+\section{Marks}\label{sec:source-marks}
+
+A mark is metadata with the anonymous key on a subterm, written by \code{MarkOf} one rule per case of the traversal.
+
+\begin{definition}[Marked terms]
+  \label{def:EraseProof-MarkOf}
+  \lean{EraseProof.MarkOf, EraseProof.EtaLams, EraseProof.markMD, EraseProof.markErase, EraseProof.markEta, EraseProof.markReduced, EraseProof.bvarOccurs, EraseProof.etaContract, EraseProof.unmark, EraseProof.absFV, EraseProof.Fresh, EraseProof.oracle, EraseProof.forallView?, EraseProof.markArity?, EraseProof.MarkEta, EraseProof.MarkSat, EraseProof.MarkAlt}
+  \leanok
+  \uses{def:EraseProof-DeclsOf}
+  \srcloc{proof/EraseProof/Spec.lean}{920}
+  \lead{In short} \hl{\code{MarkOf decls cfg ls e em}: \code{em} is \code{e} with the traversal's decisions written on it}; \code{unmark} inverts it.
+  \begin{itemize}
+  \item \code{markErase}, \code{markEta}, \code{markReduced}, \code{markMD}: a subterm erased, a $\lambda$ introduced by $\eta$-expansion, a reduced discriminant;
+  \item \code{MarkOf}, \code{MarkEta}, \code{MarkSat}, \code{MarkAlt}: the marking relation, for $\eta$-expansion, saturated spines and alternatives;
+  \item \code{oracle}, \code{forallView?}, \code{markArity?}, \code{Fresh}, \code{absFV}: the oracle's answer, the $\Pi$ it reads, the arity, a fresh local, abstraction;
+  \item \code{unmark}, \code{etaContract}, \code{EtaLams}, \code{bvarOccurs}: remove the marks, contract an $\eta$, every $\eta$ mark sits on a $\lambda$.
+  \end{itemize}
+  \lead{Reference} none; DV-23, DV-32.
+\end{definition}
+
+\begin{lemma}[Unmarking commutes with substitution]
+  \label{lem:EraseProof-unmark-instantiate1}
+  \lean{EraseProof.unmark_instantiate1', EraseProof.Marks.nat_beq_false, EraseProof.Marks.bvarOccurs_lift_out, EraseProof.Marks.bvarOccurs_lift_below, EraseProof.Marks.bvarOccurs_inst, EraseProof.Marks.inst_lift_cancel, EraseProof.Marks.lower_inst, EraseProof.Marks.lower_lift, EraseProof.Marks.instLevels_lift, EraseProof.Marks.instLevels_instantiate1', EraseProof.Marks.bvarOccurs_instLevels, EraseProof.Marks.EtaShape, EraseProof.Marks.etaContract_of_not, EraseProof.Marks.etaShape_of_lift, EraseProof.Marks.etaContract_lift, EraseProof.Marks.etaShape_of_instLevels, EraseProof.Marks.etaContract_instLevels, EraseProof.Marks.lift_ne_bvar0, EraseProof.Marks.etaContract_inst_lam, EraseProof.unmark_liftLooseBVars', EraseProof.unmark_instLevels}
+  \leanok
+  \uses{def:EraseProof-MarkOf}
+  \srcloc{proof/EraseProof/Source/Marks.lean}{415}
+  \lead{In short} \hl{\code{unmark} commutes with lifting, instantiation and universe instantiation}, instantiation on terms whose $\eta$ marks sit on $\lambda$s.
+  \begin{itemize}
+  \item \code{unmark\_instantiate1'}, \code{unmark\_instLevels}, \code{unmark\_liftLooseBVars'}: the three commutations;
+  \item \code{Marks.etaContract\_*}, \code{Marks.etaShape\_*}, \code{Marks.bvarOccurs\_*}, \code{Marks.lower\_*}, \code{Marks.inst\_lift\_cancel}: the de Bruijn facts they need.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the term; $\eta$-contraction commutes with the operations on $\eta$-shaped $\lambda$s.
+\end{proof}
+
+\begin{lemma}[A marking reads as its input]
+  \label{lem:EraseProof-markOf-read}
+  \lean{EraseProof.DropMD, EraseProof.DropMD.toCL, EraseProof.DropMD.absFV, EraseProof.DropMD.fvarsIn, EraseProof.DropMD.app_inv, EraseProof.DropMD.fvar_inv, EraseProof.MarkRead.absFV_inst, EraseProof.MarkRead.absFV_absent, EraseProof.MarkRead.lift_zero, EraseProof.MarkRead.bvarOccurs_absFV, EraseProof.MarkRead.lower_absFV, EraseProof.MarkRead.etaShape_of_absFV, EraseProof.MarkRead.etaContract_absFV, EraseProof.MarkRead.unmark_absFV, EraseProof.MarkRead.isLambda_absFV, EraseProof.MarkRead.etaLams_absFV, EraseProof.MarkRead.clean_lift, EraseProof.MarkRead.clean_inst, EraseProof.MarkRead.clean_instLevels, EraseProof.MarkRead.clean_foldl, EraseProof.MarkRead.clean_mkAppN, EraseProof.MarkRead.clean_spine, EraseProof.MarkRead.unmark_clean, EraseProof.MarkRead.etaLams_clean, EraseProof.MarkRead.fvarsIn_foldl, EraseProof.MarkRead.CleanLocals, EraseProof.MarkRead.cleanLocals_cons, EraseProof.MarkRead.decl_clean, EraseProof.MarkRead.ok_of_bind, EraseProof.MarkRead.throw_ne_ok, EraseProof.MarkRead.mem_of_mapM, EraseProof.MarkRead.list_mapM_map, EraseProof.MarkRead.iotaRhs?_spec, EraseProof.MarkRead.iotaApp?_spec, EraseProof.MarkRead.whnf_app_cases, EraseProof.MarkRead.iotaRhs_clean, EraseProof.MarkRead.whnf_clean, EraseProof.MarkRead.instForalls_clean, EraseProof.MarkRead.instProjs_clean, EraseProof.MarkRead.inferType_clean, EraseProof.MarkRead.forallView_clean, EraseProof.MarkRead.Reads, EraseProof.MarkRead.ReadsAll, EraseProof.MarkRead.Reads.clean, EraseProof.MarkRead.Reads.erase, EraseProof.MarkRead.Reads.reduced, EraseProof.MarkRead.ReadsAll.clean, EraseProof.MarkRead.ReadsAll.nil, EraseProof.MarkRead.ReadsAll.cons, EraseProof.MarkRead.ReadsAll.append, EraseProof.MarkRead.Reads.foldl, EraseProof.MarkRead.Reads.mkAppN, EraseProof.MarkRead.Reads.const, EraseProof.MarkRead.Reads.lam, EraseProof.MarkRead.Reads.letE, EraseProof.MarkRead.Reads.eta, EraseProof.MarkRead.MarkOf.reads, EraseProof.MarkRead.MarkEta.reads, EraseProof.MarkRead.MarkSat.reads, EraseProof.MarkRead.MarkAlt.reads, EraseProof.markOf_read}
+  \leanok
+  \uses{def:EraseProof-MarkOf, lem:EraseProof-unmark-instantiate1, lem:EraseProof-toCL-instantiate1}
+  \srcloc{proof/EraseProof/Source/MarkRead.lean}{23}
+  \lead{In short} \hl{For an input without mark keys, \code{unmark} of a marking reads in con-leche as the input}, and every \code{eta} mark of the marking sits on a $\lambda$.
+  \begin{itemize}
+  \item \code{markOf\_read}: the reading of \code{unmark em} is that of \code{e}, for a closure without mark keys (\code{NoMarkKeysDecls});
+  \item \code{DropMD}: \code{unmark} removes metadata only, so the reading is unchanged;
+  \item \code{Reads}, \code{ReadsAll}, \code{MarkRead.*\_clean}: the oracle's answers carry no mark key.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \uses{lem:EraseProof-Oracle-Rename}
+  \leanok
+  \lead{Idea} Induction on the marking; the oracle builds its answers from the declarations, the locals and the term, none of which has a mark key.
+\end{proof}
+
+\section{The semantics}\label{sec:source-sem}
+
+The evaluation environment, the semantics, and the conditions the fragment test imposes on the closure.
+
+\begin{definition}[Source evaluation]
+  \label{def:EraseProof-SrcEval}
+  \lean{EraseProof.SrcEval, EraseProof.findDecl, EraseProof.FVarsIn, EraseProof.ConstsIn, EraseProof.EvalEnv, EraseProof.casesOnOf?, EraseProof.EvalEnv.casesOn?, EraseProof.casesMajor, EraseProof.casesArity, EraseProof.quotEvalArity, EraseProof.specialArity, EraseProof.ShortSpine, EraseProof.EvalEnv.unfold?, EraseProof.EvidentZero, EraseProof.DeltaFree, EraseProof.EvidentProp, EraseProof.OwnRules, EraseProof.IsThm, EraseProof.EvalEnv.isAtom, EraseProof.SrcAtom, EraseProof.CtorValue, EraseProof.natLitCtor, EraseProof.EvalEnv.propInd, EraseProof.EvalEnv.recBlock?, EraseProof.BlocksCong, EraseProof.ReadExpr, EraseProof.KernameInj, EraseProof.SubEnv, EraseProof.evalEnvOf, EraseProof.HasNatLit}
+  \leanok
+  \uses{def:EraseProof-MarkOf, def:EraseProof-CLCert}
+  \srcloc{proof/EraseProof/Spec.lean}{1132}
+  \lead{In short} \hl{\code{SrcEval env $\sigma$ e v}: weak call-by-value evaluation of closed marked terms}, with a certificate in each rule that forms a redex.
+  \begin{itemize}
+  \item rules: \code{beta}, \code{etaBeta}, \code{zeta}, \code{delta}, \code{constAtom}, \code{ctor}, \code{casesIota}, \code{casesLit*}, \code{quotMk}, \code{quotLift}, \code{recIota}, \code{proj}, \code{lit}, \code{appCong}, \code{atom}, \code{etaLam};
+  \item frozen rules: \code{frozen}, \code{frozenApp}, \code{casesFrozen}, \code{projFrozen}, a marked subterm certified by con-leche;
+  \item \code{EvalEnv}, \code{evalEnvOf}, \code{unfold?}, \code{isAtom}, \code{propInd}, \code{recBlock?}: the declarations, the remapping and the configuration;
+  \item \code{ShortSpine}, \code{specialArity}, \code{casesOnOf?}, \code{BlocksCong}, \code{CtorValue}, \code{EvidentProp}: the spine and value conditions.
+  \end{itemize}
+  \lead{Reference} \code{eval} (\code{MR P/PCUICWcbvEval.v}); DV-24, DV-25, DV-32.
+\end{definition}
+
+\begin{definition}[Fragment conditions]
+  \label{def:EraseProof-ViewAgrees}
+  \lean{EraseProof.ViewAgrees, EraseProof.NoPreDefs, EraseProof.LevelPlain, EraseProof.PlainExpr, EraseProof.ReadClosed, EraseProof.Eliminated, EraseProof.RecInFragment, EraseProof.RecShaped, EraseProof.PreRead, EraseProof.PhaseIDecl}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Spec.lean}{1298}
+  \lead{In short} The conditions on the view and the closure that the fragment test and the statements read.
+  \begin{itemize}
+  \item \code{ViewAgrees}, \code{NoPreDefs}: the view agrees with the program; no closure declaration is erased through a compiled pre-definition;
+  \item \code{PlainExpr}, \code{LevelPlain}, \code{ReadClosed}: a plain expression, and the closure holds what the traversal reads;
+  \item \code{Eliminated}, \code{RecInFragment}, \code{RecShaped}, \code{PhaseIDecl}, \code{PreRead}: the first-phase fragment.
+  \end{itemize}
+  \lead{Reference} DV-26, DV-35.
+\end{definition}
+
+\begin{definition}[Environment shape conditions]
+  \label{def:EraseProof-CtorsListed}
+  \lean{EraseProof.CtorsListed, EraseProof.NatShaped, EraseProof.NatCtors, EraseProof.RecsShaped}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Spec.lean}{1443}
+  \lead{In short} The shape of the program's records that the simulation reads and that con-leche's frontend gives an accepted program.
+  \begin{itemize}
+  \item \code{CtorsListed}: every constructor sits at its index \code{cidx} in its inductive's constructor list, with the inductive's parameter count;
+  \item \code{NatShaped}, \code{NatCtors}: \code{Nat}, if present, is Lean's, with constructors \code{zero} and \code{succ};
+  \item \code{RecsShaped}: a recursor of an inductive without indices has the inductive's parameter count and one motive binding the major premise only.
+  \end{itemize}
+  \lead{Reference} \code{declared\_constructor} (\code{MR common/theories/EnvironmentTyping.v:36}); \code{validateIndF} (\leanfile{ConLeche/Frontend/ExportC.lean}); DV-30.
+\end{definition}
+
+\begin{lemma}[Source values]
+  \label{lem:EraseProof-SrcValue}
+  \lean{EraseProof.AtomSpine, EraseProof.SrcValue, EraseProof.AtomSpine.head, EraseProof.isAtom_ctor, EraseProof.SrcValue.ctor_args, EraseProof.blocksCong_ctor, EraseProof.blocksCong_quot, EraseProof.SrcValue.atomSpine, EraseProof.SrcEval.value}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Source/Value.lean}{17}
+  \lead{In short} \hl{Every result of \code{SrcEval} is a value}: a $\lambda$, a constructor value, a frozen term, a sort or $\Pi$, or an atom spine.
+  \begin{itemize}
+  \item \code{SrcValue}, \code{AtomSpine}: the shapes; a constructor value records that its arguments are values;
+  \item \code{SrcEval.value}: the result of an evaluation is a \code{SrcValue}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the evaluation.
+\end{proof}
+
+\section{Lookups in the closure}\label{sec:source-decls}
+
+The source evaluation reads the closure the traversal erased (DV-41); these lemmas relate lookups, the recognizer and the constants of a term.
+
+\begin{lemma}[Lookups and the recognizer]
+  \label{lem:EraseProof-DepClosed}
+  \lean{EraseProof.DepClosed, EraseProof.Decls.ConstsIn_peelLams, EraseProof.Decls.ConstsIn_spine, EraseProof.Decls.findDecl_eq_some, EraseProof.Decls.ctorAlts_congr, EraseProof.Decls.blockCtorCount_congr, EraseProof.Decls.casesInfo?_congr, EraseProof.Decls.isConstAt_const, EraseProof.Decls.casesInfo?_reads, EraseProof.Decls.casesOnOf?_ind, EraseProof.Decls.natLitCtor_cases, EraseProof.Decls.mem_mapM}
+  \leanok
+  \uses{def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/Source/Decls.lean}{16}
+  \lead{In short} \hl{\code{DepClosed} says a list of declarations holds what its values mention}; a lookup, the \code{casesOn} recognizer and a successful \code{mapM} give the facts the semantics reads.
+  \begin{itemize}
+  \item \code{findDecl\_eq\_some}: a lookup returns a member of the list;
+  \item \code{casesInfo?\_reads}, \code{casesInfo?\_congr}, \code{ctorAlts\_congr}, \code{blockCtorCount\_congr}: the recognizer reads only what it names, so two lists that agree on those names give one answer;
+  \item \code{casesOnOf?\_ind}, \code{isConstAt\_const}, \code{natLitCtor\_cases}, \code{mem\_mapM}: shapes of the recognized \code{casesOn}, of a constant head, of a literal's constructor form, and membership in a \code{mapM};
+  \item \code{ConstsIn\_spine}, \code{ConstsIn\_peelLams}: the constants of the parts of a term the recognizer reads.
+  \end{itemize}
+  \lead{Reference} DV-41.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Case analysis on the recognizer, with the names it reads.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item Marks are the eraser's decisions; the oracle behind them is not verified (Chapter~\ref{chap:limits}).
+\item \code{SrcEval} has no rule for $\delta$ on theorems, opaques or \code{@[extern]} atoms under \code{.preferAxiom}.
+\item \code{SrcEval} runs in the closure the traversal erased, not in the whole program (DV-41).
+\end{itemize}

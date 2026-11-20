@@ -1,0 +1,72 @@
+\chapter{Scope and the fragment}\label{chap:scope}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} State which \code{\#erase} inputs the statements cover, and which programs they
+  exclude.
+\item \lead{Main results} A program is covered when con-leche accepts it, the shipping router sends
+  it to the pure path, no declaration of its closure is erased through a compiled
+  pre-definition, and con-leche certifies its marked input (Section~\ref{sec:scope-principle}).
+\item \lead{Status} \stProved{} the fragment test accepts what the scope admits on the closure's declarations (\code{collectDeps\_ok\_of}). \stShipping{} the fragment test
+  \code{collectDeps}, which the hypothesis \code{hfrag} names.
+\item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
+  \code{welltyped}.
+\end{itemize}
+
+\section{The principle}\label{sec:scope-principle}
+
+\begin{itemize}
+\item \lead{(a) con-leche accepts} the Lean records of the program's declarations are consistent
+  and their con-leche form passes the pure fold (\code{hacc}); the input has an inferred type
+  (\code{hty}).
+\item \lead{(b) The pure path} the closure passes the router's fragment test \code{collectDeps},
+  unchanged (\code{hfrag}); the view \code{\#erase} reads agrees with the program (\code{hview}).
+\item \lead{(c) No compiled pre-definition} no declaration of the closure is erased through one
+  (\code{hnopre}), and the view's pre-definitions of the program's declarations name only its
+  constants.
+\item \lead{(d) Certified marks} con-leche types the marked input and certifies each mark
+  (\code{hcert}, Chapter~\ref{chap:resolution}).
+\end{itemize}
+
+Everything else is out: routed to the \code{Meta} path, rejected by con-leche, or excluded by a
+hypothesis.
+
+\section{The fragment}\label{sec:scope-fragment}
+
+\begin{tabular}{p{0.34\linewidth}p{0.12\linewidth}p{0.42\linewidth}}
+\toprule
+Lean feature & Scope & Reason \\
+\midrule
+$\lambda$, application, $\Pi$, \code{Sort}, universe polymorphism, \code{let}, definitions & in & \\
+Theorems & in & stored by statement, never unfolded; the traversal erases no theorem by its value, so \code{hcert} asks no marking of one \\
+Inductive types: mutual, indexed, parameters & in & \\
+Constructors, canonical \code{casesOn}, projections & in & \\
+Reduced \code{casesOn} (one constructor) & in & the fields must be marked \\
+\code{Nat} literals under \code{nat := .peano} & in & a literal denotes its constructor form \\
+\code{opaque}; \code{@[extern]} under \code{.preferAxiom} & in, vacuous & no $\delta$ in con-leche or in the
+  source semantics \\
+Restricted recursors, quotients, structural recursion under \code{structural := .kernel} & in & the
+  meaning of the evaluation needs the recursor and quotient laws \\
+A recursor on a proof whose inductive is declared in \code{Type} with a field & in & its fixpoint keeps the \code{case}: the \code{direct} form needs a declared sort that may be \code{Prop} (S-58, S-59) \\
+User axioms & out & con-leche declines them \\
+\code{Nat.div}, \code{Nat.mod} declarations & out & declined at the empty pin list \\
+Structural recursion under the default \code{structural := .unsafeRec} & out & a compiled
+  pre-definition has no con-leche denotation \\
+Well-founded recursion; \code{partial}, \code{unsafe}, \code{implemented\_by}; mutual definitions &
+  out & outside the shipping fragment \\
+Nested inductives & out & the fragment test rejects them \\
+\code{Nat} literals under \code{nat := .machine}; strings & out & outside the shipping fragment \\
+\code{remove\_irrel\_constr\_args}; free and meta variables & out & outside the shipping fragment \\
+A whole file's environment & out & \code{Init} holds axioms and \code{unsafe} definitions \\
+\bottomrule
+\end{tabular}
+
+\section*{Caveats}
+\begin{itemize}
+\item The theorem is about programs: a closure of declarations, never a file's environment.
+\item The test programs with an inductive type (NV-1 to NV-5) rest on a compiled check of con-leche's fold, and NV-3 and NV-4 on compiled inference facts (DV-40, Chapter~\ref{chap:trust}).
+\item A vacuous entry is in scope, and its programs are covered because the source cannot evaluate
+  through it.
+\item A program that evaluates through an opaque, a theorem, an \code{@[extern]} atom or
+  \code{Classical.choice} is stuck in the source, and the statements say nothing about it.
+\end{itemize}

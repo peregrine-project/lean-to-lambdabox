@@ -1,0 +1,185 @@
+# Configuration of blueprint/scripts/audit.py.
+
+# The directory whose `lake env` resolves every module of `imports` (the proof package sees the
+# root package, con-leche and itself).
+env_dir = "proof"
+
+# Modules imported to check the blueprint: every \lean{} name of a node that is not planned must
+# be a declaration of this environment. `X.*` stands for the module X and all its submodules (read
+# from the source trees of the root package, of the proof package and of the packages under
+# .lake/packages). con-leche's modules come in through these imports (ConLeche.MainTheorem through
+# LeanToLambdaBox.ConLeche); its bridge/ package is not a dependency.
+imports = ["LeanToLambdaBox", "LeanToLambdaBox.ConLeche", "EraseProof.*"]
+
+# Axioms a node may depend on and still carry \leanok. No sorry is allowed: audit.toml lists no
+# [[inherited_sorry]], so a node that reaches sorryAx (or any other axiom) has no \leanok.
+standard_axioms = ["propext", "Classical.choice", "Quot.sound"]
+
+# Module prefix of the inherited development (con-leche, at the revision of lake-manifest.json). The census of the trust chapter lists its
+# sorry sources (declarations whose own type or value uses sorryAx) and axioms in the environment.
+inherited_prefix = "ConLeche"
+
+# The final theorem. scripts/kinds.py gives the node that cites it the kind final, planned until
+# it lands. proof/ROOTS.txt marks it FINAL then; a stand-alone result has the same mark.
+final_theorem = "EraseProof.erase_correct"
+
+# Module prefix of the shipping code, whose partial and monadic declarations the trust chapter
+# tabulates.
+shipping_prefix = "LeanToLambdaBox"
+
+# Module prefix of the verification modules whose declarations a node must cite (a user-written
+# declaration of a module with this prefix is cited by a node that is not planned). The prefix names
+# the statements module; the chapters that document the other modules extend it.
+cover_prefix = "EraseProof"
+
+# The no-leaves register of the proof package, rendered as a table (relative to the repository
+# root).
+roots_file = "proof/ROOTS.txt"
+
+# Name prefix of the tests. A node whose declarations all have this prefix is a test node.
+test_prefix = "EraseProof.Test."
+
+# Lake builds run before the audit: `lake build <targets>` in each directory (relative to the
+# repository root). The root package holds the eraser and requires con-leche; the proof package
+# `proof/` holds the verification library and requires the root package by path.
+[[build]]
+dir = "."
+targets = ["LeanToLambdaBox", "LeanToLambdaBox.ConLeche"]
+
+[[build]]
+dir = "proof"
+targets = ["EraseProof"]
+
+# The ConLeche modules whose declarations the proof library (outside its tests) or the shipping
+# code uses directly, with what each provides (TeX, ASCII). scripts/audit.py --update writes one
+# node per module (generated/conleche-imports.tex, in the trust chapter): its declarations used
+# directly, its axioms as measured, and the nodes that use it. The audit checks that every such
+# module, and no other, has an entry here.
+[conleche_modules]
+"ConLeche.Denotes" = 'The set-model denotation relation (\code{Denotes}), with its valuations of bound variables (\code{BVarIdx}) and universe parameters (\code{LevelParam}).'
+"ConLeche.Kernel.CheckDecl" = 'The pure fold over declarations (\code{checkDeclsPure}).'
+"ConLeche.Kernel.CheckerBase" = 'The fuelled operations of the checker (\code{fueledOps}).'
+"ConLeche.Kernel.Core" = 'The fuel of the full-grade checker (\code{checkFuel}).'
+"ConLeche.Kernel.Env" = 'Environments (\code{Env}) of declarations, and the checker modes (\code{CheckMode}).'
+"ConLeche.Kernel.Error" = 'The checker monad (\code{CheckM}) and its errors (\code{CheckError}).'
+"ConLeche.Kernel.Expr" = 'The checker expressions (\code{Expr}): no binder names or infos, no metavariables.'
+"ConLeche.Kernel.ExprOps" = 'Operations on checker expressions: head of a spine, free variables, instantiation of a bound variable.'
+"ConLeche.Kernel.Level" = 'Levels: instantiation of universe parameters, and zero under every valuation (\code{isAlwaysZero}).'
+"ConLeche.Kernel.Name" = 'Checker names (\code{Name}) and the conversion from Lean names (\code{Name.ofLeanName}).'
+"ConLeche.Kernel.NatOpPinSet" = 'The set of pinned \code{Nat} operations of the checker (\code{NatOpPinSet}).'
+"ConLeche.Kernel.TypeChecker" = 'The weak-head reduction (\code{whnf}) and type inference (\code{inferTypeCore}).'
+"ConLeche.Model.Capstone" = 'The inputs of the rules of con-leche, from a set-theory model (\code{RulesInputs.ofSem}).'
+"ConLeche.Model.Claims" = 'The claims of reduction, definitional equality and inference in a model (\code{WhnfClaim}, \code{DefEqClaim}, \code{InferClaim}).'
+"ConLeche.Model.ClaimsIO" = 'The inference claim for the checker run in \code{IO} (\code{InferClaimIO}).'
+"ConLeche.Model.CtxOkKit" = 'The context discipline of a telescope (\code{CtxOkS}): the domains of an opened binder (\code{CtxOkS.lam\_ty}, \code{lam\_body}).'
+"ConLeche.Model.Denotes" = 'The model of an environment as a model of expressions (\code{Model.ofEnvModelM}).'
+"ConLeche.Model.Env.EnvModelM" = 'Models of an accepted environment (\code{Model.EnvModelM}), the invariant behind the soundness theorem.'
+"ConLeche.Model.Fold" = 'Soundness of the pure fold (\code{checkDeclsPure\_sound\_of}): an accepted environment has a model.'
+"ConLeche.Model.Rules.Recompose" = 'The soundness of the moves of the checker at every fuel (\code{checkSoundAtP5}).'
+"ConLeche.Semantics.Frame" = 'The frame conditions of an opened binder (\code{frame\_open2}).'
+"ConLeche.Semantics.DeclWF" = 'Well-formedness of an environment the pure fold returns (\code{checkDeclsPure\_envWF}).'
+"ConLeche.Verify.BasisBlock" = 'What the install of a pinned block stores (\code{BasisKind.storedAt}, \code{blockInstall\_pinned}).'
+"ConLeche.SetTheory.Core" = 'The class of set-theoretic universes (\code{SetTheory}), which the meaning claim quantifies over.'
+"ConLeche.SetTheory.Derive.Pt" = 'The proof point of the model (\code{SetTheory.pt}).'
+"ConLeche.Verify.EnvWF" = 'The syntactic well-formedness of an environment (\code{EnvWF}).'
+"ConLeche.Verify.Inductives.RecCheckScope" = 'Inferred types are closed (\code{infer\_full\_bvarClosed}).'
+"ConLeche.Verify.Rules.Bridge" = 'The bridge from accepting runs to the relations of the checker (\code{inferTypeCore\_bridge}).'
+"ConLeche.Verify.Subst" = 'Agreement of the two instantiations of the checker (\code{instantiate1Lift\_eq\_instantiate1}).'
+"ConLeche.Kernel.Basis.Builder" = 'The term builders of the basis declarations (\code{BasisDSL.ap2}, \code{ap4}, \code{bv}).'
+"ConLeche.Kernel.Basis.Nat" = 'The pinned \code{Nat} basis (\code{natA}, \code{natBasis}, \code{natRecA}).'
+"ConLeche.Kernel.Basis.Quot" = 'The pinned quotient basis (\code{quotA}, \code{quotIndMk}, \code{quotIndMotive}).'
+"ConLeche.Kernel.Inductives.StructInstall" = 'The check of the field domains by the structure installer (\code{checkStructDomsAt}).'
+"ConLeche.Model.Env.Laws" = 'The non-zero family of an environment model (\code{Model.FamNZ}).'
+"ConLeche.Model.Rules.CertsSound" = 'The soundness of the telescope arity of the certificates (\code{Model.Rules.teleArity\_sound}).'
+"ConLeche.Model.Rules.IotaSound" = 'The semantic soundness of the $\iota$ step (\code{Red.iota\_sound}).'
+"ConLeche.Model.Rules.RedSound" = 'The soundness of transitivity of the reduction relation (\code{Red.trans\_sound}).'
+"ConLeche.Verify.EnvPreds" = 'The universe-level shorthands of the environment predicates (\code{uN}, \code{vN}).'
+"ConLeche.Verify.Inductives.ClassMatchRun" = 'Equivalence of lists in the class match (\code{isEquivList\_self}).'
+"ConLeche.Verify.Inductives.DirectInv" = 'The direct invariant of the sum constructors (\code{FieldSorts}, \code{SumCtorRun}, \code{SumCtorsRun}).'
+"ConLeche.Verify.Knot" = 'The fuelled full-grade $\iota$ certificates (\code{iotaCertsFullFueled}).'
+"ConLeche.Verify.PropWhen" = 'The soundness of the zero-ness test of a sort (\code{PropWhen.zeronessOf\_sound}).'
+"ConLeche.Verify.Rules.Certs" = 'The bridge from the full $\iota$ certificates to the rules tier (\code{Rules.iotaCertsFull\_bridge}).'
+"ConLeche.Verify.Rules.Defs" = 'The bridge theorems of the rules tier (\code{DefEqBridge}, \code{InferBridge}, \code{InferIOBridge}).'
+
+# Links of the web version to the Lean sources (scripts/leanlinks.py; README, "Links to the Lean
+# sources"). `repository`: this repository, linked at the commit the site is built from
+# ($BP_REPOSITORY_URL overrides it; CI sets it to the repository the workflow runs in). `lean4`:
+# Lean's repository, linked at the tag of lean-toolchain. The packages of lake-manifest.json are
+# linked at their `url` and `rev`.
+"ConLeche.Kernel.Basis" = 'Read by the proof: \code{ConstantInfo.atLps}, \code{ConstantVal.atLps}, \code{basisNamesOk}.'
+"ConLeche.Kernel.Basis.Names" = 'Read by the proof: \code{charName}, \code{charOfNatName}, \code{eqName}.'
+"ConLeche.Kernel.Canon" = 'Read by the proof: \code{ConstantVal.beqP}, \code{ConstantVal.eq\_of\_beqP}.'
+"ConLeche.Kernel.CoreDefs" = 'Read by the proof: \code{Expr.constsResolve}, \code{Expr.substConst0}, \code{ProjEntry.typeAt}.'
+"ConLeche.Kernel.FEnv" = 'Read by the proof: \code{FEnv}, \code{mkFEnv}.'
+"ConLeche.Kernel.Inductives.BlockInstall" = 'Read by the proof: \code{blockCapsAt}, \code{blockIsRec}, \code{blockNestCtx}.'
+"ConLeche.Kernel.Inductives.BlockRec" = 'Read by the proof: \code{blockLargeElimAllowed}.'
+"ConLeche.Kernel.Inductives.BlockShape" = 'Read by the proof: \code{BlockShape}, \code{BlockShape.allCtors}, \code{BlockShape.ctorGroups}.'
+"ConLeche.Kernel.Inductives.BlockTail" = 'Read by the proof: \code{checkBlockRec}, \code{checkBlockTables}, \code{consBlockRecsT}.'
+"ConLeche.Kernel.Inductives.ClassRead" = 'Read by the proof: \code{ClassRead}, \code{ClassSlot}.'
+"ConLeche.Kernel.Inductives.GenRec" = 'Read by the proof: \code{ClassCtor}, \code{ClassGen}, \code{ClassGen.prefixBinders}.'
+"ConLeche.Kernel.Inductives.Positivity" = 'Read by the proof: \code{NestCtorNf}, \code{NestCtx}, \code{NestFieldKind}.'
+"ConLeche.Kernel.Inductives.RecCheck" = 'Read by the proof: \code{TargetMajor}, \code{blockNestedBit}, \code{classFeR}.'
+"ConLeche.Kernel.Inductives.StreamRecs" = 'Read by the proof: \code{streamKCheck}, \code{streamRecsCheck}.'
+"ConLeche.Kernel.Inductives.StructParts" = 'Read by the proof: \code{structElimLevel}.'
+"ConLeche.Kernel.Install" = 'Read by the proof: \code{Env.pushDelta}, \code{blockConstants}, \code{blockCtors}.'
+"ConLeche.Kernel.PropRead" = 'Read by the proof: \code{Expr.peelPis}.'
+"ConLeche.Kernel.PropWhen" = 'Read by the proof: \code{PropWhen.isNever}.'
+"ConLeche.Kernel.StdAxioms" = 'Read by the proof: \code{ConstantVal.matchesPin}, \code{choiceA}, \code{choiceName}.'
+"ConLeche.Kernel.TrustAxioms" = 'Read by the proof: \code{ofReduceAxOk}, \code{ofReduceBoolName}, \code{ofReduceNatName}.'
+"ConLeche.Model.Currency" = 'Read by the proof: \code{Model.CtxOkS}, \code{Model.LeavesGr}, \code{Model.WellDenotedTy}.'
+"ConLeche.Model.Env.EnvModel" = 'Read by the proof: \code{Model.EnvModel}.'
+"ConLeche.Model.Inductives.BlockCover" = 'Read by the proof: \code{Model.consBlockCtors\_consts}.'
+"ConLeche.Model.Inductives.BlockRunFacts" = 'Read by the proof: \code{Model.blockConstants\_names\_mem}, \code{Model.blockRun\_fresh}.'
+"ConLeche.Model.Rules.Inputs" = 'Read by the proof: \code{Model.Rules.RulesInputs}.'
+"ConLeche.Model.Rules.Motive" = 'Read by the proof: \code{Model.Rules.Frame}, \code{Model.Rules.LeavesSub}.'
+"ConLeche.Model.Rules.RedSoundKit" = 'Read by the proof: \code{Model.Rules.denote\_unfoldDefinition}.'
+"ConLeche.Model.Rules.Sound" = 'Read by the proof: \code{Model.Rules.defeq\_sound}, \code{Model.Rules.infer\_sound}, \code{Model.Rules.red\_sound}.'
+"ConLeche.Model.Tiers" = 'Read by the proof: \code{Model.acceptedReads\_of}.'
+"ConLeche.Rules.Rel" = 'Read by the proof: \code{Rules.CertsF}, \code{Rules.DefEq}, \code{Rules.DefEqExpand}.'
+"ConLeche.Semantics.Bridge.Sound" = 'Read by the proof: \code{Semantics.DeclIndRunDispatchK}, \code{Semantics.checkDeclRun\_ofEnvFactsK}.'
+"ConLeche.Semantics.Decl" = 'Read by the proof: \code{Semantics.DeclQuotRun}, \code{Semantics.NatEqsRun}.'
+"ConLeche.Semantics.DeclRun" = 'Read by the proof: \code{Semantics.ConstantValRun}, \code{Semantics.DeclKindRun}, \code{Semantics.DeclRun}.'
+"ConLeche.Semantics.Inductives.DeclBlock" = 'Read by the proof: \code{Semantics.BlockRun}, \code{Semantics.DeclBlockRun}, \code{Semantics.blockRun\_env}.'
+"ConLeche.Semantics.Interp" = 'Read by the proof: \code{Semantics.cons}, \code{Semantics.interp}, \code{Semantics.interp\_sort}.'
+"ConLeche.Semantics.Sat" = 'Read by the proof: \code{Semantics.Sat}, \code{Semantics.Sat\_nil}.'
+"ConLeche.Semantics.WellDenoted" = 'Read by the proof: \code{Semantics.WellDenoted}, \code{Semantics.WellDenoted\_app}, \code{Semantics.WellDenoted\_fst}.'
+"ConLeche.SetModel.Ops" = 'Read by the proof: \code{SetModel.AppliesTo}.'
+"ConLeche.SetTheory.Derive.Graphs" = 'Read by the proof: \code{SetTheory.app}, \code{SetTheory.app\_pt}, \code{SetTheory.graph}.'
+"ConLeche.SetTheory.Derive.Sigma" = 'Read by the proof: \code{SetTheory.sfst}, \code{SetTheory.sfst\_pt}, \code{SetTheory.sigmaSet}.'
+"ConLeche.SetTheory.Derive.TypeU" = 'Read by the proof: \code{SetTheory.IsTy}, \code{SetTheory.IsTy.eq\_of\_ne\_pt}, \code{SetTheory.IsTy.ne\_pt}.'
+"ConLeche.SetTheory.Derive.Univ" = 'Read by the proof: \code{SetTheory.IsTy\_of\_mem\_univ}, \code{SetTheory.univ}.'
+"ConLeche.Term.Syntax" = 'Read by the proof: \code{Term.Term}.'
+"ConLeche.Verify.Cached.BlockPushes" = '''Read by the proof: \code{consBlockInds\_consts'}.'''
+"ConLeche.Verify.Cached.GenRecC" = 'Read by the proof: \code{Cached.genRecCheck\_outCv}.'
+"ConLeche.Verify.Cached.PushChain" = 'Read by the proof: \code{Cached.blockConstants\_names}.'
+"ConLeche.Verify.Close" = 'Read by the proof: \code{Expr.closeN}, \code{Expr.closeN\_of\_hasFvar}.'
+"ConLeche.Verify.Denote" = 'Read by the proof: \code{Verify.denote}, \code{Verify.denote\_app}, \code{Verify.denote\_letE}.'
+"ConLeche.Verify.Denote.Lemmas" = 'Read by the proof: \code{Verify.denote\_app\_inv}, \code{Verify.denote\_letE\_inv}, \code{Verify.denote\_proj\_inv}.'
+"ConLeche.Verify.Inductives.BlockInv" = 'Read by the proof: \code{BlockCtorsRun}, \code{BlockIdxSortsRun}, \code{MemberAt}.'
+"ConLeche.Verify.Inductives.BlockShapeInv" = 'Read by the proof: \code{BlockShapeOk}, \code{blockGroups\_length}, \code{blockMembers\_mem}.'
+"ConLeche.Verify.Inductives.BlockWF" = 'Read by the proof: \code{checkBlockCtors\_fresh}.'
+"ConLeche.Verify.Inductives.GenRecRun" = 'Read by the proof: \code{genRecCheck\_out\_fresh}.'
+"ConLeche.Verify.Inductives.NestedRead" = 'Read by the proof: \code{NestedRead}.'
+"ConLeche.Verify.Inductives.PositivityInv" = 'Read by the proof: \code{PositivityRun}.'
+"ConLeche.Verify.Inductives.RecStage" = 'Read by the proof: \code{RecPinsF}, \code{recAuxGot}, \code{recAuxWant}.'
+"ConLeche.Verify.Inductives.StreamRecsInv" = 'Read by the proof: \code{streamRecs}.'
+"ConLeche.Verify.InferLeaves" = 'Read by the proof: \code{Expr.LeavesBounded}.'
+"ConLeche.Verify.InferLemmas" = 'Read by the proof: \code{Expr.getAppArgs\_mkAppN}, \code{Expr.getAppFn\_mkAppN}.'
+"ConLeche.Verify.InstLevels" = 'Read by the proof: \code{Expr.looseBVarsBounded\_instantiateLevelParams}, \code{instantiateLevelParams\_mkAppN}.'
+"ConLeche.Verify.Leaves" = 'Read by the proof: \code{Expr.fvarLeaves\_eq\_nil\_of\_not\_hasFvar}.'
+"ConLeche.Verify.Level" = 'Read by the proof: \code{Level.eval}, \code{Level.substFn}.'
+"ConLeche.Verify.Rules.RedBridge" = 'Read by the proof: \code{Rules.peelPis\_isSome\_instantiateLevelParams}.'
+"ConLeche.Verify.Shift" = 'Read by the proof: \code{Expr.WScoped}, \code{Expr.WScoped.of\_not\_hasFvar}, \code{Expr.fvarsBelow}.'
+
+[links]
+repository = "https://github.com/peregrine-project/lean-to-lambdabox"
+lean4 = "https://github.com/leanprover/lean4"
+
+# The repository of a path, by its first component (or its root module file, ConLeche.lean): a
+# package of lake-manifest.json, or lean4 for Lean's own modules (under src/ of that repository).
+# Any other path is a path of this repository.
+[links.roots]
+ConLeche = "con-leche"
+Init = "lean4"
+Std = "lean4"
+Lean = "lean4"

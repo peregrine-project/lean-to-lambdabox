@@ -1,0 +1,106 @@
+\chapter{Why the source semantics carries marks}\label{chap:resolution}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Explain why the statements evaluate a marked source term, and what the marks
+  freeze.
+\item \lead{Main results} con-leche cannot decide erasability, so the eraser's decisions are marks
+  on the input, and con-leche certifies each of them (Section~\ref{sec:resolution-marks}).
+\item \lead{Status} \stProved{} the definitions of the marks and of the certificates exist and are
+  pinned (Chapter~\ref{chap:statements}). \stOpen{} the theorems that use them to prove \code{srcEval\_sound} and \code{erase\_correct}.
+\item \lead{Lean files} \leanfile{proof/EraseProof/Spec.lean}.
+\end{itemize}
+
+\section{The problem}\label{sec:resolution-problem}
+
+MetaRocq's \code{erases\_correct} rests on a typing notion of erasability and on five facts about it:
+stability under evaluation and under substitution, application inversion, the fact that a
+constructor application of an informative inductive is never erasable, and the case of singleton
+elimination. A syntactic metatheory supplies them: subject reduction and uniqueness of types.
+
+\begin{itemize}
+\item \lead{No syntactic typing} con-leche has no typing judgement and no metatheory. Its checker
+  moves are described by algorithmic relations without transitivity of conversion, and none has a
+  substitution, uniqueness or subject-reduction lemma.
+\item \lead{A semantic notion fails} take erasable to mean that the denotation is a proposition or
+  a type. \hl{\code{Nat.zero}, the type \code{Empty} and \code{PUnit.unit} share one denotation},
+  the empty set: the empty set is a proposition and a type in every model, so a constructor
+  application is semantically erasable, and the fact on constructors is false. The same holds of
+  every value of a small inductive, since universes are cumulative sets of sets.
+\item \lead{What does separate} a member of a type is the proof point exactly when the type is a
+  proposition. A denotation equal to the proof point is therefore a sound criterion for proofs; no
+  semantic criterion separates type formers from data.
+\item \lead{A syntactic judgement} an erasability defined through the checker's inference needs
+  subject reduction along $\beta$, $\delta$ and $\iota$, which con-leche lacks.
+\end{itemize}
+
+\section{The resolution}\label{sec:resolution-marks}
+
+Every fact that fails is about types. The statements stop asking the source semantics to evaluate
+erased subterms.
+
+\begin{tabular}{p{0.2\linewidth}p{0.72\linewidth}}
+\toprule
+Part & Content \\
+\midrule
+Marks & \code{MarkOf} makes the traversal's erasability decisions explicit on the source term: it
+  wraps every subterm the traversal erases in an \code{erase} mark and every $\eta$-expansion in an
+  \code{eta} mark (a reserved \code{mdata} key). It is a function of the input, defined wherever the
+  traversal runs. \\
+Frozen evaluation & \code{SrcEval} is call-by-value evaluation of marked terms: an
+  \code{erase}-marked subterm is a value, a frozen function applied is frozen (as $\lambda_\Box$'s
+  \code{eval\_box}), and a \code{casesOn} on a frozen major of a one-constructor, zero-sorted
+  inductive continues with the alternative at frozen placeholders. \\
+Meaning & \code{Sound} states that the value denotes what the input denotes in every con-leche
+  model of the accepted program, unless the input denotes the proof point. \\
+Certificates & decidable runs of con-leche's verified checker. Two are premises of \code{SrcEval}
+  rules: the checker types the closed redex or data value that a rule forms from evaluated parts
+  (\code{CLOk}), and types a frozen subterm as a proof or a type former (\code{CLErasable}). The
+  third is the hypothesis \code{hcert}. \\
+\bottomrule
+\end{tabular}
+
+\section{The certificate hcert}\label{sec:resolution-hcert}
+
+\begin{itemize}
+\item \lead{The marked input} con-leche types the marked input as a whole; marks are transparent,
+  so every $\eta$-expansion is typed, and the domain of each \code{eta}-marked binder is checked
+  against the argument position it fills.
+\item \lead{Every mark} con-leche certifies every mark and every reduced discriminant in the
+  context of its enclosing binders (opened as con-leche opens them; a \code{let} with its value).
+  The same holds for a marking of the value of every constant of the closure that the traversal erases by its value (\code{ErasedValue}: not a theorem, not a recognized \code{casesOn}),
+  whether or not the emitted program holds a body for it (\code{ProgCert}, DV-37).
+\item \lead{Proof verdict} a certified proof denotes the proof point under every valuation of its
+  binders (\code{clCert\_proof\_pt}).
+\item \lead{Type-former verdict} the checker's typing verdict only; the model has no criterion
+  that separates type formers from data.
+\item \lead{The other boxes} a recursor fixpoint's direct mode and its index placeholders rest on
+  declaration conditions, not on a certificate.
+\end{itemize}
+
+\section{The five facts}\label{sec:resolution-facts}
+
+\begin{tabular}{p{0.28\linewidth}p{0.64\linewidth}}
+\toprule
+Fact & How the statements obtain it \\
+\midrule
+Stability under evaluation & by construction: a frozen subterm is a value of \code{SrcEval}, related
+  to $\Box$ only \\
+Stability under substitution & marks are syntax, kept by instantiation; \code{Erases} has no typing
+  premise \\
+Application inversion & the rule for a frozen application mirrors \code{eval\_box} \\
+Constructors are not erasable & by construction: a constructor value comes only from the unmarked
+  constructor rule, and \code{Erases.box} applies to marked terms only \\
+Singleton elimination & the \code{casesOn} rule on a frozen major mirrors the reduced form; its
+  meaning rests on the recursor law of a one-constructor \code{Prop} inductive \\
+\bottomrule
+\end{tabular}
+
+\section*{Caveats}
+\begin{itemize}
+\item The statements do not prove that the eraser's erasure decisions are irrelevant to the
+  computation: a mark on a subterm the computation needs leaves the evaluation stuck, and a mark on
+  a subterm that con-leche types as data makes \code{hcert} fail.
+\item MetaRocq proves this irrelevance from a syntactic metatheory; con-leche offers none.
+\item The type-former verdict carries no model content.
+\end{itemize}

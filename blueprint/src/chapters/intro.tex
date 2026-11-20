@@ -1,0 +1,202 @@
+\chapter{Introduction}\label{chap:intro}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
+  stated over con-leche's set-theoretic model of Lean's kernel, for every input in the scope of
+  Chapter~\ref{chap:scope}.
+\item \lead{Status} \stProved{} \hl{\code{erase\_correct}} and the ten other pinned statements: the proof package
+  builds, its checks pass, and the \hl{statements are pinned}: eleven definitions of type
+  \code{Prop} (Chapter~\ref{chap:statements}), each with the definitions it reads, and each proved; the bridge to
+  con-leche, the marks, the source semantics, the relation lemmas, the simulation, the meaning of evaluation and the traversal's lemmas
+  (Chapters~\ref{chap:bridge}--\ref{chap:core}); the final theorem (Chapter~\ref{chap:final}); the hypotheses of the final theorem, and the theorem itself, on six
+  test programs (Chapter~\ref{chap:tests}). \stShipping{} the eraser.
+\item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
+  the proved results and tests, the formalized definitions and the planned nodes.
+\item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
+  Lake package \code{EraseProof}, the verification library).
+\item \lead{Registers} \code{doc/SHIPPING-CHANGES.md} (Chapter~\ref{chap:shipping-changes}), \code{doc/DIVERGENCES.md} (Chapter~\ref{chap:divergences}).
+\end{itemize}
+
+\section{What is verified}\label{sec:intro-what}
+
+\begin{itemize}
+\item \lead{The eraser} \code{lean-to-lambdabox} is the Lean~4 frontend of Peregrine. The command
+  \code{\#erase t config c to "f.ast"} elaborates the term \code{t}, erases it and the constants it
+  depends on to a $\lambda_\Box$ program, and writes the S-expression \code{f.ast} that Peregrine
+  (\code{peregrine-tool}) reads and compiles.
+\item \lead{The object} \hl{the shipping eraser itself}, not an eraser written for the proof: the
+  statements speak about the code that \code{\#erase} runs on the pure path.
+\item \lead{The theorem} \code{erase\_correct} (Section~\ref{sec:final-theorem}): if
+  \code{\#erase} returns a program for an in-scope term and the erased term evaluates, the
+  program's main term evaluates in $\lambda_\Box$ to an erasure of the value, and the value means
+  what the term means in every con-leche model. It mirrors MetaRocq's \code{erase\_correct}.
+\item \lead{The kernel theory} con-leche (Section~\ref{sec:intro-conleche}): a checker for Lean's
+  declarations, proved sound by a set-theoretic model.
+\item \lead{The scope} Chapter~\ref{chap:scope}: programs that con-leche accepts, that the
+  eraser's fragment test admits, and whose marked input con-leche certifies.
+\item \lead{The references} MetaRocq's erasure correctness and the two earlier verifications of
+  this eraser (Section~\ref{sec:intro-stack}).
+\end{itemize}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Reference & Relevant part \\
+\midrule
+Letouzey, \emph{A New Extraction for Coq}, TYPES 2002 & Section 3: the extraction function and
+  its correctness \\
+Sozeau et al., \emph{Correct and Complete Type Checking and Certified Erasure for Coq, in Coq},
+  J. ACM 72(1), 2025 & Section 7: the target $\lambda_\Box$, the erasure relation,
+  \code{erases\_correct} \\
+Dima, \emph{Compiling Lean programs with Rocq's extraction pipeline}, MPRI report, 2025 & Section
+  4: the design of this eraser \\
+\bottomrule
+\end{tabular}
+
+\section{The kernel model: con-leche}\label{sec:intro-conleche}
+
+\begin{itemize}
+\item \lead{What it is} \code{github.com/leanprover/con-leche}, a checker for Lean's export format
+  with its own expression type, pinned at commit \code{d88e04e} on Lean \code{v4.35.0}
+  (Section~\ref{sec:intro-pins}). It has no Lake dependency and is never edited.
+\item \lead{Main theorem} \leandecl{ConLeche.model_exists}: if the checker accepts a list of
+  declarations, their environment has a model in every \code{[SetTheory V]}.
+\item \lead{No typing judgement} con-leche has no syntactic typing relation and no subject
+  reduction. Its theory is a set model (\leandecl{ConLeche.Denotes}) and an invariant on it; the
+  relations that describe the checker's moves have no transitivity of conversion.
+\item \lead{What it covers} Lean's whole kernel: inductive families (mutual, nested), recursors,
+  $\iota$, projections, structure $\eta$, quotients, literals.
+\item \lead{What it declines} user axioms, and \code{Nat.div} and \code{Nat.mod} declarations at
+  the empty pin list.
+\item \lead{The model hypothesis} the \code{SetTheory} class is instantiated only in con-leche's
+  \code{bridge/} package, from an hypothesis on inaccessible cardinals; no module of this
+  repository imports it (Section~\ref{sec:trust-conleche}).
+\end{itemize}
+
+\section{The stack}\label{sec:intro-stack}
+
+This is the third verification of the pure path of \code{\#erase}, after PR \#13 and PR \#16. It shares the shipping code of PR \#16, and takes the proof tooling and
+the kernel-agnostic parts of its development.
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Part & Against PR \#16 \\
+\midrule
+Kernel theory & con-leche's set model and checker, with no syntactic metatheory, in place of
+  the typing judgement of PR \#16 with subject reduction and uniqueness of types \\
+Source semantics & marked terms and frozen evaluation (Chapter~\ref{chap:resolution}) in place of
+  erasability by typing \\
+Hypotheses & the certificate \code{hcert} replaces the typing premise of every $\Box$; user axioms
+  and compiled pre-definitions are out of scope \\
+Reused & the traversal and the pure path (shipping entries), $\lambda_\Box$ evaluation, the check
+  scripts, the registers' formats and the tooling of this blueprint \\
+\bottomrule
+\end{tabular}
+
+\section{Pins}\label{sec:intro-pins}
+
+The table is read from \code{lean-toolchain} and \code{lake-manifest.json} of the documented
+commit.
+
+\input{generated/pins}
+
+\section{Branches}\label{sec:intro-branches}
+
+\begin{tabular}{llp{0.55\linewidth}}
+\toprule
+Branch & Merges from & Content \\
+\midrule
+\code{cl/translate} (PR \#28) & the translate branch of PR \#16 & the shipping code on con-leche,
+  and the strictly necessary changes; the register \code{doc/SHIPPING-CHANGES.md} \\
+\code{cl/verification} (PR \#33) & \code{cl/translate} & the proof package \code{proof/}; it never
+  edits shipping files \\
+\code{cl/blueprint} & \code{cl/verification} & this blueprint, under \code{blueprint/} \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Merge flow} \code{cl/translate} to \code{cl/verification} to \code{cl/blueprint}, never
+  backwards; every merge is \code{git merge -{}-no-ff}.
+\item \lead{Documented commit} The blueprint describes the commit it is built from.
+\end{itemize}
+
+\section{Reading this blueprint}\label{sec:intro-reading}
+
+\begin{tabular}{lp{0.7\linewidth}}
+\toprule
+Chapter & Content \\
+\midrule
+\ref{chap:scope} & The scope: the fragment and the excluded programs \\
+\ref{chap:trust} & The trust boundary: what is trusted, con-leche's trust base, the checks, what the
+  proof uses from con-leche \\
+\ref{chap:resolution} & Why the source semantics carries marks, and what it freezes \\
+\ref{chap:bridge} & The bridge: the reading of Lean declarations, acceptance, run-time certificates, what the fold stores \\
+\ref{chap:source} & Marks, how a marking reads, the source semantics and its values, the fragment conditions and lookups in the closure \\
+\ref{chap:relation} & $\lambda_\Box$ evaluation, the erasure relation, inversion, instantiation, closing a binder and lookups \\
+\ref{chap:simulation} & The simulation \code{erases\_correct}: one lemma per group of rules \\
+\ref{chap:semantics} & The meaning of evaluation: the invariant, the step lemmas, the route through con-leche's rules tier \\
+\ref{chap:core} & The traversal and the fragment test: the closure, the state invariant, registration, the steps of the traversal, the oracle \\
+\ref{chap:statements} & The eleven statements, as definitions, and the milestones and lemmas that prove them \\
+\ref{chap:final} & The final theorem and its first-order corollary \\
+\ref{chap:tests} & The hypotheses of the final theorem, and the theorem, on six programs; the rules of the source semantics they use \\
+\ref{chap:shipping-changes} & The register of shipping changes, rendered \\
+\ref{chap:divergences} & The register of divergences from the references, rendered \\
+\ref{chap:limits} & What the theorem does not say \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Nodes} Every definition, result and imported con-leche module cites its Lean
+  declarations (\code{\textbackslash lean}); Section~\ref{sec:intro-kinds} gives its kind and
+  status.
+\item \lead{Links to the code} In the web version and the pdf, every cited Lean name links to the
+  lines of its declaration on GitHub, and every cited Lean file and source location to that file
+  and line: this repository at the documented commit, con-leche at its pinned commit, Lean at the
+  tag of \code{lean-toolchain}.
+\item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the design that does
+  not exist; its \code{\textbackslash lean} names are its planned names, and they link
+  nowhere. No node is planned.
+\item \lead{Allowed axioms} \code{propext}, \code{Classical.choice} and \code{Quot.sound}; no
+  \code{sorryAx}.
+\item \lead{Status words} in the prose: \stProved{} proved; \stShipping{} shipping code,
+  described, not verified; \stPlanned{} not formalized; \stOpen{} not done. A node shows its kind
+  and status by the badges after its heading.
+\item \lead{Checks} \code{blueprint/scripts/audit.py} checks every node against the Lean
+  environment and the generated chapters against their sources (\code{blueprint/README.md}).
+\end{itemize}
+
+\section{Kinds, statuses and dependency graphs}\label{sec:intro-kinds}
+
+\begin{itemize}
+\item \lead{Kind} \code{blueprint/scripts/kinds.py} derives the kind of every node from its Lean
+  declarations, its environment, and the \code{\textbackslash uses} of the final theorem and the
+  milestones. The audit checks the derivation, and checks the \code{\textbackslash uses} of a
+  formalized final theorem or milestone against its Lean proof. The kind sets the badge after the
+  node's heading, the bar beside the node in the web version, and the node's shape and fill in the
+  dependency graphs.
+\item \lead{Colour families} Blue for the proof library \code{EraseProof}, orange for the shipping
+  code, violet for the tests, green for con-leche; gold for the final theorem. Within a family the
+  shape tells the kinds apart.
+\item \lead{Status} The border of a graph node gives its status; a planned node also carries a
+  second badge after its heading.
+\end{itemize}
+
+\input{generated/kinds-legend}
+
+\begin{itemize}
+\item \lead{Graphs} The web version lays out three kinds of dependency graph when it is built:
+  \begin{itemize}
+  \item the chapter map: one box per chapter and one for con-leche, with their nodes by kind; an
+    arrow between two boxes carries the number of arrows between their nodes;
+  \item the graph of a chapter, and that of con-leche: its nodes, with the nodes outside it that
+    they use (on the left) and that use them (on the right), faded;
+  \item the graph of all nodes: a frame per chapter of the proof library, and one each for
+    con-leche, the shipping code and the tests, arranged so that a frame sits below the frames it
+    uses.
+  \end{itemize}
+\item \lead{Navigation} A click on a node shows its statement, its arrows and its neighbours. The
+  field above the graph finds a node by any of its Lean names. The link \emph{graph} in the
+  heading of a node opens the graph of its chapter (or of con-leche) at the node.
+\end{itemize}
+
+\input{generated/kinds-chapters}
