@@ -437,69 +437,8 @@ theorem hmark : MarkOf D cfg [] e eM := by
   exact MarkSat.quotMk (qv := QuotMk_val) (α := tB) (r := cR) (extra := []) (êxtra := []) (by krfl)
     (by krfl) (by krfl) rfl mark_frz rfl (by simp)
 
-/-! ## `hcert`: the input, its two marks, and the markings of the closure's two values,
-`Eq.casesOn`'s (its major marked) and `P.casesOn`'s (its field and its major marked) -/
-
-/-- `Eq.casesOn`'s value with its major marked -/
-def eqCasesOnValM : Expr :=
-  .lam `α (.sort u1) (.lam an (.bvar 0) (.lam `motive eqMotTy
-    (.lam an (.bvar 2) (.lam `t (eqC (.bvar 3) (.bvar 2) (.bvar 0)) (.lam `refl eqReflTy
-      (mkAppN (.const `Eq.rec [lu, u1]) #[.bvar 5, .bvar 4, .bvar 3, .bvar 0, .bvar 2, markErase (.bvar 1)])
-      .default) .default) .implicit) .implicit) .implicit) .implicit
-
-/-- `P.casesOn`'s value with the field and the major marked -/
-def pCasesOnValM : Expr :=
-  .lam `motive pMotTy (.lam `t tP (.lam `mk pAltTy (mkAppN (.const `P.rec [lu]) #[.bvar 2,
-    .lam `a fP (.lam `a_ih (.forallE `x tF (.app (.bvar 4) (.app (.bvar 1) (.bvar 0))) .default)
-      (.app (.bvar 2) (markErase (.bvar 1))) .default) .default, markErase (.bvar 1)]) .default) .default)
-    .implicit
-
-theorem mark_eqCasesOn : MarkOf D cfg [] eqCasesOnVal eqCasesOnValM := by
-  refine mark_lam (x := fx 0) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 1) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 2) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 3) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 4) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 5) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine MarkOf.special (c := `Eq.rec) (us := [lu, u1])
-    (as := [.fvar (fx 0), .fvar (fx 1), .fvar (fx 2), .fvar (fx 5), .fvar (fx 3), .fvar (fx 4)]) (ar := 6)
-    (T := .app (.app (.fvar (fx 2)) (.fvar (fx 3))) (.fvar (fx 4))) (by krfl) (by krfl) (by krfl)
-    (MarkEta.sat (by decide) ?_)
-  refine MarkSat.recr (r := Eq_rec) (ivs := [Eq_ind]) (cvs := [Eq_refl]) (ps := [.fvar (fx 0), .fvar (fx 1)])
-    (ms := [.fvar (fx 2)]) (mins := [.fvar (fx 5)]) (minsM := [.fvar (fx 5)]) (is := [.fvar (fx 3)])
-    (îs := [.fvar (fx 3)]) (maj := .fvar (fx 4)) (majM := markErase (.fvar (fx 4))) (extra := [])
-    (êxtra := []) (by krfl) (by krfl) (by krfl) (by krfl) (by krfl) (by krfl) rfl rfl rfl rfl
-    ⟨.zero, by krfl⟩ rfl ?_ rfl ?_ (MarkOf.erase (by krfl)) rfl (by simp)
-  all_goals
-    intro i x xM h1 h2
-    rcases i with _ | i <;> simp at h1 h2 <;> subst h1 h2
-    exact MarkOf.fvar (by krfl)
-
-theorem mark_pCasesOn : MarkOf D cfg [] pCasesOnVal pCasesOnValM := by
-  refine mark_lam (x := fx 0) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 1) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 2) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine MarkOf.special (c := `P.rec) (us := [lu])
-    (as := [.fvar (fx 0), .lam `a fP (.lam `a_ih (.forallE `x tF (.app (.fvar (fx 0)) (.app (.bvar 1)
-      (.bvar 0))) .default) (.app (.fvar (fx 2)) (.bvar 1)) .default) .default, .fvar (fx 1)]) (ar := 3)
-    (T := .app (.fvar (fx 0)) (.fvar (fx 1))) (by krfl) (by krfl) (by krfl) (MarkEta.sat (by decide) ?_)
-  refine MarkSat.recr (r := P_rec) (ivs := [P_ind]) (cvs := [P_mk]) (ps := []) (ms := [.fvar (fx 0)])
-    (mins := [.lam `a fP (.lam `a_ih (.forallE `x tF (.app (.fvar (fx 0)) (.app (.bvar 1) (.bvar 0)))
-      .default) (.app (.fvar (fx 2)) (.bvar 1)) .default) .default])
-    (minsM := [.lam `a fP (.lam `a_ih (.forallE `x tF (.app (.fvar (fx 0)) (.app (.bvar 1) (.bvar 0)))
-      .default) (.app (.fvar (fx 2)) (markErase (.bvar 1))) .default) .default]) (is := []) (îs := [])
-    (maj := .fvar (fx 1)) (majM := markErase (.fvar (fx 1))) (extra := []) (êxtra := []) (by krfl)
-    (by krfl) (by krfl) (by krfl) (by krfl) (by krfl) rfl rfl rfl rfl ⟨.zero, by krfl⟩ rfl ?_ rfl
-    (by simp) (MarkOf.erase (by krfl)) rfl (by simp)
-  intro i x xM h1 h2
-  rcases i with _ | i <;> simp at h1 h2 <;> subst h1 h2
-  refine mark_lam (x := fx 3) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 4) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine MarkOf.app (f := .fvar (fx 2)) (as := [.fvar (fx 3)]) (âs := [markErase (.fvar (fx 3))])
-    (by krfl) (by simp) rfl (by intro c us h; cases h) (MarkOf.fvar (by krfl)) rfl ?_
-  intro i a â h1 h2
-  rcases i with _ | i <;> simp at h1 h2 <;> subst h1 h2
-  exact MarkOf.erase (by krfl)
+/-! ## `hcert`: the input and its two marks; the closure's two values are `Eq.casesOn`'s and
+`P.casesOn`'s, recognized `casesOn`s, whose values the traversal does not erase -/
 
 include hg in
 theorem hcert : ProgCert envNV4 D cfg eM := by
@@ -508,16 +447,10 @@ theorem hcert : ProgCert envNV4 D cfg eM := by
     have h2 : CLCertProof envNV4 [] dP := certProof_of (guard' hg).2.2.1
     simp [MarksCert, eM, liftOf, qmOf, frzM, frzOf, frzPM, frzPOf, mkAppN, h1, h2, cR, idF, hL, motE,
       motP, altP, eqB, tB, cT]
-  intro ci hci v hv
+  intro ci hci he v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
-    rfl | rfl <;> cases hv
-  · refine ⟨_, mark_pCasesOn, typedAt_of (by krfl), ?_⟩
-    simp [MarksCert, pCasesOnValM, mkAppN]
-    exact ⟨cert_of (by krfl), cert_of (by krfl)⟩
-  · refine ⟨_, mark_eqCasesOn, typedAt_of (by krfl), ?_⟩
-    simp [MarksCert, eqCasesOnValM, mkAppN]
-    exact cert_of (by krfl)
+    rfl | rfl <;> cases hv <;> exact absurd he.2 (Option.isSome_iff_ne_none.1 (by krfl))
 
 /-! ## `hev`: `eM ⇓ B.t`, through `quotLift`, `quotMk` and `casesFrozen` (twice) -/
 

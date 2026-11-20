@@ -18,7 +18,7 @@ induction hypothesis of every step; `CoreEnv` collects the facts about the closu
 
 The constant head of a spine the oracle keeps is no atom (`AtomBoxed`, the oracle's answer on atom
 spines, proved in `atomBoxed`); the value `visitMutual` erases has a marking (`ValuesMarkedOf`,
-every value of the closure has one), a premise of the step that reads it.
+every value the traversal erases has one), a premise of the step that reads it.
 
 Reference: the `tApp` and `tConst` cases of `erases_erase` (`MR E/ErasureFunction.v:1228`), with
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and `erase_global_erases_deps`
@@ -816,8 +816,9 @@ pre-definition, `NoPreDefs`; of a one-member block and without its own constant,
 so `visitMutual` takes its non-recursive branch) is erased in the empty context, which `RenOK`
 relates to the caller's locals with no variable in scope, and registered with its erasure
 (`StateOK.register`): an erasure of every marking of the value, of which there is one
-(`ValuesMarkedOf`), closed and without free variables (`Erases.noFVar`); the traversal cannot
-register the constant while it erases the value, whose scope does not hold it. The inlining
+(`ValuesMarkedOf`: the constant is not a theorem and not a recognized `casesOn`, `ErasedValue`),
+closed and without free variables (`Erases.noFVar`); the traversal cannot register the constant
+while it erases the value, whose scope does not hold it. The inlining
 bookkeeping keeps the state invariant (`KeepsCG`). Adapted from `ML-V Core/Steps.lean:2418`,
 without its fixpoint branch. Reference: `erase_constant_body` (`MR E/ErasureFunction.v:1309`) in
 the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`);
@@ -995,7 +996,8 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarkedOf dec
       cases hci₁
       exact hval₁ v hv hthm hcs
     have hokb := StateOK.congr hok hcb hib hgb
-    obtain ⟨vM₀, hvM₀⟩ := hmk ci hmem v hv
+    have hev : ErasedValue decls ci := ⟨hthm, hname ▸ hcs⟩
+    obtain ⟨vM₀, hvM₀⟩ := hmk ci hmem hev v hv
     have hspec : ∀ (Sc₀ : Name → Prop), ScopeOK decls Sc₀ → (∀ d, nameOccurs d v = true → Sc₀ d) →
         ∀ {vM}, MarkOf decls cfg [] v vM → _ := fun Sc₀ hsc₀ hocc₀ vM hvM =>
       ih.expr fuel (Nat.le_refl _) v hctx0 hR0 hvcl hsc₀ hocc₀ (hG.npd ci hmem v hread)
@@ -1009,7 +1011,7 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarkedOf dec
     have hd : ErasesDecl noCert (evalEnvOf view cfg decls) ci ⟨some t⟩ := by
       unfold ErasesDecl
       rw [hv]
-      refine .inr ⟨hax, ⟨vM₀, hvM₀⟩, t, rfl, fun vM hvM => ?_⟩
+      refine .inr ⟨hax, hev, ⟨vM₀, hvM₀⟩, t, rfl, fun vM hvM => ?_⟩
       have := (hspec Sc hsc hoccS hvM).1
       rwa [renFV_id] at this
     obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hci hnb hnew₂ hd fun b hb => by

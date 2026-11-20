@@ -494,54 +494,17 @@ theorem hmark : MarkOf D cfg [] e e := by
   · exact mark_z
   · exact mark_minS
 
-/-! ## `hcert`: con-leche types `e` (`hg`) and the marking of `Nat.casesOn`'s value, the
-closure's one value, which is its own marking; there is no mark -/
-
-/-- `Nat.casesOn`'s value opened under its four binders: the `Nat.rec` spine -/
-def lc4 : List Local :=
-  [⟨fx 3, `succ, .forallE `n tN (.app (.fvar (fx 0)) (.app cS (.bvar 0))) .default, none⟩,
-   ⟨fx 2, `zero, .app (.fvar (fx 0)) cZ, none⟩, ⟨fx 1, `t, tN, none⟩, ⟨fx 0, `motive, motTy, none⟩]
-def sm : Expr :=
-  .lam `n tN (.lam `n_ih (.app (.fvar (fx 0)) (.bvar 0)) (.app (.fvar (fx 3)) (.bvar 1)) .default) .default
-
-theorem mark_sm : MarkOf D cfg lc4 sm sm :=
-  mark_lam (x := fx 4) (by krfl) (fresh_of (by krfl)) (by krfl)
-    (mark_lam (x := fx 5) (by krfl)
-      (fresh_of (by krfl)) (by krfl)
-      (MarkOf.app (f := .fvar (fx 3)) (as := [.fvar (fx 4)]) (âs := [.fvar (fx 4)]) (by krfl)
-        (by simp) rfl (by intro c us h; cases h) (MarkOf.fvar (by krfl)) rfl (by
-          intro i a â h1 h2
-          rcases i with _ | i <;> simp at h1 h2 <;> subst h1 h2
-          exact MarkOf.fvar (by krfl))))
-
-theorem mark_casesOnVal : MarkOf D cfg [] casesOnVal casesOnVal := by
-  refine mark_lam (x := fx 0) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 1) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 2) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  refine mark_lam (x := fx 3) (by krfl) (fresh_of (by krfl)) (by krfl) ?_
-  show MarkOf D cfg lc4 (mkAppN (.const `Nat.rec [lu]) [.fvar (fx 0), .fvar (fx 2), sm, .fvar (fx 1)].toArray)
-    (mkAppN (.const `Nat.rec [lu]) [.fvar (fx 0), .fvar (fx 2), sm, .fvar (fx 1)].toArray)
-  refine MarkOf.special (ar := 4) (T := .app (.fvar (fx 0)) (.fvar (fx 1))) (by krfl) (by krfl)
-    (by krfl) (MarkEta.sat (by decide) ?_)
-  refine MarkSat.recr (r := Nat_rec) (ivs := [Nat_ind]) (cvs := [Zero_ctor, Succ_ctor]) (ps := [])
-    (ms := [.fvar (fx 0)]) (mins := [.fvar (fx 2), sm]) (minsM := [.fvar (fx 2), sm]) (is := [])
-    (îs := []) (maj := .fvar (fx 1)) (majM := .fvar (fx 1)) (extra := []) (êxtra := []) (by krfl)
-    (by krfl) (by krfl) (by krfl) (by krfl) (by krfl) rfl rfl rfl rfl ⟨l1, by krfl⟩ rfl ?_ rfl
-    (by simp) (MarkOf.fvar (by krfl)) rfl (by simp)
-  intro i x xM h1 h2
-  rcases i with _ | _ | i <;> simp at h1 h2 <;> subst h1 h2
-  · exact MarkOf.fvar (by krfl)
-  · exact mark_sm
+/-! ## `hcert`: con-leche types `e` (`hg`); there is no mark, and the closure's one value is
+`Nat.casesOn`'s, a recognized `casesOn`, whose value the traversal does not erase -/
 
 include hg in
 theorem hcert : ProgCert envNV3 D cfg e := by
   refine ⟨typedAt_of (guard hg (by simp [guardTerms])),
     by simp [MarksCert, e, z, cas, minS, motN, idN, lit, tN, mkAppN], ?_⟩
-  intro ci hci v hv
+  intro ci hci he v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl | rfl | rfl | rfl <;> cases hv
-  exact ⟨_, mark_casesOnVal, typedAt_of (by krfl),
-    by simp [MarksCert, casesOnVal, motTy, tN, cZ, cS, caseSTy, mkAppN]⟩
+  exact absurd he.2 (Option.isSome_iff_ne_none.1 (by krfl))
 
 /-! ## `hev`: `e ⇓ 0`, through `recIota` (twice), `casesLitZero` and `casesLitSucc` -/
 

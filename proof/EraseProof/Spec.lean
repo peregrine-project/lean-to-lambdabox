@@ -23,8 +23,8 @@ The definitions the statements of `Statements.lean` are about:
 5. the source semantics `SrcEval` on marked terms (port of `ML-V Spec.lean:908` with frozen rules
    and con-leche checks);
 6. closures, the view, `NoPreDefs` and the sufficient fragment conditions (ports);
-7. the erasure relation `Erases`/`ErasesAlt`, `ErasesInd`, `ErasesDecl`, `ErasesDeps` (port of
-   `ML-V Spec.lean:1378-1615` without typing premises, `□` on marks, each mark asked of a
+7. the erasure relation `Erases`/`ErasesAlt`, `ErasesInd`, `ErasedValue`, `ErasesDecl`, `ErasesDeps`
+   (port of `ML-V Spec.lean:1378-1615` without typing premises, `□` on marks, each mark asked of a
    certificate predicate), and the certificates of the emitted program (`MarksCert`, `ProgCert`);
 8. `Sound` (the meaning of the source value in con-leche's model), `FirstOrderValue`, `foErase`,
    `FrozenLeaf`.
@@ -1669,17 +1669,27 @@ def ErasesInd (σ : EvalEnv) (lenv : GlobalDeclarations) (T : Name) : Prop :=
         findDecl σ.decls cn = some (.ctorInfo cv) ∧ ob.ctors[k]? = some cb ∧ cb.nargs = cv.numFields) ∧
       (ob.propositional = true ↔ σ.propInd n = true)
 
+/-- The traversal erases the value of `ci`, if `ci` has one: `ci` is not a theorem (the oracle
+answers `true` on a spine headed by a theorem, `Erasure.Pure.isErasable`, before it reads
+anything else) and not a `casesOn` that `casesInfo?` recognizes (the traversal erases its
+applications with `visitCases`). Every other constant with a value is a definition or an opaque,
+whose value `visitMutual` (`LeanToLambdaBox/Erasure.lean:1286`) erases unless it is a remapped
+extern. Reference: none (DV-37). -/
+def ErasedValue (decls : List ConstantInfo) (ci : ConstantInfo) : Prop :=
+  IsThm ci = false ∧ casesInfo? decls ci.name = none
+
 /-- A constant's λ□ body erases the marking of its Lean value (`MarkOf` at its own levels, as
-`visitMutual`, `LeanToLambdaBox/Erasure.lean:1272`, erases it): the value has a marking, and the
-body erases every marking of it; no body for declarations without value and for remapped externs
-(DV-12). Port of `ML-V Spec.lean:1573`; pre-definitions have no case (none is used, DV-35).
-Reference: `MR E/Extract.v:264 erases_constant_body`. -/
+`visitMutual`, `LeanToLambdaBox/Erasure.lean:1286`, erases it): the traversal erases the value
+(`ErasedValue`), the value has a marking, and the body erases every marking of it; no body for
+declarations without value and for remapped externs (DV-12). Port of `ML-V Spec.lean:1573`;
+pre-definitions have no case (none is used, DV-35). Reference:
+`MR E/Extract.v:264 erases_constant_body`. -/
 def ErasesDecl (cert : BoxCert) (σ : EvalEnv) (ci : ConstantInfo) (cb : ConstantBody) : Prop :=
   match ci.value? (allowOpaque := true) with
   | none => cb.cst_body = none
   | some v => (σ.axiomatized ci = true ∧ cb.cst_body = none) ∨
-    (σ.axiomatized ci = false ∧ (∃ vM, MarkOf σ.decls σ.cfg [] v vM) ∧ ∃ b', cb.cst_body = some b' ∧
-      ∀ vM, MarkOf σ.decls σ.cfg [] v vM → Erases cert σ [] vM b')
+    (σ.axiomatized ci = false ∧ ErasedValue σ.decls ci ∧ (∃ vM, MarkOf σ.decls σ.cfg [] v vM) ∧
+      ∃ b', cb.cst_body = some b' ∧ ∀ vM, MarkOf σ.decls σ.cfg [] v vM → Erases cert σ [] vM b')
 
 /-- The λ□ environment contains erasures of the erased term's dependencies. Port of
 `ML-V Spec.lean:1592`; reference: `MR E/Extract.v:306 erases_deps`. -/
@@ -1726,22 +1736,24 @@ def MarksCert (env : ConLeche.Env) : List CtxBinder → Expr → Prop
 as a whole (`CLTypedAt`; marks are transparent, so every η-expansion is typed, and the domain of
 each `eta`-marked binder is checked against the argument position it fills), and every mark of `ê`
 in the context of its enclosing binders (`MarksCert`; the discriminant of a `reduced` mark as a
-proof); the same of a marking of the value of every constant of `decls` that has one, whether or
-not the emitted λ□ environment holds a body for it (DV-37). With the marking fixed (`MarkOf` is a
-function of its input, `markOf_det_statement`), each conjunct is a finite list of con-leche runs at
-`checkFuel`. Reference: none (DV-32). -/
+proof); the same of a marking of the value of every constant of `decls` whose value the traversal
+erases (`ErasedValue`: not a theorem, not a recognized `casesOn`), whether or not the emitted λ□
+environment holds a body for it (DV-37). With the marking fixed (`MarkOf` is a function of its
+input, `markOf_det_statement`), each conjunct is a finite list of con-leche runs at `checkFuel`.
+Reference: none (DV-32). -/
 def ProgCert (env : ConLeche.Env) (decls : List ConstantInfo) (cfg : ErasureConfig) (ê : Expr) :
     Prop :=
-  CLTypedAt env ê ∧ MarksCert env [] ê ∧ ∀ ci ∈ decls, ∀ v,
+  CLTypedAt env ê ∧ MarksCert env [] ê ∧ ∀ ci ∈ decls, ErasedValue decls ci → ∀ v,
     ci.value? (allowOpaque := true) = some v →
     ∃ vM, MarkOf decls cfg [] v vM ∧ CLTypedAt env vM ∧ MarksCert env [] vM
 
-/-- Every value of a constant of the closure `decls` has a marking in the empty context: the
-premise of `erasePure_erases_statement` that gives `ErasesDecl`'s `∃ vM` for each value the
-traversal erases; the final theorem has it from `ProgCert`'s third conjunct. Reference: none
-(DV-32). -/
+/-- Every value of a constant of the closure `decls` that the traversal erases (`ErasedValue`) has
+a marking in the empty context: the premise of `erasePure_erases_statement` that gives
+`ErasesDecl`'s `∃ vM` for each value the traversal erases; the final theorem has it from
+`ProgCert`'s third conjunct. Reference: none (DV-32). -/
 def ValuesMarkedOf (decls : List ConstantInfo) (cfg : ErasureConfig) : Prop :=
-  ∀ ci ∈ decls, ∀ v, ci.value? (allowOpaque := true) = some v → ∃ vM, MarkOf decls cfg [] v vM
+  ∀ ci ∈ decls, ErasedValue decls ci → ∀ v, ci.value? (allowOpaque := true) = some v →
+    ∃ vM, MarkOf decls cfg [] v vM
 
 /-! ## 8. The meaning of the source value; first-order values -/
 

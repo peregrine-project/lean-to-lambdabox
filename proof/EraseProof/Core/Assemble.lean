@@ -117,7 +117,7 @@ theorem stepIH_of (hG : CoreEnv view cfg decls) (hcp : CtorPropBoxed view cfg de
         (fun hm => hm ▸ visitMutual_step hG hmk ih)⟩
 
 /-- The pure traversal's correctness on the closure facts: from `CoreEnv`, `CtorPropBoxed` and a
-marking of every value of the closure, on a closed input whose constants are the closure's,
+marking of every value the traversal erases, on a closed input whose constants are the closure's,
 `NatPlain` and `RecShaped`, the output of `erasePure` is an erasure of the input's marking, with
 erased dependencies, in a closed λ□ environment. The induction hypothesis at the traversal's fuel
 (`stepIH_of`), in the empty context (`ρ = id`, no local, `RenOK` on the empty set), from the empty
@@ -158,7 +158,7 @@ end Steps
 open CollectSpec CoreEnvOf Steps in
 /-- **The pure traversal's correctness** (`erasePure_erases_statement`): on the closure the
 fragment test returns, part of a program con-leche accepts, without compiled pre-definitions for
-what the traversal erases by its value, and with a marking of every value, the output of
+what the traversal erases by its value, and with a marking of every value it erases, the output of
 `erasePure` is an erasure of the input's marking, with erased dependencies, in a closed λ□
 environment. `erasePure_erases_of` with `CoreEnv` (`coreEnv_of`), `CtorPropBoxed`
 (`ctorPropBoxed_of`) and the facts about the input that the fragment test's scan gives: its
