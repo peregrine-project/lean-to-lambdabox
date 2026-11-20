@@ -1,7 +1,7 @@
 import EraseProof.Statements
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV2Data
 import EraseProof.Test.NV1Run
-import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-2: the hypotheses of the final theorem
@@ -727,7 +727,7 @@ theorem hmark : MarkOf D cfg [] e eM := by
 
 The marks of `eM`: `B` in the first alternative (no binder), `B` under the source λ `k`, and the
 η-variable `α` of the η-expanded `@Box.mk` under its two η-binders. The closure's one value is
-`B.casesOn`'s, whose marking has no mark (`mark_casesOnVal`). -/
+`B.casesOn`'s, a recognized `casesOn` (`casesInfo_B`), whose value the traversal does not erase. -/
 
 /-- the context of the η-variable `α`: `val : α`, `α : Type`, innermost first -/
 def Γη : List CtxBinder := [(.bvar 0, none), (.sort l1, none)]
@@ -755,15 +755,12 @@ theorem marks_eM : MarksCert envNV2 [] eM :=
   ⟨⟨⟨⟨trivial, ⟨trivial, trivial⟩⟩, trivial⟩, ⟨⟨trivial, cert_B0⟩, trivial⟩⟩,
     ⟨⟨⟨trivial, cert_Bk⟩, trivial⟩, ⟨⟨trivial, cert_α⟩, trivial⟩⟩⟩
 
-/-- con-leche types `B.casesOn`'s value as a whole, at `checkFuel`. -/
-theorem typedAt_casesOn : CLTypedAt envNV2 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
-
 theorem hcert : ProgCert envNV2 D cfg eM := by
   refine ⟨typedAt_eM, marks_eM, ?_⟩
-  intro ci hci v hv
+  intro ci hci he v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
-  exact ⟨_, mark_casesOnVal (.inr rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
+  exact absurd he.2 (Option.isSome_iff_ne_none.1 (by krfl))
 
 /-! ## `hev`: an explicit derivation of `eM ⇓ Box.mk □□B B.f`, its certificates by the kernel at
 `envNV2` (none needs ι: the motive is constant) -/
@@ -847,5 +844,17 @@ theorem hev : SrcEval envNV2 σD eM vM :=
   SrcEval.casesIota (c := `B.casesOn) (us := [l1]) (iv := B_ind) (as := [motB, cT, alt1M, alt2M])
     (m := cT) (mv := cT) (i := 1) (fs := []) (alt := alt2M) (by krfl) rfl rfl ev_t
     ⟨`B.t, [], Bt_ctor, [], find_t, rfl, rfl, rfl, rfl, rfl⟩ ok_cases iota_t rfl ev_alt2
+
+/-! ## `sound_nonvacuous` on NV-2: `Box B` has the type `Type`, a sort, so in every model `Box` has a
+reading that is not the proof point -/
+
+theorem nonvacuous.{w} (hfold : ConLeche.checkDeclsPure .verified
+    (ConLeche.fueledOps .verified ConLeche.checkFuel) [] nv2full = .ok envNV2) :
+    ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V envNV2)
+      (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
+      ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval envNV2 φ ρ
+        (.const (nm "Box") []) X ∧ X ≠ ConLeche.SetTheory.pt :=
+  EraseProof.sound_nonvacuous (e := .const `Box []) (as := [tB]) (c₁ := kBox kB) (T := .sort k1)
+    (W := .sort k1) (F := 100) (hacc hfold) (by krfl) (by krfl) (by krfl) (by krfl) ⟨_, rfl⟩
 
 end EraseProof.Test.NV2

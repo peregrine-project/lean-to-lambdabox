@@ -18,7 +18,7 @@ induction hypothesis of every step; `CoreEnv` collects the facts about the closu
 
 The constant head of a spine the oracle keeps is no atom (`AtomBoxed`, the oracle's answer on atom
 spines, proved in `atomBoxed`); the value `visitMutual` erases has a marking (`ValuesMarkedOf`,
-every value of the closure has one), a premise of the step that reads it.
+every value the traversal erases has one), a premise of the step that reads it.
 
 Reference: the `tApp` and `tConst` cases of `erases_erase` (`MR E/ErasureFunction.v:1228`), with
 `erase_constant_body` (`MR E/ErasureFunction.v:1309`) and `erase_global_erases_deps`
@@ -288,9 +288,9 @@ end
 
 /-! ## The closure, the statement of `visitMutual`, the induction hypothesis -/
 
-/-- The facts about the closure `decls` that the steps read: its types and values have no free
-variable, distinct kernames and block names, syntactic arities for its inductive types, no compiled
-pre-definition for what the traversal erases by its value; what the traversal reads is `NatPlain`
+/-- The facts about the closure `decls` that the steps read, but for the absence of compiled
+pre-definitions (`CoreEnv`): its types and values have no free variable, distinct kernames and
+block names, syntactic arities for its inductive types; what the traversal reads is `NatPlain`
 and `RecShaped`; the quotient type has an arity and `Quot.ind` is named so; and every value
 `visitMutual` erases (of a declaration that is neither a theorem nor a recognized `casesOn`) is of
 a one-member block and has a scope without its own declaration, so that `visitMutual` erases it
@@ -299,12 +299,11 @@ Adapted from `ML-V Core/Steps.lean:794 CoreEnv`, whose typing facts have no coun
 of a value replaces `ProgEnv.value_suffix` (`ML-V Core/Steps.lean:1741`). Reference: the hypotheses
 of `erases_erase` (`MR E/ErasureFunction.v:1228`): `wf_ext Σ` and the abstract environment's
 relation to `Σ`; `erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`). -/
-structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop where
+structure CoreEnvBase (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop where
   closed : ClosedDecls decls = true
   inj : KernameInj decls
   bn : BlockNamesInj decls
   arity : ArityTypes decls
-  nopre : NoPreDefs view cfg decls
   npd : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → NatPlain cfg x
   recShaped : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x
   quotType : ∀ c q, findDecl decls c = some (.quotInfo q) → q.kind = .type →
@@ -340,6 +339,13 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
     rv.numMinors = iv.ctors.length
   /-- The recursors have Lean's shape (`RecsShaped`; `blockShapeOK`'s `recMotivesOK`). -/
   recs : RecsShaped decls
+
+/-- The facts about the closure `decls` that the steps read (`CoreEnvBase`), and no compiled
+pre-definition for what the traversal erases by its value (`NoPreDefs`). Reference: as
+`CoreEnvBase`. -/
+structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop
+    extends CoreEnvBase view cfg decls where
+  nopre : NoPreDefs view cfg decls
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of
@@ -810,8 +816,9 @@ pre-definition, `NoPreDefs`; of a one-member block and without its own constant,
 so `visitMutual` takes its non-recursive branch) is erased in the empty context, which `RenOK`
 relates to the caller's locals with no variable in scope, and registered with its erasure
 (`StateOK.register`): an erasure of every marking of the value, of which there is one
-(`ValuesMarkedOf`), closed and without free variables (`Erases.noFVar`); the traversal cannot
-register the constant while it erases the value, whose scope does not hold it. The inlining
+(`ValuesMarkedOf`: the constant is not a theorem and not a recognized `casesOn`, `ErasedValue`),
+closed and without free variables (`Erases.noFVar`); the traversal cannot register the constant
+while it erases the value, whose scope does not hold it. The inlining
 bookkeeping keeps the state invariant (`KeepsCG`). Adapted from `ML-V Core/Steps.lean:2418`,
 without its fixpoint branch. Reference: `erase_constant_body` (`MR E/ErasureFunction.v:1309`) in
 the `ConstantDecl` step of `erase_global_deps` (`MR E/ErasureFunction.v:1602`);
@@ -989,7 +996,8 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarkedOf dec
       cases hci₁
       exact hval₁ v hv hthm hcs
     have hokb := StateOK.congr hok hcb hib hgb
-    obtain ⟨vM₀, hvM₀⟩ := hmk ci hmem v hv
+    have hev : ErasedValue decls ci := ⟨hthm, hname ▸ hcs⟩
+    obtain ⟨vM₀, hvM₀⟩ := hmk ci hmem hev v hv
     have hspec : ∀ (Sc₀ : Name → Prop), ScopeOK decls Sc₀ → (∀ d, nameOccurs d v = true → Sc₀ d) →
         ∀ {vM}, MarkOf decls cfg [] v vM → _ := fun Sc₀ hsc₀ hocc₀ vM hvM =>
       ih.expr fuel (Nat.le_refl _) v hctx0 hR0 hvcl hsc₀ hocc₀ (hG.npd ci hmem v hread)
@@ -1003,7 +1011,7 @@ theorem visitMutual_step (hG : CoreEnv view cfg decls) (hmk : ValuesMarkedOf dec
     have hd : ErasesDecl noCert (evalEnvOf view cfg decls) ci ⟨some t⟩ := by
       unfold ErasesDecl
       rw [hv]
-      refine .inr ⟨hax, ⟨vM₀, hvM₀⟩, t, rfl, fun vM hvM => ?_⟩
+      refine .inr ⟨hax, hev, ⟨vM₀, hvM₀⟩, t, rfl, fun vM hvM => ?_⟩
       have := (hspec Sc hsc hoccS hvM).1
       rwa [renFV_id] at this
     obtain ⟨hok₃, hext₃⟩ := hgr.inv.register hG.inj hci hnb hnew₂ hd fun b hb => by

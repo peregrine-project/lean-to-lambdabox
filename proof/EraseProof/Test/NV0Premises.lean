@@ -1,4 +1,5 @@
 import EraseProof.Statements
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV0Data
 import EraseProof.Test.Run
 
@@ -300,7 +301,7 @@ theorem typedAt_main : CLTypedAt envNV0 mainM :=
 
 theorem hcert : ProgCert envNV0 D cfg e := by
   refine ⟨typedAt_e, trivial, ?_⟩
-  intro ci hci v hv
+  intro ci hci _ v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl <;> cases hv
   · exact ⟨_, mark_idLam (.inr rfl) _ (.inl rfl), typedAt_id, trivial⟩
@@ -391,5 +392,20 @@ theorem decl_id : MarkOf σ.decls σ.cfg [] (idLam (.param `u)) (idLam (.param `
 
 theorem decl_main : MarkOf σ.decls σ.cfg [] mainVal mainM ∧ Erases (CLCert envNV0) σ [] mainM mainL :=
   ⟨mark_main (.inl rfl), coincide_main⟩
+
+/-! ## `sound_nonvacuous` on NV-0: `nv0main Prop (∀ p : Prop, p)` has the type `Prop`, a sort, so
+in every model `nv0main` has a reading that is not the proof point -/
+
+/-- `∀ p : Prop, p` -/
+def pAll : Expr := .forallE `p (.sort 0) (.bvar 0) .default
+
+theorem nonvacuous.{w} : ∀ (V : Type w) [ConLeche.SetTheory V]
+    (m : ConLeche.Model.EnvModelM V envNV0) (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
+    ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval envNV0 φ ρ
+      (.const (nm "nv0main") []) X ∧ X ≠ ConLeche.SetTheory.pt :=
+  EraseProof.sound_nonvacuous (e := e) (as := [.sort 0, pAll])
+    (c₁ := .app (.app (.const (nm "nv0main") []) (.sort .zero)) (.forallE (.sort .zero) (.bvar 0)))
+    (T := .sort .zero) (W := .sort .zero) (F := 100) hacc (by krfl) (by krfl) (by krfl) (by krfl)
+    ⟨_, rfl⟩
 
 end EraseProof.Test.NV0

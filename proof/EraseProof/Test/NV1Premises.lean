@@ -1,6 +1,6 @@
 import EraseProof.Statements
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Test.NV1Run
-import EraseProof.Test.CasesOnVal
 
 /-!
 # NV-1: the hypotheses of the final theorem
@@ -18,7 +18,7 @@ open Lean Erasure EraseProof EraseProof.Test EraseProof.Test.NV1
 
 namespace EraseProof.Test.NV1
 
-/-! ## con-leche's records and environment (A-2/A-3; `k` = con-leche form) -/
+/-! ## con-leche's records and environment (`k` = con-leche form) -/
 
 def nm (s : String) : ConLeche.Name := .str .anonymous s
 def nm2 (a b : String) : ConLeche.Name := .str (.str .anonymous a) b
@@ -66,7 +66,7 @@ def envNV1 : ConLeche.Env :=
 
 /- `hfold`, the premise of the instance, by compiled evaluation: the fold accepts `nv1full` with
 result `envNV1` (`ConstantInfo` and `ProjTable` have `DecidableEq`). The kernel cannot evaluate it
-(`Std.HashMap`s hashed by the opaque `mixHash` in the block installer, A-2 B3). -/
+(`Std.HashMap`s hashed by the opaque `mixHash` in the block installer). -/
 #guard match ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) []
     nv1full with
   | .ok env => decide (env.consts = envNV1.consts) && decide (env.tables = envNV1.tables)
@@ -192,22 +192,21 @@ theorem mark_neg {decls : List ConstantInfo} (hd : decls = P ∨ decls = D) :
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl)
         (by rcases hd with rfl | rfl <;> krfl) (by rcases hd with rfl | rfl <;> krfl))
 
-/-! ## `hcert`: con-leche certifies every mark of the input and of the closure's values: there is none
+/-! ## `hcert`: con-leche certifies every mark of the input and of the erased values: there is none
 
-`ê = e` has no mark; the closure's values are `B.neg`'s and `B.casesOn`'s, and their markings
-(`mark_neg`, `mark_casesOnVal`) have no mark. -/
+`ê = e` has no mark; of the closure's values the traversal erases `B.neg`'s, whose marking
+(`mark_neg`) has no mark, and not `B.casesOn`'s, a recognized `casesOn` (`casesInfo_B`). -/
 
-/-- con-leche types the input and the closure's marked values as wholes, at `checkFuel`. -/
+/-- con-leche types the input and the erased value's marking as wholes, at `checkFuel`. -/
 theorem typedAt_e : CLTypedAt envNV1 e := ⟨.app (.const (nm2 "B" "neg") []) kF, kB, by krfl, by krfl⟩
 theorem typedAt_neg : CLTypedAt envNV1 negVal := ⟨kNegVal, .forallE kB (.app (.lam kB kB) (.bvar 0)), by krfl, by krfl⟩
-theorem typedAt_casesOn : CLTypedAt envNV1 casesOnVal := ⟨kCasesOnVal, kCasesOnTy, by krfl, by krfl⟩
 
 theorem hcert : ProgCert envNV1 D cfg e := by
   refine ⟨typedAt_e, ⟨trivial, trivial⟩, ?_⟩
-  intro ci hci v hv
+  intro ci hci he v hv
   simp only [D, List.mem_cons, List.not_mem_nil, or_false] at hci
   rcases hci with rfl | rfl | rfl | rfl | rfl | rfl <;> cases hv
-  · exact ⟨_, mark_casesOnVal (.inl rfl), typedAt_casesOn, by simp [MarksCert, casesOnVal]⟩
+  · exact absurd he.2 (Option.isSome_iff_ne_none.1 (by krfl))
   · exact ⟨_, mark_neg (.inr rfl), typedAt_neg, by simp [MarksCert, negVal, tB, cT, cF]⟩
 
 /-! ## `hev`: an explicit derivation of `B.neg B.f ⇓ B.t`, its certificates by the kernel at
@@ -316,5 +315,18 @@ the one constant of `p0`: the witness half of `ErasesDecl` (its `∀` half follo
 `MarkOf.det`). -/
 theorem decl_neg : MarkOf σ.decls σ.cfg [] negVal negVal ∧ Erases (CLCert envNV1) σ [] negVal negL :=
   ⟨mark_neg (.inl rfl), coincide_neg⟩
+
+/-! ## `sound_nonvacuous` on NV-1: the type `B` has the type `Type`, a sort, so in every model it has
+a reading that is not the proof point -/
+
+theorem nonvacuous.{w} (hfold : ConLeche.checkDeclsPure .verified
+    (ConLeche.fueledOps .verified ConLeche.checkFuel) [] nv1full = .ok envNV1) :
+    ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V envNV1)
+      (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
+      ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval envNV1 φ ρ kB X ∧
+        X ≠ ConLeche.SetTheory.pt :=
+  EraseProof.sound_nonvacuous (e := tB) (as := []) (c₁ := kB) (T := .sort (.succ .zero))
+    (W := .sort (.succ .zero)) (F := 100) (hacc hfold) (by krfl) (by krfl) (by krfl) (by krfl)
+    ⟨_, rfl⟩
 
 end EraseProof.Test.NV1

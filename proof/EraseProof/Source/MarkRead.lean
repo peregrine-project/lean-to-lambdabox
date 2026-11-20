@@ -973,15 +973,6 @@ theorem MarkAlt.reads (hd : NoMarkKeysDecls decls = true) : ∀ {ls : List Local
       (by simp [NoMarkKeys, he]) (clean_inst rfl hC)) (hfr.2 _ (by simp)) hD
 end
 
-/-- con-leche's input carries no mark key (`DeclsOf?`). Reference: none. -/
-theorem accepts_clean {P : List ConstantInfo} {env : ConLeche.Env} (h : ConLecheAccepts P env) :
-    NoMarkKeysDecls P = true := by
-  obtain ⟨ds, hds, -⟩ := h
-  unfold DeclsOf? at hds
-  split at hds
-  · rename_i hc; exact hc.2
-  · cases hds
-
 end MarkRead
 
 open MarkRead
@@ -995,27 +986,5 @@ theorem markOf_read {decls : List ConstantInfo} {cfg : ErasureConfig} {e ê : Ex
     toCL? (unmark ê) = toCL? e ∧ EtaLams ê :=
   have r := MarkRead.MarkOf.reads hd h (fun _ hl => nomatch hl) he
   ⟨r.1.toCL, r.2⟩
-
-/-- The start of the δ case of `srcEval_sound`: if con-leche accepts the program `P`, the marking
-`bM` of the value `body` of a constant `SrcEval.delta` unfolds reads through `unmark` as `body`
-and every `eta` mark of `bM` sits on a λ (the premises `hread`, `hη` of
-`SemCases.srcEval_sound_delta`). Reference: none (DV-32). -/
-theorem markOf_read_delta {P : List ConstantInfo} {env : ConLeche.Env} {view : EnvView}
-    {cfg : ErasureConfig} {c : Name} {ci : ConstantInfo} {body bM : Expr}
-    (hacc : ConLecheAccepts P env) (hu : (evalEnvOf view cfg P).unfold? c = some (ci, body))
-    (h : MarkOf (evalEnvOf view cfg P).decls (evalEnvOf view cfg P).cfg [] body bM) :
-    toCL? (unmark bM) = toCL? body ∧ EtaLams bM := by
-  have hd := accepts_clean hacc
-  have hb : NoMarkKeys body = true := by
-    unfold EvalEnv.unfold? at hu
-    split at hu
-    · rename_i v hv
-      split at hu
-      · cases hu
-      · cases hu
-        exact (decl_clean hd hv).2 _ rfl
-    · cases hu
-  have r := MarkRead.MarkOf.reads hd h (fun _ hl => nomatch hl) hb
-  exact ⟨r.1.toCL, r.2⟩
 
 end EraseProof

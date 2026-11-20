@@ -5,6 +5,9 @@ import EraseProof.Semantics.Rec
 import EraseProof.Semantics.Decode
 import EraseProof.Semantics.Frozen
 import EraseProof.Semantics.DecodeAt
+import EraseProof.Semantics.Sound
+import EraseProof.Semantics.Cert
+import EraseProof.Semantics.NonVacuous
 import EraseProof.Bridge.CLRead
 import EraseProof.Bridge.CLStore
 import EraseProof.Bridge.CLNames
@@ -25,12 +28,18 @@ import EraseProof.Simulation.Main
 import EraseProof.Source.Decls
 import EraseProof.Test.Marks
 import EraseProof.Test.NV1Run
-import EraseProof.Test.CasesOnVal
 import EraseProof.Test.NV0Premises
 import EraseProof.Test.NV1Premises
 import EraseProof.Test.NV2Premises
 import EraseProof.Test.DeclOf
 import EraseProof.Test.RecIH
+import EraseProof.Test.NVKit
+import EraseProof.Test.NV3Data
+import EraseProof.Test.NV3Premises
+import EraseProof.Test.NV4Data
+import EraseProof.Test.NV4Premises
+import EraseProof.Test.NV5Data
+import EraseProof.Test.NV5Premises
 import EraseProof.Oracle.Rename
 import EraseProof.Oracle.Det
 import EraseProof.Oracle.Atom
@@ -50,6 +59,18 @@ import EraseProof.Core.CtorProp
 import EraseProof.Core.StepsProj
 import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
+import EraseProof.Core.ExistsInv
+import EraseProof.Core.ExistsSteps
+import EraseProof.Core.ExistsSpines
+import EraseProof.Core.Exists
+import EraseProof.Final
+import EraseProof.FirstOrder
+import EraseProof.Test.NV5Final
+import EraseProof.Test.NV4Final
+import EraseProof.Test.NV3Final
+import EraseProof.Test.NV2Final
+import EraseProof.Test.NV1Final
+import EraseProof.Test.NV0Final
 /-!
 # Verification of the eraser
 
@@ -99,6 +120,13 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Semantics.DecodeAt`: the stored former and constructors of a member of a block of any
   size, the stored rule of a constructor, and the stored records the ι steps of a recognized
   `casesOn`, of a projection and of a recursor read.
+* `EraseProof.Semantics.Sound`: `srcEval_sound`, the induction on source evaluation, with the
+  program's records behind the closure's, the safety of a stored definition and `Nat`'s pinned
+  constructors.
+* `EraseProof.Semantics.Cert`: `clCert_proof_pt`, the proof verdict of a certificate denotes the
+  proof point.
+* `EraseProof.Semantics.NonVacuous`: `sound_nonvacuous`, an input typed at a sort through an
+  application does not denote the proof point.
 * `EraseProof.Bridge.CLStore`: what con-leche's fold stores of the program's declarations.
 * `EraseProof.Bridge.CLNames`: the names con-leche's acceptance binds are the program's, and every
   declaration of the program the fragment test may scan reads only names of the program.
@@ -138,6 +166,18 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.Assemble`: the induction on the traversal's fuel over the steps, and the
   pure traversal's correctness (`erasePure_erases`).
 * `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
-  of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
+  of a program con-leche accepts, from the test's checks and the program's records
+  (`coreEnvBase_of`, `coreEnv_of`).
+* `EraseProof.Core.ExistsInv`: every run of the traversal keeps its counter of fresh variables
+  increasing and the masks it registers keeping every field (`travMonoAt`).
+* `EraseProof.Core.ExistsSteps`: the steps of the existence of the marking for every case of
+  `visitExpr` but recursors and recognized `casesOn` spines (`ExistsSpec`).
+* `EraseProof.Core.ExistsSpines`: the steps of the existence of the marking for recursor and
+  recognized `casesOn` spines.
+* `EraseProof.Core.Exists`: the induction on the traversal's fuel over those steps, and the
+  existence of the marking (`markOf_exists`).
+* `EraseProof.Final`: the final theorem `erase_correct`, composed of the milestones over the
+  fragment test's closure, with the certified erasure from the program's certificates.
+* `EraseProof.FirstOrder`: the final theorem on first-order values `erase_correct_firstorder`.
 * `EraseProof.Statements`: the statements, as definitions of type `Prop`, that `spec.pin` pins.
 -/

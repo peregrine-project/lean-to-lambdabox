@@ -63,7 +63,8 @@ and the shipping code (by default the modules `EraseProof` and `LeanToLambdaBox`
   with `--no-final` only.
 * C12 `statements`, always: every statement definition of `statements` is a definition of the
   library of type `Prop`; each theorem of `statements` that exists is a theorem of the library
-  whose type is definitionally equal (kernel `isDefEq`) to its statement definition; a theorem
+  whose type is definitionally equal (kernel `isDefEq`) to its statement definition, at the
+  theorem's universe parameters; a theorem
   that does not exist must be listed in `unproved`, which is reported as not yet proved, and a
   theorem listed there must not exist.
 * C12 `final`: the final form. The only line of `ROOTS.txt` with consumer `FINAL` is
@@ -167,13 +168,7 @@ def statements : Array (Name × Name) := #[
 
 /-- The theorems of `statements` that are not proved yet; C12 reports them and compares the others
 with their statements. -/
-def unproved : Array Name := #[
-  `EraseProof.erase_correct,
-  `EraseProof.srcEval_sound,
-  `EraseProof.erase_correct_firstorder,
-  `EraseProof.sound_nonvacuous,
-  `EraseProof.clCert_proof_pt,
-  `EraseProof.markOf_exists]
+def unproved : Array Name := #[]
 
 /-- The statement definitions, whose definitions C12b pins. -/
 def pinRoots : Array Name := statements.map (·.2)
@@ -187,14 +182,23 @@ def finalTheorem : Name := `EraseProof.erase_correct
 
 /-- The instances of the final theorem on the non-vacuity programs, each with the terms of the
 hypotheses that it passes to the final theorem (C12). -/
-def finalInstances : Array (Name × Array Name) := #[]
+def finalInstances : Array (Name × Array Name) :=
+  #[`EraseProof.Test.NV0, `EraseProof.Test.NV1, `EraseProof.Test.NV2, `EraseProof.Test.NV3,
+    `EraseProof.Test.NV4, `EraseProof.Test.NV5].map
+    fun ns =>
+    (ns ++ `final,
+      #[`hacc, `hty, `hclean, `hview, `hfrag, `hnopre, `hrun, `hmark, `hcert, `hev].map (ns ++ ·))
 
 /-- The corollaries of the final theorem, each with its instances on the non-vacuity programs:
 proved theorems that derive a more specific conclusion from the final theorem. Like the theorems of
 `statements`, they are roots of C7; their statements are not pinned (C12b). The final form checks
 that each is a theorem whose footprint is exactly `propext`, `Classical.choice`, `Quot.sound`, and
 that each instance is a theorem within them that mentions its corollary (C12). -/
-def corollaries : Array (Name × Array Name) := #[]
+def corollaries : Array (Name × Array Name) := #[
+  (`EraseProof.erase_correct_firstorder,
+    #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder,
+      `EraseProof.Test.NV3.firstorder, `EraseProof.Test.NV4.firstorder,
+      `EraseProof.Test.NV5.firstorder])]
 
 structure Config where
   imports : Array Name := #[]
@@ -1206,7 +1210,7 @@ def main (args : List String) : IO UInt32 := do
         fail "statements" s!"{thm} exists; remove it from `unproved`"
       if !ci.isTheorem || !isOurs env thm then
         fail "statements" s!"{thm} is not a theorem of {lib}"
-      else if !Kernel.isDefEqGuarded env {} ci.type (mkConst stmt) then
+      else if !Kernel.isDefEqGuarded env {} ci.type (mkConst stmt (ci.levelParams.map .param)) then
         fail "statements" s!"the type of {thm} is not its statement {stmt}"
 
   -- C12 the final form.

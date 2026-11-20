@@ -61,8 +61,8 @@ def collectDeps_ok_of_statement : Prop :=
 /-- The statement of `erasePure_erases`: on the closure the fragment test returns, part of a
 program con-leche accepts (`ConLecheAccepts`, `SubEnv`: so every value mentions only earlier
 declarations and the inductive blocks are consistent), if no declaration the traversal erases by
-its value has a compiled pre-definition and every value of the closure has a marking
-(`ValuesMarkedOf`), the output of the pure traversal is an erasure of the
+its value has a compiled pre-definition and every value of the closure that the traversal erases
+has a marking (`ValuesMarkedOf`), the output of the pure traversal is an erasure of the
 marking of the input (`MarkOf`, the traversal's own decisions), with erased dependencies, in a
 closed λ□ environment. No typing premise on the input and no certificate (`noCert`): the `□`
 decisions are the marks. Port of `ML-V Statements.lean:65`, with con-leche's acceptance where that
@@ -103,12 +103,13 @@ test accepts `e` with the closure `decls` (`hfrag`), no declaration of the
 closure that the traversal erases by its value has a compiled pre-definition (`hnopre`), the entry
 point behind `#erase` returns the program `p` (`hrun`), `ê` is `e` with the eraser's erasability
 decisions marked on it (`hmark`), con-leche types `ê` and a marking of the value of every constant
-of the closure that has one, and certifies each of their marks, as a proof or a type former in the context
-of its enclosing binders, the discriminant of each reduced `casesOn` as a proof (`hcert`), and
+of the closure whose value the traversal erases (`ErasedValue`), and certifies each of their
+marks, as a proof or a type former in the context of its enclosing binders, the discriminant of
+each reduced `casesOn` as a proof (`hcert`), and
 `ê` evaluates to `v` in the closure, as `#erase` computes it (`hev`, DV-41), then `p` is an untyped λ□
 program whose main term is an erasure of `ê`, and whose environment holds erasures of its
-dependencies, with every `□` of a mark, and the discriminant of every reduced `casesOn`,
-con-leche-certified; the main term evaluates in λ□ (at
+dependencies, both over the closure, with every `□` of a mark, and the discriminant of every
+reduced `casesOn`, con-leche-certified; the main term evaluates in λ□ (at
 `default_wcbv_flags`) to an erasure of `v`; and `v` means what `e` means in every con-leche model
 of `env` (`Sound`). Reference: `erase_correct` (`MR E/ErasureFunctionProperties.v:657`), with
 subject reduction (`MR P/PCUICSR.v`) replaced by `Sound`; MC §7.3–7.4.
@@ -134,20 +135,17 @@ Scope.
 * The λ□ inductive declarations are related only in their parameter count, constructor counts and
   arities, and `propositional` (`ErasesInd`); their names, `kelim` and projection lists
   (`projs`) are output metadata that no theorem relates.
-* `ErasesDeps` is stated over `evalEnvOf view cfg P`, whose `findDecl` reads `P`, while the
-  absence of two constants with one λ□ name is checked on the closure only (`findCollision`): a
-  constant of `P` outside the closure with the λ□ name of a closure constant may serve as the
-  source of that dependency's erasure. The emitted program is fixed by `hrun`, so this makes the
-  conclusion weaker than a statement over the closure, not the program wrong.
-* `hev` evaluates in the closure (`evalEnvOf view cfg decls`): δ unfolds only declarations the
-  eraser reads, marked over them. The closure is part of `P` (`collectDeps_sub_statement`), so
-  con-leche's acceptance of `P` applies to it; MetaRocq evaluates in the whole global environment
-  (DV-41).
+* `hev` evaluates in the closure (`evalEnvOf view cfg decls`), and the erasure relation of the
+  conclusion (`Erases`, `ErasesDeps`, with the markings `ErasesDecl` reads) is over the closure
+  too: δ unfolds only declarations the eraser reads, marked over them, as the eraser marks them.
+  The closure is part of `P` (`collectDeps_sub_statement`), so con-leche's acceptance of `P`
+  applies to it; MetaRocq evaluates in the whole global environment (DV-3, DV-41).
 * The marks are the shipping oracle's (`Erasure.Pure.isErasable`, read through `MarkOf`), which is
-  not verified; `hcert` checks each of its answers on this program. It asks this of the value of
-  every constant of the closure, also of a value the traversal does not erase (a recognized
-  `casesOn`'s, a theorem's), so a program on which the oracle has no marking of such a value is
-  outside the theorem (DV-37).
+  not verified; `hcert` checks each of its answers on this program: on the input, and on the value
+  of every constant of the closure that the traversal erases (`ErasedValue`: not a theorem, not a
+  recognized `casesOn`), also one whose body the emitted environment does not hold. A program on
+  which the oracle has no marking of such a value, or con-leche does not certify one, is outside
+  the theorem (DV-37).
 * The source evaluation carries con-leche's run-time certificates (`CLOk`, `CLErasable`,
   `CLProofTerm`, `IotaNoCertAt`, `FrozenFieldsCert`, DV-33): a rule that forms a redex or a data
   value from evaluated parts asks con-leche to type it, and a `casesOn` step asks that con-leche's
@@ -175,18 +173,21 @@ def erase_correct_statement.{w} : Prop :=
     (hcert  : ProgCert env decls cfg ê) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
     ∃ lenv tb vb, p = .untyped lenv (some tb) ∧
-      Erases (CLCert env) (evalEnvOf view cfg P) [] ê tb ∧
-      ErasesDeps (CLCert env) (evalEnvOf view cfg P) lenv tb ∧
-      Erases noCert (evalEnvOf view cfg P) [] v vb ∧
+      Erases (CLCert env) (evalEnvOf view cfg decls) [] ê tb ∧
+      ErasesDeps (CLCert env) (evalEnvOf view cfg decls) lenv tb ∧
+      Erases noCert (evalEnvOf view cfg decls) [] v vb ∧
       LBEval defaultFlags lenv tb vb ∧
       Sound.{w} env e v
 
 /-- The statement of `erase_correct_firstorder`: under the hypotheses of `erase_correct` other
-than `hcert`, with the closure `decls` free of mark keys (`hcleanD`), if the value `v` is first-order (a constructor tree with frozen and literal
-leaves), the main term of the emitted program evaluates in λ□ to its structural erasure `foErase`
-(frozen leaves ↦ `□`, literals ↦ Peano numerals), con-leche types `v`, every leaf erased to `□`
-is a subterm that con-leche types as a proof or a type former, and `v` means what `e` means in
-every con-leche model of `env` (`Sound`). Port of `ML-V FirstOrder.lean:132`. Reference:
+than `hcert`, with a marking of every value of the closure that the traversal erases (`hvals`, the
+part of `hcert` that is not a con-leche check; `erasePure_erases_statement` takes it) and the
+closure `decls` free of mark keys (`hcleanD`), if the value `v` is first-order (a constructor
+tree with frozen and literal leaves), the main term of the emitted program evaluates in λ□ to its
+structural erasure `foErase` (frozen leaves ↦ `□`, literals ↦ Peano numerals), con-leche types
+`v`, every leaf erased to `□` is a subterm that con-leche types as a proof or a type former, and
+`v` means what `e` means in every con-leche model of `env` (`Sound`). Port of
+`ML-V FirstOrder.lean:132`. Reference:
 `erase_correct_strong` (`MR E/ErasureFunctionProperties.v:2269`); DV-27, DV-34. -/
 def erase_correct_firstorder_statement.{w} : Prop :=
   ∀ {P decls : List ConstantInfo} {env : ConLeche.Env} {view : EnvView} {cfg : ErasureConfig}
@@ -200,23 +201,25 @@ def erase_correct_firstorder_statement.{w} : Prop :=
     (hnopre : NoPreDefs view cfg decls) →
     (hrun   : eraseEntry view cfg e = pure (p, inl)) →
     (hmark  : MarkOf decls cfg [] e ê) →
+    (hvals  : ValuesMarkedOf decls cfg) →
     (hev    : SrcEval env (evalEnvOf view cfg decls) ê v) →
-    (hfo    : FirstOrderValue (evalEnvOf view cfg P) v) →
+    (hfo    : FirstOrderValue (evalEnvOf view cfg decls) v) →
     ∃ lenv tb, p = .untyped lenv (some tb) ∧
-      LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg P) v []) ∧
+      LBEval defaultFlags lenv tb (foErase (evalEnvOf view cfg decls) v []) ∧
       CLTyped env v ∧ (∀ s, FrozenLeaf v s → CLErasable env s) ∧ Sound.{w} env e v
 
 /-- The statement of `sound_nonvacuous`: `Sound`'s antecedent has content. If con-leche accepts
-`P` and types an application of `e` to closed arguments with a type whose whnf has members that
-are never the proof point (`CLStrictType`), then in every model `e` has a reading that is not the
-proof point (the proof point applied is the proof point, `CL ConLeche/SetTheory/Derive/Graphs.lean:79
-app_pt`). Reference: none (DV-34). -/
+`P` and types an application of `e` to closed arguments with a type whose whnf is a sort
+(`CLStrictType`: its members are types, never the proof point), then in every model `e` has a
+reading that is not the proof point (the proof point applied is the proof point,
+`CL ConLeche/SetTheory/Derive/Graphs.lean:79 app_pt`). A data-typed input is not covered (DV-34).
+Reference: none (DV-34). -/
 def sound_nonvacuous_statement.{w} : Prop :=
   ∀ {P : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {as : List Expr}
     {c c₁ T W : ConLeche.Expr} {F : Nat},
     ConLecheAccepts P env → toCL? e = some c → toCL? (mkAppN e as.toArray) = some c₁ →
     ConLeche.inferTypeCore .verified false env F 0 c₁ = .ok T →
-    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType env W →
+    ConLeche.whnf .verified false env F 0 T = .ok W → CLStrictType W →
     ∀ (V : Type w) [ConLeche.SetTheory V] (m : ConLeche.Model.EnvModelM V env)
       (φ : ConLeche.LevelParam → Nat) (ρ : ConLeche.BVarIdx → V),
       ∃ X, ConLeche.Denotes (ConLeche.Model.Model.ofEnvModelM m).cval env φ ρ c X ∧

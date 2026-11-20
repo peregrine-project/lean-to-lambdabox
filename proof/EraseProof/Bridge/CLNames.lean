@@ -322,11 +322,11 @@ theorem checkDecl_names {F : Nat} {pins : List ConLeche.NatOpPinSet} {e e' : Con
 
 /-- **The records `blockOf?` writes for the block headed by `H`**: each member's former and each
 of its constructors, under their translated names; every record carries the translated name of a
-constant of `P`. -/
+constant of `P` that is no definition (an inductive, a constructor or a recursor). -/
 theorem blockOf?_spec {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.Declaration}
     (h : blockOf? P H = some d) :
     ∃ block, d = .indDecl block H.numParams ∧
-      (∀ b ∈ block, ∃ ci ∈ P, b.name = Name.toCL ci.name) ∧
+      (∀ b ∈ block, ∃ ci ∈ P, b.name = Name.toCL ci.name ∧ ∀ d, ci ≠ .defnInfo d) ∧
       ∀ n ∈ H.all, ∃ t, findConst P n = some (.inductInfo t) ∧
         (∃ cv, cvOf? t.toConstantVal = some cv ∧ ConLeche.ConstantInfo.indInfo cv {} ∈ block) ∧
         ∀ cn ∈ t.ctors, ∃ c, findConst P cn = some (.ctorInfo c) ∧ ∃ cv,
@@ -352,14 +352,14 @@ theorem blockOf?_spec {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.D
         simp only [Option.bind_eq_some_iff, Option.some.injEq] at he
         obtain ⟨cv, hcv, rfl⟩ := he
         obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
-        exact ⟨.inductInfo t, hty t ht, rfl⟩
+        exact ⟨.inductInfo t, hty t ht, rfl, fun _ => nofun⟩
       · obtain ⟨L, hL, hbL⟩ := List.mem_flatten.mp hb
         obtain ⟨⟨t, cs⟩, hz, he⟩ := mem_of_mapM hctors hL
         obtain ⟨c, hc, he'⟩ := mem_of_mapM he hbL
         simp only [Option.bind_eq_some_iff, Option.some.injEq] at he'
         obtain ⟨cv, hcv, rfl⟩ := he'
         obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
-        exact ⟨.ctorInfo c, hcs cs (List.of_mem_zip hz).2 c hc, rfl⟩
+        exact ⟨.ctorInfo c, hcs cs (List.of_mem_zip hz).2 c hc, rfl, fun _ => nofun⟩
     · obtain ⟨r, hr, he⟩ := mem_of_mapM hrecs hb
       obtain ⟨cv, rules, hcv, -, rfl⟩ := recOf?_eq_some he
       obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
@@ -369,7 +369,7 @@ theorem blockOf?_spec {P : List ConstantInfo} {H : InductiveVal} {d : ConLeche.D
       | recInfo r' =>
         simp only at hxe
         split at hxe
-        · cases hxe; rfl
+        · cases hxe; exact ⟨rfl, fun _ => nofun⟩
         · exact nomatch hxe
       | _ => exact nomatch hxe
   · have hm := mapM_eq_some htys ▸ List.mem_map_of_mem (f := fun n => match findConst P n with
@@ -627,15 +627,17 @@ theorem ConstsIn_mono {p q : Name → Prop} (h : ∀ c, p c → q c) :
   | .bvar _, _ | .fvar _, _ | .mvar _, _ | .sort _, _ | .lit _, _ => trivial
 
 /-- **The records `DeclsOf?` writes for a constant of `P` carry translated names of constants of
-`P`.** -/
+`P`**: of the constant itself, or of one that is no definition (a block's). -/
 theorem declOf?_names {P : List ConstantInfo} {ci : ConstantInfo} (hci : ci ∈ P)
     {L : List ConLeche.Declaration} (h : declOf? P ci = some L) {d : ConLeche.Declaration}
-    (hd : d ∈ L) : ∀ n ∈ d.names, ∃ ci' ∈ P, n = Name.toCL ci'.name := by
+    (hd : d ∈ L) : ∀ n ∈ d.names, ∃ ci' ∈ P, n = Name.toCL ci'.name ∧
+      (ci' = ci ∨ ∀ dv, ci' ≠ .defnInfo dv) := by
   have one : ∀ {v : Lean.ConstantVal} {cv : ConLeche.ConstantVal}, v.name = ci.name →
-      cvOf? v = some cv → ∀ n ∈ [cv.name], ∃ ci' ∈ P, n = Name.toCL ci'.name := by
+      cvOf? v = some cv → ∀ n ∈ [cv.name], ∃ ci' ∈ P, n = Name.toCL ci'.name ∧
+        (ci' = ci ∨ ∀ dv, ci' ≠ .defnInfo dv) := by
     intro v cv hv hcv n hn
     obtain ⟨ty, -, rfl⟩ := cvOf?_eq_some hcv
-    rw [List.mem_singleton.mp hn, hv]; exact ⟨ci, hci, rfl⟩
+    rw [List.mem_singleton.mp hn, hv]; exact ⟨ci, hci, rfl, .inl rfl⟩
   cases ci with
   | axiomInfo v =>
     cases hu : v.isUnsafe
@@ -694,7 +696,8 @@ theorem declOf?_names {P : List ConstantInfo} {ci : ConstantInfo} (hci : ci ∈ 
           obtain ⟨block, rfl, hnm, -⟩ := blockOf?_spec hb
           intro n hn
           obtain ⟨b, hb', rfl⟩ := List.mem_map.mp hn
-          exact hnm b hb'
+          obtain ⟨ci', h1, h2, h3⟩ := hnm b hb'
+          exact ⟨ci', h1, h2, .inr h3⟩
       · simp only [declOf?, hu, hh, beq_iff_eq, Bool.false_eq_true, ↓reduceIte] at h
         revert h; split
         · split
@@ -732,7 +735,7 @@ theorem ConLecheAccepts.known {P : List ConstantInfo} {env : ConLeche.Env}
   · exact absurd hc0 (by simp [ConLeche.Env.empty])
   obtain ⟨e, e', hstep, -⟩ := hrun d hd
   obtain ⟨ci, hci, L, hL, hdL⟩ := DeclsOf?.mem_rev hds hd
-  obtain ⟨ci', hci', he⟩ := declOf?_names hci hL hdL _ (checkDecl_names hstep c hcd)
+  obtain ⟨ci', hci', he, -⟩ := declOf?_names hci hL hdL _ (checkDecl_names hstep c hcd)
   rw [hcn] at he
   rw [Name.toCL_injective he, findDecl_self (DeclsOf?.nodup hds) hci']
   rfl
@@ -894,7 +897,8 @@ theorem ConLecheAccepts.namesClosed {P : List ConstantInfo} {env : ConLeche.Env}
       rw [hft] at this
       cases this; rfl
     subst this
-    refine ⟨_, block, p, hdf, hst, hndC, hgr, hrec, hnames, fun n hn => ?_, hfr, hctors⟩
+    refine ⟨_, block, p, hdf, hst, hndC, hgr, hrec,
+      fun b hb => (hnames b hb).imp fun _ h => ⟨h.1, h.2.1⟩, fun n hn => ?_, hfr, hctors⟩
     obtain ⟨_, hfn, -⟩ := hfwd n (hall ▸ hn)
     exact (show (findConst P n).isSome = true by rw [hfn]; rfl)
   cases ci with
