@@ -6,9 +6,10 @@ import EraseProof.Semantics.Decode
 /-!
 # The traversal's environment invariant, from the premises of `erasePure_erases`
 
-`coreEnv_of`: the closure a successful fragment test (`Erasure.collectDeps`) returns, part of a
-program con-leche accepts (`ConLecheAccepts`, `SubEnv`), whose declarations have no compiled
-pre-definition (`NoPreDefs`), satisfies `Steps.CoreEnv`. Two sources:
+`coreEnvBase_of`: the closure a successful fragment test (`Erasure.collectDeps`) returns, part of
+a program con-leche accepts (`ConLecheAccepts`, `SubEnv`), satisfies `Steps.CoreEnvBase`, and
+`Steps.CoreEnv` if its declarations have no compiled pre-definition (`NoPreDefs`, `coreEnv_of`).
+Two sources:
 
 * the fragment test's own checks, on each declaration it scans (`Run`): `declExclusion` gives
   `PhaseIDecl` (`Run.phase`) and, on a recursor, the fragment's shape (`Run.rec_frag`);
@@ -948,7 +949,7 @@ end CoreEnvOf
 open CollectSub CollectSpec CollectOk Decls CoreEnvOf in
 /-- **The traversal's environment invariant holds on the fragment test's closure**: on a closure
 that a successful `Erasure.collectDeps` returns and that is part of a program con-leche accepts,
-whose declarations erased by their values have no compiled pre-definition, `Steps.CoreEnv` holds.
+`Steps.CoreEnvBase` holds.
 The fragment test's checks give the closure's facts (`collectDeps_spec_sub`, `Run.phase`,
 `Run.read`, `Run.rec_frag`, `coreEnv_value`); `blockShapeOK` and con-leche's pins give the
 program's (`blockOf?_member`, `ConLecheAccepts.all_nodup`, `ConLecheAccepts.quot_pins`,
@@ -956,10 +957,10 @@ program's (`blockOf?_member`, `ConLecheAccepts.all_nodup`, `ConLecheAccepts.quot
 `ML-V Core/StepsB.lean:367 coreEnv_of_collectDeps`.
 Reference: the hypotheses of `erases_erase` (`MR E/ErasureFunction.v:1228`) on
 `erase_global_deps`'s environment (`MR E/ErasureFunction.v:1602`). -/
-theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {view : EnvView}
-    {cfg : ErasureConfig} (hP : ConLecheAccepts P env) (hsub : SubEnv decls P)
-    (hnopre : NoPreDefs view cfg decls) (h : collectDeps view cfg e = .ok decls) :
-    Steps.CoreEnv view cfg decls := by
+theorem coreEnvBase_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
+    {view : EnvView} {cfg : ErasureConfig} (hP : ConLecheAccepts P env) (hsub : SubEnv decls P)
+    (h : collectDeps view cfg e = .ok decls) :
+    Steps.CoreEnvBase view cfg decls := by
   obtain ⟨hinj, hdep, -, hbn, har⟩ := collectDeps_spec_sub hP hsub h
   obtain ⟨cs, cases, -, hcl, hel, hirr, -, -⟩ := CollectSpec.collectDeps_ok h
   obtain ⟨hvw, -, -, -, hscan⟩ := closure_ok hcl nofun nofun
@@ -1019,7 +1020,6 @@ theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
     inj := hinj
     bn := hbn
     arity := har
-    nopre := hnopre
     npd := fun ci hci x hx => by
       obtain ⟨xs, hxs, -⟩ := hr.read hci hx
       exact (exprConsts_plain hxs).2
@@ -1115,5 +1115,14 @@ theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr}
       have := (toP hT).symm.trans ht
       cases this
       exact ⟨hnp, fun ns motives minors h => recShape_motives (hmo h0) h⟩ }
+
+/-- `Steps.CoreEnv` on the fragment test's closure, part of a program con-leche accepts, whose
+declarations erased by their values have no compiled pre-definition: `coreEnvBase_of` and
+`NoPreDefs`. Reference: as `coreEnvBase_of`. -/
+theorem coreEnv_of {P decls : List ConstantInfo} {env : ConLeche.Env} {e : Expr} {view : EnvView}
+    {cfg : ErasureConfig} (hP : ConLecheAccepts P env) (hsub : SubEnv decls P)
+    (hnopre : NoPreDefs view cfg decls) (h : collectDeps view cfg e = .ok decls) :
+    Steps.CoreEnv view cfg decls :=
+  { coreEnvBase_of hP hsub h with nopre := hnopre }
 
 end EraseProof

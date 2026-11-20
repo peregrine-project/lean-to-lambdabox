@@ -121,8 +121,8 @@ theorem slice_drop {A : List Expr} {n : Nat} (hn : n ≤ A.length) :
 section
 variable {decls : List ConstantInfo} {view : EnvView} {cfg : ErasureConfig}
 
-/-- The constructors of an inductive of the closure are distinct (`CoreEnv.ctorIdx`). -/
-theorem ctors_inj (hG : CoreEnv view cfg decls) {T : Name} {iv : InductiveVal}
+/-- The constructors of an inductive of the closure are distinct (`CoreEnvBase.ctorIdx`). -/
+theorem ctors_inj (hG : CoreEnvBase view cfg decls) {T : Name} {iv : InductiveVal}
     (hiv : findDecl decls T = some (.inductInfo iv)) {i j : Nat} {cn : Name}
     (hi : iv.ctors[i]? = some cn) (hj : iv.ctors[j]? = some cn) : i = j := by
   obtain ⟨cv, hcv, rfl, -⟩ := hG.ctorIdx T iv hiv i cn hi
@@ -132,8 +132,8 @@ theorem ctors_inj (hG : CoreEnv view cfg decls) {T : Name} {iv : InductiveVal}
   exact hj'
 
 /-- A constructor of an inductive of the closure has the inductive's parameter count
-(`CoreEnv.ctorIdx`). -/
-theorem ctor_numParams (hG : CoreEnv view cfg decls) {T : Name} {iv : InductiveVal}
+(`CoreEnvBase.ctorIdx`). -/
+theorem ctor_numParams (hG : CoreEnvBase view cfg decls) {T : Name} {iv : InductiveVal}
     (hiv : findDecl decls T = some (.inductInfo iv)) {cn : Name} (hcn : cn ∈ iv.ctors)
     {cv : ConstructorVal} (hcv : findDecl decls cn = some (.ctorInfo cv)) :
     cv.numParams = iv.numParams := by
@@ -231,7 +231,7 @@ theorem casesSat_reduced (hG : CoreEnv view cfg decls) {j : Nat}
   have hu' : Pure.typeLevel ⟨decls⟩ oracleFuel tc.locals (renFV ρ d) = .ok u := by
     rw [Pure.typeLevel_ren (cx := ⟨decls⟩) hG.closed hR.supp hR.ren _ d hdS, hu]
   have hidx' : (indexFields iv'.numParams cv.type).all Option.isNone = true := by
-    rw [← ctor_numParams hG hiv (by rw [hcn]; exact List.mem_singleton_self _) hcv]
+    rw [← ctor_numParams hG.toCoreEnvBase hiv (by rw [hcn]; exact List.mem_singleton_self _) hcv]
     exact hidx
   rw [visitCases, runPure_bind, getOrFail_of (by rw [hdp, ← hpre]; exact hgd), ok_bind'] at hrun
   dsimp only at hrun
@@ -452,7 +452,7 @@ theorem casesSat_case (hG : CoreEnv view cfg decls) {j : Nat}
         rcases Bool.eq_false_or_eq_true (cn == cn') with h' | h'
         · have e := beq_iff_eq.mp h'
           subst e
-          have := ctors_inj hG hiv hcn hcn'
+          have := ctors_inj hG.toCoreEnvBase hiv hcn hcn'
           omega
         · exact h'
       simp only [hne, Bool.false_eq_true, ↓reduceIte]
@@ -489,7 +489,7 @@ theorem casesSat_case (hG : CoreEnv view cfg decls) {j : Nat}
            dsimp only at hrb
            have hcv' : findDecl decls cn = some (.ctorInfo cv) := hcv
            rw [ite_eq_left_of_eq_true _ _ (eq_true (by
-             rw [← ctor_numParams hG hiv hcn hcv']; exact (hC hz).2 cn hcn cv hcv'))] at hrb
+             rw [← ctor_numParams hG.toCoreEnvBase hiv hcn hcv']; exact (hC hz).2 cn hcn cv hcv'))] at hrb
            cases hrb
            exact ⟨_, rfl, rfl, rfl, rfl⟩) _ [] ∅ st ps _ _ _ rfl ⟨rfl, rfl, rfl⟩ hloop₂
        rw [hs₂, hp₂] at hrun)
