@@ -18,7 +18,7 @@ open Lean Erasure EraseProof EraseProof.Test EraseProof.Test.NV1
 
 namespace EraseProof.Test.NV1
 
-/-! ## con-leche's records and environment (A-2/A-3; `k` = con-leche form) -/
+/-! ## con-leche's records and environment (`k` = con-leche form) -/
 
 def nm (s : String) : ConLeche.Name := .str .anonymous s
 def nm2 (a b : String) : ConLeche.Name := .str (.str .anonymous a) b
@@ -66,7 +66,7 @@ def envNV1 : ConLeche.Env :=
 
 /- `hfold`, the premise of the instance, by compiled evaluation: the fold accepts `nv1full` with
 result `envNV1` (`ConstantInfo` and `ProjTable` have `DecidableEq`). The kernel cannot evaluate it
-(`Std.HashMap`s hashed by the opaque `mixHash` in the block installer, A-2 B3). -/
+(`Std.HashMap`s hashed by the opaque `mixHash` in the block installer). -/
 #guard match ConLeche.checkDeclsPure .verified (ConLeche.fueledOps .verified ConLeche.checkFuel) []
     nv1full with
   | .ok env => decide (env.consts = envNV1.consts) && decide (env.tables = envNV1.tables)
