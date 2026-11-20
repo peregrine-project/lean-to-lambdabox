@@ -61,6 +61,8 @@ import EraseProof.Core.Assemble
 import EraseProof.Core.CoreEnv
 import EraseProof.Core.ExistsInv
 import EraseProof.Core.ExistsSteps
+import EraseProof.Core.ExistsSpines
+import EraseProof.Core.Exists
 import EraseProof.Final
 import EraseProof.FirstOrder
 import EraseProof.Test.NV5Final
@@ -164,11 +166,16 @@ The library root of the proof package: the correctness of the erasure behind `#e
 * `EraseProof.Core.Assemble`: the induction on the traversal's fuel over the steps, and the
   pure traversal's correctness (`erasePure_erases`).
 * `EraseProof.Core.CoreEnv`: the traversal's environment invariant on the fragment test's closure
-  of a program con-leche accepts, from the test's checks and the program's records (`coreEnv_of`).
+  of a program con-leche accepts, from the test's checks and the program's records
+  (`coreEnvBase_of`, `coreEnv_of`).
 * `EraseProof.Core.ExistsInv`: every run of the traversal keeps its counter of fresh variables
   increasing and the masks it registers keeping every field (`travMonoAt`).
 * `EraseProof.Core.ExistsSteps`: the steps of the existence of the marking for every case of
   `visitExpr` but recursors and recognized `casesOn` spines (`ExistsSpec`).
+* `EraseProof.Core.ExistsSpines`: the steps of the existence of the marking for recursor and
+  recognized `casesOn` spines.
+* `EraseProof.Core.Exists`: the induction on the traversal's fuel over those steps, and the
+  existence of the marking (`markOf_exists`).
 * `EraseProof.Final`: the final theorem `erase_correct`, composed of the milestones over the
   fragment test's closure, with the certified erasure from the program's certificates.
 * `EraseProof.FirstOrder`: the final theorem on first-order values `erase_correct_firstorder`.

@@ -288,9 +288,9 @@ end
 
 /-! ## The closure, the statement of `visitMutual`, the induction hypothesis -/
 
-/-- The facts about the closure `decls` that the steps read: its types and values have no free
-variable, distinct kernames and block names, syntactic arities for its inductive types, no compiled
-pre-definition for what the traversal erases by its value; what the traversal reads is `NatPlain`
+/-- The facts about the closure `decls` that the steps read, but for the absence of compiled
+pre-definitions (`CoreEnv`): its types and values have no free variable, distinct kernames and
+block names, syntactic arities for its inductive types; what the traversal reads is `NatPlain`
 and `RecShaped`; the quotient type has an arity and `Quot.ind` is named so; and every value
 `visitMutual` erases (of a declaration that is neither a theorem nor a recognized `casesOn`) is of
 a one-member block and has a scope without its own declaration, so that `visitMutual` erases it
@@ -299,12 +299,11 @@ Adapted from `ML-V Core/Steps.lean:794 CoreEnv`, whose typing facts have no coun
 of a value replaces `ProgEnv.value_suffix` (`ML-V Core/Steps.lean:1741`). Reference: the hypotheses
 of `erases_erase` (`MR E/ErasureFunction.v:1228`): `wf_ext Σ` and the abstract environment's
 relation to `Σ`; `erase_global_deps_fresh` (`MR E/ErasureFunctionProperties.v:1206`). -/
-structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop where
+structure CoreEnvBase (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop where
   closed : ClosedDecls decls = true
   inj : KernameInj decls
   bn : BlockNamesInj decls
   arity : ArityTypes decls
-  nopre : NoPreDefs view cfg decls
   npd : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → NatPlain cfg x
   recShaped : ∀ ci ∈ decls, ∀ x, ReadExpr decls ci x → RecShaped cfg decls x
   quotType : ∀ c q, findDecl decls c = some (.quotInfo q) → q.kind = .type →
@@ -340,6 +339,13 @@ structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantI
     rv.numMinors = iv.ctors.length
   /-- The recursors have Lean's shape (`RecsShaped`; `blockShapeOK`'s `recMotivesOK`). -/
   recs : RecsShaped decls
+
+/-- The facts about the closure `decls` that the steps read (`CoreEnvBase`), and no compiled
+pre-definition for what the traversal erases by its value (`NoPreDefs`). Reference: as
+`CoreEnvBase`. -/
+structure CoreEnv (view : EnvView) (cfg : ErasureConfig) (decls : List ConstantInfo) : Prop
+    extends CoreEnvBase view cfg decls where
+  nopre : NoPreDefs view cfg decls
 
 /-- On an application spine whose head is an atom (`EvalEnv.isAtom`), the shipping oracle answers
 `true` or fails, never `false`, under every list of locals. Statement of

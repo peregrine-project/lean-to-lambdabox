@@ -789,7 +789,11 @@ What the statements and the checks rely on without proof:
   evaluated values substituted, which no check repeats. The `□`s that the relation does not pair with
   a mark (the direct-mode placeholders of a recursor's fixpoint, DV-30) rest on declaration
   conditions and the fragment test, not on a certificate. The oracle's answers are checked on this
-  program, not proved. The values certified are those of the closure that the traversal erases
+  program, not proved. The value conjunct of `EraseProof.erase_correct_statement` relates the λ□
+  value with `EraseProof.Erases` at `EraseProof.noCert`, not at the certificate: MetaRocq's
+  `erases_correct` relates it by `erases`, with `isErasable` at every `□`. The certificate is a
+  fuelled con-leche run with no substitution lemma, so it is not carried to substituted values.
+  The values certified are those of the closure that the traversal erases
   (`EraseProof.ErasedValue`: a definition that is not a `casesOn` that `Erasure.casesInfo?`
   recognizes, or an opaque; never a theorem, on whose spines the oracle answers `true` before it
   reads anything else), also those whose body the emitted λ□ environment does not hold: a program
@@ -885,10 +889,15 @@ What the statements and the checks rely on without proof:
   needs no pin data, which comes from con-leche's pin generator and is outside the hygiene allow
   list of check C6; the binary's driver is IO code (check C6) and the cached fold reads a
   lean4export stream, not Lean records, so neither is a function of the program's records.
+  `RulesCanonical` and `TablesCanonical` are forced because con-leche states nothing about the
+  stored rules' and tables' syntax beyond what its laws need (their scoping and `λ`-count, CL
+  ConLeche/Verify/EnvWF.lean:217, and the lookup of a projection table, CL
+  ConLeche/Verify/EnvWF.lean:22 Env.findProj?_some): the shapes the traversal and the bridge read
+  are checked at install and not stated of the accepted environment, so this reading checks them.
 - **What was considered instead:** the binary's fold at `natOpPinSets`, which needs the generated
   pin data and a stream; acceptance defined by con-leche's frontend on an export of the program,
-  which is not a function of the records. `RulesCanonical` proved from the fold's block branch (about 1000 lines of the installer's
-  machinery) instead of stated, and likewise `TablesCanonical` from the structure installer.
+  which is not a function of the records; `RulesCanonical` and `TablesCanonical` derived from the
+  fold's block and structure installers instead of read from the program.
 
 ### DV-39
 
@@ -946,6 +955,10 @@ What the statements and the checks rely on without proof:
   con-leche's binder congruence on two `Π`s that are not syntactically equal, which opens both
   bodies with instantiateList (CL ConLeche/Kernel/Core.lean:1478 defeqBinders). A program without
   an inductive type reduces to the end, which is why NV-0 needs no premise.
+  The compiled `#guard`s run con-leche's own compiled code, including its `implemented_by` and
+  `@[extern]` definitions (CL ConLeche/Kernel/Exclusive.lean:107, CL
+  ConLeche/Kernel/NatHash.lean:54, its native `nat_hash`), which is trusted for those checks only,
+  not for the theorem.
 - **What was considered instead:** `native_decide` or `ofReduceBool`, which adds the compiler to
   the trust base and is forbidden; a symbolic proof that the fold accepts the block, which needs
   the installer's `Std.HashMap` reasoning and every comparison above proved by hand; kernel-reducible
