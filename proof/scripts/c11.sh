@@ -7,8 +7,8 @@
 # that `peregrine eval` (with the table's options) prints must be the table's value, the value of
 # the Lean program (eval's output without its "Compiling:" and "Compiled successfully:" lines,
 # whitespace collapsed; `--anf=false` prints □ as `(FIX 0)`). The programs:
-# - NV-0's to NV-4's programs as the entry point of #erase emits them (proof/tools/NVEmit.lean;
-#   check.sh's step nv1-emit writes them to proof/.check/nv1/NV0.ast to NV4.ast, which must exist);
+# - NV-0's to NV-5's programs as the entry point of #erase emits them (proof/tools/NVEmit.lean;
+#   check.sh's step nv1-emit writes them to proof/.check/nv1/NV0.ast to NV5.ast, which must exist);
 # - every output of the regression tests (tests/regress) written under `nat := .peano`, read from
 #   tests/regress/expected/, which scripts/regress.sh requires to equal what the tests write;
 # - the regression tests' outputs for the programs of NV-1, NV-P and NV-K (tests/regress/
@@ -39,6 +39,7 @@ proof/.check/nv1/NV1.ast                              default -           constr
 proof/.check/nv1/NV2.ast                              default -           constr Box.mk constr B.f
 proof/.check/nv1/NV3.ast                              peano   -           constr Nat.zero
 proof/.check/nv1/NV4.ast                              default -           constr B.t
+proof/.check/nv1/NV5.ast                              default -           constr B.t
 tests/regress/expected/entry_route/nv1.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvp.ast            default -           constr ER.B.t
 tests/regress/expected/entry_route/nvk.ast            default -           constr ER.B.t

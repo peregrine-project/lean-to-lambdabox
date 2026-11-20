@@ -184,7 +184,7 @@ def finalTheorem : Name := `EraseProof.erase_correct
 hypotheses that it passes to the final theorem (C12). -/
 def finalInstances : Array (Name × Array Name) :=
   #[`EraseProof.Test.NV0, `EraseProof.Test.NV1, `EraseProof.Test.NV2, `EraseProof.Test.NV3,
-    `EraseProof.Test.NV4].map
+    `EraseProof.Test.NV4, `EraseProof.Test.NV5].map
     fun ns =>
     (ns ++ `final,
       #[`hacc, `hty, `hclean, `hview, `hfrag, `hnopre, `hrun, `hmark, `hcert, `hev].map (ns ++ ·))
@@ -197,7 +197,8 @@ that each instance is a theorem within them that mentions its corollary (C12). -
 def corollaries : Array (Name × Array Name) := #[
   (`EraseProof.erase_correct_firstorder,
     #[`EraseProof.Test.NV1.firstorder, `EraseProof.Test.NV2.firstorder,
-      `EraseProof.Test.NV3.firstorder, `EraseProof.Test.NV4.firstorder])]
+      `EraseProof.Test.NV3.firstorder, `EraseProof.Test.NV4.firstorder,
+      `EraseProof.Test.NV5.firstorder])]
 
 structure Config where
   imports : Array Name := #[]
