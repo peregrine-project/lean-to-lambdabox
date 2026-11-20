@@ -1,0 +1,46 @@
+\chapter{What the theorem does not say}\label{chap:limits}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} List, in one place, what \code{erase\_correct} and its corollary leave out.
+\item \lead{Status} \stProved{} all eleven pinned statements (Chapter~\ref{chap:statements}) and the final theorem (Chapter~\ref{chap:final}). \hl{The list below is complete: every limit of the theorem is a row of it, or a program of Chapter~\ref{chap:scope}.}
+\item \lead{Roots} \code{proof/ROOTS.txt} lists one root, \code{erase\_correct} (Section~\ref{sec:limits-roots}).
+\end{itemize}
+
+\section{What the final theorem does not say}\label{sec:limits-notsay}
+
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+Topic & What the theorem leaves out \\
+\midrule
+Irrelevance of erased parts & The theorem does not prove that the erased parts are irrelevant to the
+  computation. The source evaluation runs the marked term, in which an erased subterm is a frozen value. If the eraser erases what the computation needs, the marked evaluation is stuck
+  or \code{hcert} fails, and the theorem says nothing about that program. \\
+The oracle & \leandecl{Erasure.Pure.isErasable} is not verified, and \hl{it is part of the statement}: it defines the marks, the statements read it through \code{MarkOf}, and \code{hcert} checks each of its answers on the given program only. \\
+Type-former certificates & A $\Box$ that stands for a type former is justified by the checker's typing verdict. The verdict has no model content: the model has no criterion that separates type formers from data. A proof certificate does have one (\code{clCert\_proof\_pt}). \\
+Other boxes & A $\Box$ of a recursor fixpoint's direct mode or of an index placeholder rests on declaration conditions and the fragment test. A $\Box$ of a value under a binder is a certified mark with evaluated values substituted, which no check repeats. \\
+Partial correctness & \code{hev} is assumed. Nothing says that a typed program evaluates; con-leche proves no normalisation. \\
+Type preservation & \code{Sound} is not type preservation, and it says nothing where the input denotes the proof point. For an input typed at a sort, \code{sound\_nonvacuous} shows the meaning has content. \hl{For a data-typed input, \code{Sound} may be vacuous}: the models \code{EnvModelM} allows need not exclude that data denotes the proof point. \\
+Model existence & No model is constructed. \code{Sound} quantifies over every \code{SetTheory} model of the accepted environment; models exist under con-leche's hypothesis on inaccessible cardinals, which this work does not use. \\
+The con-leche binary & The theorem is not about the binary. Acceptance is by con-leche's pure fold on our reading of the declarations, without \code{Nat.div} and \code{Nat.mod} pins; the binary's fold on exported declarations is compared with it only on the test programs. \\
+Intermediate redexes & Every redex or data value that an evaluation step forms from evaluated parts must be typable by con-leche. A program with an untypable intermediate redex, such as sort-polymorphic code used at \code{Prop}, is outside. \\
+Stuck sources & Opaques, theorems and \code{@[extern]} atoms under \code{.preferAxiom} are not unfolded, a recursor is not reduced on a proof major, and computational \code{Classical.choice} does not evaluate. Such a program is stuck in the source where $\lambda_\Box$ computes. \\
+Excluded programs & User axioms, \code{Nat.div} and \code{Nat.mod} declarations, structural recursion through compiled pre-definitions, well-founded recursion, \code{partial}, \code{unsafe} and \code{implemented\_by} code, mutual definitions, nested inductives, \code{nat := .machine}, strings, \code{remove\_irrel\_constr\_args}, whole-file environments (Chapter~\ref{chap:scope}). A theorem or a recognized \code{casesOn} in the closure does not exclude a program: \code{hcert} asks a marking only of the values the traversal erases, and no test program has one. \\
+The view & \code{hview} asks that the compiled pre-definitions the view holds for the program's declarations name only constants of the program. A view with a pre-definition naming a constant outside it is outside. \\
+$\lambda_\Box$ well-formedness & The names of the emitted inductive declarations, their \code{kelim} and their projection lists are related by no theorem, and no well-formedness of the emitted program is proved; \code{peregrine validate} checks it on the test programs only. \\
+Output & The typed $\lambda_\Box$ output, the backends and Peregrine are not covered. \\
+Compiled code & The printer, the elaborator, the inlining sidecar, Lean's compiler and runtime, and con-leche's compiled code are trusted. The compiled \code{\#guard}s of the tests trust con-leche's \code{implemented\_by} and \code{extern} code for those checks only (Section~\ref{sec:trust-gap}). \\
+\bottomrule
+\end{tabular}
+
+\begin{itemize}
+\item \lead{Non-vacuity gap} \hl{con-leche's acceptance of a program with an inductive type, and any certificate that needs $\iota$ or a non-trivial level comparison, is checked by compiled evaluation in the tests, not by the kernel}: the fold installs an inductive block through hash maps keyed by an opaque hash, and $\iota$ and level comparison use well-founded functions. Only inductive-free programs are kernel-checked end to end.
+\end{itemize}
+
+\section{Roots of the proof package}\label{sec:limits-roots}
+
+Every declaration of \code{EraseProof} outside the tests is reachable from a root of
+\code{proof/ROOTS.txt}, from a statement definition or from a proved theorem with a statement. The
+only root is the final theorem. The table is generated from \code{proof/ROOTS.txt}.
+
+\input{generated/roots}

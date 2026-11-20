@@ -12,37 +12,37 @@
 \bpdefinestatus{standard}{333333}
 \bpdefinestatus{planned}{333333}
 % \bpdefinenodes{chapter}{badges}: the nodes of a chapter by kind, which \bpnodes{chapter} prints.
-\bpdefinenodes{chap:trust}{\bpkind{conleche}~105}
-\bpdefinenodes{chap:bridge}{\bpkind{step}~4 \bpkind{lemma}~2 \bpkind{definition}~5}
-\bpdefinenodes{chap:source}{\bpkind{step}~3 \bpkind{lemma}~1 \bpkind{definition}~4}
+\bpdefinenodes{chap:trust}{\bpkind{conleche}~108}
+\bpdefinenodes{chap:bridge}{\bpkind{step}~1 \bpkind{lemma}~4 \bpkind{definition}~5}
+\bpdefinenodes{chap:source}{\bpkind{step}~2 \bpkind{lemma}~2 \bpkind{definition}~4}
 \bpdefinenodes{chap:relation}{\bpkind{lemma}~9 \bpkind{definition}~3}
 \bpdefinenodes{chap:simulation}{\bpkind{step}~4 \bpkind{lemma}~3 \bpkind{definition}~1}
-\bpdefinenodes{chap:semantics}{\bpkind{step}~7 \bpkind{lemma}~2 \bpkind{definition}~2}
-\bpdefinenodes{chap:core}{\bpkind{step}~7 \bpkind{lemma}~15 \bpkind{definition}~1}
-\bpdefinenodes{chap:statements}{\bpkind{final}~1 \bpkind{milestone}~4 \bpkind{lemma}~6 \bpkind{definition}~11}
-\bpdefinenodes{chap:tests}{\bpkind{test}~10}
+\bpdefinenodes{chap:semantics}{\bpkind{step}~3 \bpkind{lemma}~11 \bpkind{definition}~3}
+\bpdefinenodes{chap:core}{\bpkind{step}~7 \bpkind{lemma}~22 \bpkind{definition}~2}
+\bpdefinenodes{chap:statements}{\bpkind{milestone}~3 \bpkind{step}~1 \bpkind{lemma}~5 \bpkind{definition}~9}
+\bpdefinenodes{chap:final}{\bpkind{final}~1 \bpkind{step}~2 \bpkind{lemma}~3 \bpkind{definition}~3}
+\bpdefinenodes{chap:tests}{\bpkind{test}~22}
 % \bpsetkind{label}{kind}{status}{inherited sorries}: every node (the print version puts the badges after its heading).
 \bpsetkind{def:EraseProof-toCL}{definition}{standard}{}
 \bpsetkind{def:EraseProof-DeclsOf}{definition}{standard}{}
 \bpsetkind{def:EraseProof-RulesSelected}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-toCL-instantiate1}{step}{standard}{}
+\bpsetkind{lem:EraseProof-toCL-instantiate1}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-CLTyped-closed}{lemma}{standard}{}
-\bpsetkind{lem:EraseProof-ConLecheAccepts-accepted}{step}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-accepted}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-CLCert}{definition}{standard}{}
 \bpsetkind{def:EraseProof-Sound}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-CLOk-wellDenoted}{lemma}{planned}{}
-\bpsetkind{lem:EraseProof-ConLecheAccepts-stored}{step}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-stored}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-ConLecheAccepts-namesClosed}{step}{standard}{}
 \bpsetkind{lem:EraseProof-eraseEntry-pure}{step}{standard}{}
 \bpsetkind{lem:EraseProof-CollectSub-closure-sub}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-collectDeps-spec}{step}{standard}{}
-\bpsetkind{lem:EraseProof-CollectOk-Frag-closure_ok_of}{step}{standard}{}
+\bpsetkind{lem:EraseProof-CollectOk-Frag-closure_ok_of}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-StateOK}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-StateOK-register}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-register-inductive-ok}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-ExprSpec}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-KeepsPS}{lemma}{standard}{}
-\bpsetkind{lem:EraseProof-Steps-visitExpr_app_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-visitExpr_app_step}{step}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-visitCasesOn_spec}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-visitExpr_cases_step}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Steps-visitExpr_ctor_step}{lemma}{standard}{}
@@ -56,6 +56,23 @@
 \bpsetkind{lem:EraseProof-Oracle-Rename}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Pure-isErasable_atom}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-MarkOf-det_ren}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-travMonoAt}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-Steps-ExistsSpec}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-exists_split}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-visitAppArgs_exists}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-exists_lam_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-exists_rec_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-exists_cases_step}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-Steps-existsSpec_of}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-erase_correct-statement}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Final-marksCert_of_progCert}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Final-Erases-toCert}{step}{standard}{}
+\bpsetkind{thm:EraseProof-erase_correct}{final}{standard}{}
+\bpsetkind{def:EraseProof-erase_correct_firstorder-statement}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-FirstOrder-Erases-firstOrder}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-FirstOrder-CertValue}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-FirstOrder-SrcEval-certValue}{lemma}{standard}{}
+\bpsetkind{cor:EraseProof-erase_correct_firstorder}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-LBEval}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-TargetLift}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-LBEval-idem}{lemma}{standard}{}
@@ -71,14 +88,20 @@
 \bpsetkind{def:EraseProof-SemSim}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-SemCases-semSim-trans}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-Sound-of-semSim}{step}{standard}{}
-\bpsetkind{lem:EraseProof-SemCases-srcEval-sound-beta}{step}{standard}{}
+\bpsetkind{lem:EraseProof-SemCases-srcEval-sound-beta}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-SemCases-CasesIotaAt}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-ConLecheAccepts-casesIotaAt}{step}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-casesIotaAt}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-SemCases-red-betas}{lemma}{standard}{}
-\bpsetkind{lem:EraseProof-SemCases-srcEval-sound-casesIota}{step}{standard}{}
-\bpsetkind{lem:EraseProof-ConLecheAccepts-recIotaAt}{step}{standard}{}
-\bpsetkind{lem:EraseProof-SemCases-srcEval_sound_recIota}{step}{standard}{}
-\bpsetkind{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}{step}{standard}{}
+\bpsetkind{lem:EraseProof-SemCases-srcEval-sound-casesIota}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-recIotaAt}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-SemCases-srcEval_sound_recIota}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}{lemma}{standard}{}
+\bpsetkind{def:EraseProof-Resolved}{definition}{standard}{}
+\bpsetkind{lem:EraseProof-Resolve-of_read}{step}{standard}{}
+\bpsetkind{lem:EraseProof-Lookup-findDecl_sub}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-ConLecheAccepts-defn_safe}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-findProj_of_typed}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-semSim_of_srcEval}{step}{standard}{}
 \bpsetkind{def:EraseProof-ErasesSim}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-SimCases-lam-inv}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-SimCases-lbeval-app-congr}{lemma}{standard}{}
@@ -88,35 +111,31 @@
 \bpsetkind{lem:EraseProof-RecFix-recFix-eq}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-SimCases-erases-correct-recIota}{step}{standard}{}
 \bpsetkind{def:EraseProof-MarkOf}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-unmark-instantiate1}{step}{standard}{}
+\bpsetkind{lem:EraseProof-unmark-instantiate1}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-markOf-read}{step}{standard}{}
 \bpsetkind{def:EraseProof-SrcEval}{definition}{standard}{}
 \bpsetkind{def:EraseProof-ViewAgrees}{definition}{standard}{}
 \bpsetkind{def:EraseProof-CtorsListed}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-SrcValue}{lemma}{standard}{}
 \bpsetkind{lem:EraseProof-DepClosed}{step}{standard}{}
-\bpsetkind{def:EraseProof-erase_correct-statement}{definition}{standard}{}
-\bpsetkind{thm:EraseProof-erase_correct}{final}{planned}{}
 \bpsetkind{def:EraseProof-erases_correct-statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erases_correct}{milestone}{standard}{}
 \bpsetkind{def:EraseProof-erasePure_erases-statement}{definition}{standard}{}
 \bpsetkind{thm:EraseProof-erasePure_erases}{milestone}{standard}{}
 \bpsetkind{def:EraseProof-srcEval_sound-statement}{definition}{standard}{}
-\bpsetkind{thm:EraseProof-srcEval_sound}{milestone}{planned}{}
+\bpsetkind{thm:EraseProof-srcEval_sound}{milestone}{standard}{}
 \bpsetkind{def:EraseProof-collectDeps_ok_of-statement}{definition}{standard}{}
-\bpsetkind{thm:EraseProof-collectDeps_ok_of}{milestone}{standard}{}
-\bpsetkind{def:EraseProof-erase_correct_firstorder-statement}{definition}{standard}{}
-\bpsetkind{cor:EraseProof-erase_correct_firstorder}{lemma}{planned}{}
+\bpsetkind{lem:EraseProof-collectDeps_ok_of}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-sound_nonvacuous-statement}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-sound_nonvacuous}{lemma}{planned}{}
+\bpsetkind{lem:EraseProof-sound_nonvacuous}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-clCert_proof_pt-statement}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-clCert_proof_pt}{lemma}{planned}{}
+\bpsetkind{lem:EraseProof-clCert_proof_pt}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-markOf_det-statement}{definition}{standard}{}
 \bpsetkind{lem:EraseProof-markOf_det}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-markOf_exists-statement}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-markOf_exists}{lemma}{planned}{}
+\bpsetkind{lem:EraseProof-markOf_exists}{lemma}{standard}{}
 \bpsetkind{def:EraseProof-collectDeps_sub-statement}{definition}{standard}{}
-\bpsetkind{lem:EraseProof-collectDeps_sub}{lemma}{standard}{}
+\bpsetkind{lem:EraseProof-collectDeps_sub}{step}{standard}{}
 \bpsetkind{def:EraseProof-Test-NV0-P}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV0-hacc}{test}{standard}{}
 \bpsetkind{def:EraseProof-Test-NV1-P}{test}{standard}{}
@@ -124,7 +143,19 @@
 \bpsetkind{def:EraseProof-Test-NV2-P}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-NV2-hacc}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-RecIH-canonical}{test}{standard}{}
-\bpsetkind{lem:EraseProof-Test-NV1-mark_casesOnVal}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-cv}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV3-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV3-hacc}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV4-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-hacc}{test}{standard}{}
+\bpsetkind{def:EraseProof-Test-NV5-P}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV5-hacc}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV0-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV1-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV2-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV3-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV4-final}{test}{standard}{}
+\bpsetkind{lem:EraseProof-Test-NV5-final}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-Run}{test}{standard}{}
 \bpsetkind{lem:EraseProof-Test-DeclOf}{test}{standard}{}
 \bpsetkind{imp:ConLeche-Denotes}{conleche}{standard}{}
@@ -142,11 +173,14 @@
 \bpsetkind{imp:ConLeche-Model-Capstone}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Claims}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-ClaimsIO}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Model-CtxOkKit}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Denotes}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Env-EnvModelM}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Fold}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Model-Rules-Recompose}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Semantics-Frame}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Semantics-DeclWF}{conleche}{standard}{}
+\bpsetkind{imp:ConLeche-Verify-BasisBlock}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-SetTheory-Core}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-SetTheory-Derive-Pt}{conleche}{standard}{}
 \bpsetkind{imp:ConLeche-Verify-EnvWF}{conleche}{standard}{}

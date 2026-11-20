@@ -617,7 +617,7 @@ def holds(name, lines, r):
     chose (inst...), the keyword `instance` or the class of a `deriving` clause."""
     if r['sel_line'] != r['sel_end_line'] or not r['start'] <= r['sel_line'] <= r['end'] <= len(lines):
         return False
-    t = lines[r['sel_line'] - 1][r['sel_col']:r['sel_end_col']].removeprefix('_root_.')
+    t = lines[r['sel_line'] - 1][r['sel_col']:r['sel_end_col']].removeprefix('_root_.').replace('«', '').replace('»', '')
     parts = name.split('.')
     for k in range(len(parts), 0, -1):
         p, last = '.'.join(parts[:k]), parts[k - 1]
@@ -871,7 +871,7 @@ def declares(name, lines, start, end, path):
         if private != ('private' in mods):
             return f'line {h}: the declaration is {"not " if private else ""}private'
         if n:
-            full = _qualify(ns, n)
+            full = _qualify(ns, n.replace('«', '').replace('»', ''))
             if plain == full or plain.startswith(full + '.') and DERIVED.fullmatch(plain[len(full) + 1:]):
                 return None
             if kw == 'judgement' and plain.startswith(full + '.') and any(

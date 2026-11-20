@@ -3,10 +3,10 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} Prove \code{erasePure\_erases}: the output of the shipping traversal \code{erasePure} on the closure \code{collectDeps} returns is an erasure of the marking of the input. Prove also what the fragment test and the entry point preserve.
-\item \lead{Main results} The closure of the fragment test is part of the accepted program (\code{collectDeps\_sub}), satisfies the closure facts (\code{collectDeps\_spec}) and exists on the fragment (\code{collectDeps\_ok\_of}); the entry point returns the pure path's result (\code{eraseEntry\_pure}); each case of \code{visitExpr} keeps the invariant \code{ExprSpec} (Section~\ref{sec:core-steps}); the traversal's facts follow from acceptance (\code{coreEnv\_of}, \code{ctorPropBoxed\_of}); the marking is a function of its input (\code{markOf\_det}).
-\item \lead{Status} \stProved{} every node and the theorems \code{collectDeps\_sub}, \code{collectDeps\_ok\_of}, \code{erasePure\_erases} and \code{markOf\_det} (Chapter~\ref{chap:statements}). \stOpen{} \code{markOf\_exists}.
+\item \lead{Main results} The closure of the fragment test is part of the accepted program (\code{collectDeps\_sub}), satisfies the closure facts (\code{collectDeps\_spec}) and exists on the fragment (\code{collectDeps\_ok\_of}); the entry point returns the pure path's result (\code{eraseEntry\_pure}); each case of \code{visitExpr} keeps the invariant \code{ExprSpec} (Section~\ref{sec:core-steps}); the traversal's facts follow from acceptance (\code{coreEnv\_of}, \code{ctorPropBoxed\_of}); the marking is a function of its input (\code{markOf\_det}) and exists wherever the traversal erases the input (\code{markOf\_exists}, Section~\ref{sec:core-exists}).
+\item \lead{Status} \stProved{} every node and the theorems \code{collectDeps\_sub}, \code{collectDeps\_ok\_of}, \code{erasePure\_erases}, \code{markOf\_det} and \code{markOf\_exists} (Chapter~\ref{chap:statements}).
 \item \lead{Nodes} \bpnodes{chap:core}
-\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Core/Glue, Core/Collect, Core/CollectSpec, Core/CollectOk, Core/State, Core/RegisterInd, Core/Steps, Core/StepsRun, Core/StepsApp, Core/StepsCases, Core/StepsCasesSat, Core/StepsCtor, Core/StepsProj, Core/StepsQuot, Core/StepsRec, Core/Assemble, Core/CoreEnv, Core/NonRec, Core/CtorProp, Oracle/Rename, Oracle/Atom, Oracle/Det}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Core/Glue, Core/Collect, Core/CollectSpec, Core/CollectOk, Core/State, Core/RegisterInd, Core/Steps, Core/StepsRun, Core/StepsApp, Core/StepsCases, Core/StepsCasesSat, Core/StepsCtor, Core/StepsProj, Core/StepsQuot, Core/StepsRec, Core/Assemble, Core/ExistsInv, Core/ExistsSteps, Core/ExistsSpines, Core/Exists, Core/CoreEnv, Core/NonRec, Core/CtorProp, Oracle/Rename, Oracle/Atom, Oracle/Det}.
 \item \lead{Reference} \code{erase\_global\_deps} (\code{MR E/ErasureFunction.v:1602}), \code{includes\_deps} (\code{MR E/ErasureFunctionProperties.v:41}), \code{erases\_erase} (\code{MR E/ErasureFunction.v:1228}).
 \end{itemize}
 
@@ -189,13 +189,13 @@ On a closure inside the fragment the fragment test returns a result; the proof r
 
 \begin{lemma}[Applications, constants and registration]
   \label{lem:EraseProof-Steps-visitExpr_app_step}
-  \lean{EraseProof.Steps.spineArgs, EraseProof.Steps.spineArgs_foldl, EraseProof.Steps.drop_set, EraseProof.Steps.withAppAux_toList, EraseProof.Steps.withAppAux_eq, EraseProof.Steps.getAppFn_mkAppN_of, EraseProof.Steps.withApp_mkAppN, EraseProof.Steps.foldl_pred, EraseProof.Steps.spine_premises, EraseProof.Steps.AtomSpine.of_getAppFn, EraseProof.Steps.noFVar_mem, EraseProof.Steps.Erases.noFVar, EraseProof.Steps.CoreEnv, EraseProof.Steps.AtomBoxed, EraseProof.Steps.atomBoxed, EraseProof.Steps.MutualSpec, EraseProof.Steps.StepIH, EraseProof.Steps.visitAppArgs_spec, EraseProof.Steps.visitConst_spec, EraseProof.Steps.markArity?_none, EraseProof.Steps.constHead_ok, EraseProof.Steps.visitApp_spec, EraseProof.Steps.visitExpr_app_step, EraseProof.Steps.visitExpr_const_step, EraseProof.Steps.name_occurs_eq, EraseProof.Steps.KeepsCG, EraseProof.Steps.KeepsCG.pure, EraseProof.Steps.KeepsCG.get, EraseProof.Steps.KeepsCG.modify, EraseProof.Steps.KeepsCG.log, EraseProof.Steps.KeepsCG.isInstance, EraseProof.Steps.KeepsCG.bind, EraseProof.Steps.KeepsCG.read_bind, EraseProof.Steps.KeepsCG.ite, EraseProof.Steps.StateOK.congr, EraseProof.Steps.knNotBlock_quotInd, EraseProof.Steps.declInfo_run, EraseProof.Steps.visitMutual_step}
+  \lean{EraseProof.Steps.spineArgs, EraseProof.Steps.spineArgs_foldl, EraseProof.Steps.drop_set, EraseProof.Steps.withAppAux_toList, EraseProof.Steps.withAppAux_eq, EraseProof.Steps.getAppFn_mkAppN_of, EraseProof.Steps.withApp_mkAppN, EraseProof.Steps.foldl_pred, EraseProof.Steps.spine_premises, EraseProof.Steps.AtomSpine.of_getAppFn, EraseProof.Steps.noFVar_mem, EraseProof.Steps.Erases.noFVar, EraseProof.Steps.CoreEnvBase, EraseProof.Steps.CoreEnv, EraseProof.Steps.AtomBoxed, EraseProof.Steps.atomBoxed, EraseProof.Steps.MutualSpec, EraseProof.Steps.StepIH, EraseProof.Steps.visitAppArgs_spec, EraseProof.Steps.visitConst_spec, EraseProof.Steps.markArity?_none, EraseProof.Steps.constHead_ok, EraseProof.Steps.visitApp_spec, EraseProof.Steps.visitExpr_app_step, EraseProof.Steps.visitExpr_const_step, EraseProof.Steps.name_occurs_eq, EraseProof.Steps.KeepsCG, EraseProof.Steps.KeepsCG.pure, EraseProof.Steps.KeepsCG.get, EraseProof.Steps.KeepsCG.modify, EraseProof.Steps.KeepsCG.log, EraseProof.Steps.KeepsCG.isInstance, EraseProof.Steps.KeepsCG.bind, EraseProof.Steps.KeepsCG.read_bind, EraseProof.Steps.KeepsCG.ite, EraseProof.Steps.StateOK.congr, EraseProof.Steps.knNotBlock_quotInd, EraseProof.Steps.declInfo_run, EraseProof.Steps.visitMutual_step}
   \leanok
   \uses{lem:EraseProof-Steps-ExprSpec, lem:EraseProof-StateOK-register, lem:EraseProof-Pure-isErasable_atom}
   \srcloc{proof/EraseProof/Core/StepsApp.lean}{40}
   \lead{In short} \hl{An application or a constant with no rule of its own is erased head, then arguments}, and \code{visitMutual} registers a new constant with its erasure.
   \begin{itemize}
-  \item \code{CoreEnv}: the facts about the closure the steps read (no free variable, distinct names, syntactic arities, \code{NatPlain}, \code{RecShaped});
+  \item \code{CoreEnvBase}, \code{CoreEnv}: the facts about the closure the steps read (no free variable, distinct names, syntactic arities, \code{NatPlain}, \code{RecShaped}); \code{CoreEnv} adds \code{nopre}, no compiled pre-definition, which the existence of a marking does not need;
   \item \code{StepIH}, \code{MutualSpec}: the induction hypothesis at fuels up to a bound, and the statement of \code{visitMutual};
   \item \code{visitExpr\_app\_step}, \code{visitExpr\_const\_step}, \code{visitMutual\_step}, \code{visitAppArgs\_spec}: the steps;
   \item \code{AtomBoxed}, \code{atomBoxed}: the oracle never answers \code{false} on an atom spine;
@@ -350,14 +350,14 @@ The steps read facts about the closure (\code{CoreEnv}) and about the oracle; th
 
 \begin{lemma}[The environment invariant of the steps]
   \label{lem:EraseProof-coreEnv_of}
-  \lean{EraseProof.CoreEnvOf.exprConsts_plain, EraseProof.CoreEnvOf.toCL?_closed, EraseProof.CoreEnvOf.sortDecided_ok, EraseProof.CoreEnvOf.eliminatedUndecided_none, EraseProof.CoreEnvOf.eq_pair_of_length, EraseProof.CoreEnvOf.mapM_some_of, EraseProof.ConLecheAccepts.member, EraseProof.CoreEnvOf.blockOf?_member, EraseProof.CoreEnvOf.blockOf?_one, EraseProof.ConLecheAccepts.rec_one, EraseProof.CoreEnvOf.recShape_motives, EraseProof.CoreEnvOf.Run, EraseProof.CoreEnvOf.Run.fd, EraseProof.CoreEnvOf.Run.scanned, EraseProof.CoreEnvOf.Run.recog_ds, EraseProof.CoreEnvOf.Run.read, EraseProof.CoreEnvOf.Run.rec_frag, EraseProof.CoreEnvOf.Run.recog_view, EraseProof.CoreEnvOf.Run.phase, EraseProof.CoreEnvOf.arityShape_of_toCL, EraseProof.ConLecheAccepts.quot_pins, EraseProof.CoreEnvOf.kindOf, EraseProof.CoreEnvOf.kindOf_pin, EraseProof.CoreEnvOf.map_of_listBeqBy, EraseProof.CoreEnvOf.count_map_const, EraseProof.ConLecheAccepts.natBlock, EraseProof.CoreEnvOf.map_of_mapM, EraseProof.CoreEnvOf.blockSplit_prefix, EraseProof.ConLecheAccepts.all_nodup, EraseProof.coreEnv_of}
+  \lean{EraseProof.CoreEnvOf.exprConsts_plain, EraseProof.CoreEnvOf.toCL?_closed, EraseProof.CoreEnvOf.sortDecided_ok, EraseProof.CoreEnvOf.eliminatedUndecided_none, EraseProof.CoreEnvOf.eq_pair_of_length, EraseProof.CoreEnvOf.mapM_some_of, EraseProof.ConLecheAccepts.member, EraseProof.CoreEnvOf.blockOf?_member, EraseProof.CoreEnvOf.blockOf?_one, EraseProof.ConLecheAccepts.rec_one, EraseProof.CoreEnvOf.recShape_motives, EraseProof.CoreEnvOf.Run, EraseProof.CoreEnvOf.Run.fd, EraseProof.CoreEnvOf.Run.scanned, EraseProof.CoreEnvOf.Run.recog_ds, EraseProof.CoreEnvOf.Run.read, EraseProof.CoreEnvOf.Run.rec_frag, EraseProof.CoreEnvOf.Run.recog_view, EraseProof.CoreEnvOf.Run.phase, EraseProof.CoreEnvOf.arityShape_of_toCL, EraseProof.ConLecheAccepts.quot_pins, EraseProof.CoreEnvOf.kindOf, EraseProof.CoreEnvOf.kindOf_pin, EraseProof.CoreEnvOf.map_of_listBeqBy, EraseProof.CoreEnvOf.count_map_const, EraseProof.ConLecheAccepts.natBlock, EraseProof.CoreEnvOf.map_of_mapM, EraseProof.CoreEnvOf.blockSplit_prefix, EraseProof.ConLecheAccepts.all_nodup, EraseProof.coreEnvBase_of, EraseProof.coreEnv_of}
   \leanok
   \uses{lem:EraseProof-collectDeps-spec, lem:EraseProof-ConLecheAccepts-namesClosed, lem:EraseProof-Steps-visitExpr_app_step}
-  \srcloc{proof/EraseProof/Core/CoreEnv.lean}{35}
+  \srcloc{proof/EraseProof/Core/CoreEnv.lean}{36}
   \lead{In short} \hl{A closure the fragment test returns, part of an accepted program without compiled pre-definitions, satisfies \code{CoreEnv}}.
   \begin{itemize}
   \item \code{CoreEnvOf.Run} and its fields: a run of \code{collectDeps} on each scanned declaration gives \code{PhaseIDecl}, the fragment's recursor shape, closed \code{NatPlain} expressions and covered recursors;
-  \item \code{coreEnv\_of}: the assembly;
+  \item \code{coreEnvBase\_of}: everything but \code{nopre}; \code{coreEnv\_of}: the assembly;
   \item \code{blockOf?\_member}, \code{blockOf?\_one}, \code{ConLecheAccepts.member}, \code{rec\_one}, \code{natBlock}, \code{quot\_pins}: the program's records (block shapes, the quotient's pins, \code{Nat}'s reserved names).
   \end{itemize}
   \lead{Reference} \code{ML-V Core/StepsB:367 coreEnv\_of\_collectDeps}.
@@ -462,9 +462,139 @@ The steps read facts about the closure (\code{CoreEnv}) and about the oracle; th
   \lead{Idea} Induction on the first derivation; under a binder the renaming extends by the two fresh variables.
 \end{proof}
 
+\section{The marking exists}\label{sec:core-exists}
+
+The traversal returns a result only along a derivation of \code{MarkOf}. The proof reads the successful run of \code{visitExpr} case by case and builds the marking; it uses that no run lowers the counter of fresh variables or loses a registered mask.
+
+\begin{lemma}[A run keeps the counter and the masks]
+  \label{lem:EraseProof-Steps-travMonoAt}
+  \lean{EraseProof.Steps.MasksOK, EraseProof.Steps.TravMono, EraseProof.Steps.arrayCount_keep_replicate, EraseProof.Steps.inferType_run, EraseProof.Steps.whnf_run, EraseProof.Steps.le_of_map, EraseProof.Steps.TravMono.pure, EraseProof.Steps.TravMono.bind, EraseProof.Steps.TravMono.get, EraseProof.Steps.TravMono.read, EraseProof.Steps.TravMono.modify, EraseProof.Steps.TravMono.withReader, EraseProof.Steps.TravMono.liftM, EraseProof.Steps.TravMono.ite, EraseProof.Steps.TravMono.forIn, EraseProof.Steps.TravMono.forIn_rco, EraseProof.Steps.TravMono.forIn_subarray, EraseProof.Steps.TravMono.mapM, EraseProof.Steps.TravMono.foldlM, EraseProof.Steps.TravMono.foldlM_array, EraseProof.Steps.TravMono.optionMapM, EraseProof.Steps.TravMono.withApp, EraseProof.Steps.TravMono.panic, EraseProof.Steps.TravMono.panicWithPosWithDecl, EraseProof.Steps.TravMono.getConst, EraseProof.Steps.TravMono.getOrFail, EraseProof.Steps.TravMono.addAxiom, EraseProof.Steps.TravMono.toHT, EraseProof.Steps.travMono_get_constant_kername, EraseProof.Steps.register_inductive_masks, EraseProof.Steps.TravMono.register_inductive, EraseProof.Steps.TravMono.etaGo, EraseProof.Steps.TravMono.lambdaOrIntroToArity, EraseProof.Steps.TravMonoAt, EraseProof.Steps.travMono_visitExpr, EraseProof.Steps.travMono_visitApp, EraseProof.Steps.travMono_visitAppArgs, EraseProof.Steps.travMono_visitConst, EraseProof.Steps.travMono_visitConstApp, EraseProof.Steps.travMono_visitConstructor, EraseProof.Steps.travMono_visitRec, EraseProof.Steps.travMono_visitCases, EraseProof.Steps.travMono_visitCasesOn, EraseProof.Steps.travMono_visitAlt, EraseProof.Steps.travMono_visitLambda, EraseProof.Steps.travMono_visitLet, EraseProof.Steps.travMono_visitProj, EraseProof.Steps.travMono_visitLiteral, EraseProof.Steps.travMono_visitMutual, EraseProof.Steps.travMonoAt}
+  \leanok
+  \uses{lem:EraseProof-register-inductive-ok, def:EraseProof-StateOK}
+  \srcloc{proof/EraseProof/Core/ExistsInv.lean}{29}
+  \lead{In short} \hl{Every successful run of a traversal function leaves the fresh-variable counter no lower and keeps the registered masks well-formed} (\code{MasksOK}).
+  \begin{itemize}
+  \item \code{TravMono} and its closure lemmas: the property is closed under \code{bind}, \code{mapM}, \code{forIn}, \code{withApp} and the other combinators the traversal uses;
+  \item \code{register\_inductive\_masks}: registering an inductive adds masks that keep the constructor fields;
+  \item \code{travMono\_visit*}, \code{travMonoAt}: the sixteen mutual functions, by induction on the fuel.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} A tactic closes each function body by the closure lemmas; only the insertion into the registry is by hand.
+\end{proof}
+
+\begin{definition}[Existence of a marking: the invariant]
+  \label{def:EraseProof-Steps-ExistsSpec}
+  \lean{EraseProof.Steps.ExistsSpec, EraseProof.Steps.ExArgOK, EraseProof.Steps.NoStrLit, EraseProof.Steps.NoStrLit.inst_fvar, EraseProof.Steps.MarkList, EraseProof.Steps.MarkList.cons, EraseProof.Steps.ExSatSpec, EraseProof.Steps.numFVar, EraseProof.Steps.fvBound, EraseProof.Steps.exists_bound, EraseProof.Steps.exists_bound_list, EraseProof.Steps.exists_fresh}
+  \leanok
+  \uses{lem:EraseProof-Steps-travMonoAt, def:EraseProof-MarkOf}
+  \srcloc{proof/EraseProof/Core/ExistsSteps.lean}{134}
+  \lead{In short} \code{ExistsSpec view cfg decls fuel e}: a successful run of \code{visitExpr fuel} on a renaming of \code{e} gives a marking \code{MarkOf decls cfg ls e e'}.
+  \begin{itemize}
+  \item \code{ExArgOK}: the premises of a visited term (free variables bound, \code{NatPlain}, no string literal);
+  \item \code{MarkList}: pointwise markings of a list, as the rules take them;
+  \item \code{ExSatSpec}: the same for the continuation of an $\eta$-loop;
+  \item \code{exists\_fresh}: a fresh variable exists for any locals and terms.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[Dispatch on the oracle and on spines]
+  \label{lem:EraseProof-Steps-exists_split}
+  \lean{EraseProof.Steps.exists_split, EraseProof.Steps.oracle_lit, EraseProof.Steps.markOf_lit, EraseProof.Steps.exArg_spine, EraseProof.Steps.exists_spine, EraseProof.Steps.spine_of_getAppFn, EraseProof.Steps.appLike_run, EraseProof.Steps.exists_appLike}
+  \leanok
+  \uses{def:EraseProof-Steps-ExistsSpec}
+  \srcloc{proof/EraseProof/Core/ExistsSteps.lean}{168}
+  \lead{In short} The oracle's answer at each \code{visitExpr} unfolding: \code{true} gives \code{MarkOf.erase}; \code{false} leaves the branch, with the oracle's answer as the rule's premise.
+  \begin{itemize}
+  \item \code{exists\_split}, \code{appLike\_run}, \code{exists\_appLike}: the application and constant spines;
+  \item \code{oracle\_lit}, \code{markOf\_lit}: a \code{Nat} literal marks itself.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Unfold one step of the traversal and match the branch against the marking rules.
+\end{proof}
+
+\begin{lemma}[Arguments, $\eta$-loops and constructors]
+  \label{lem:EraseProof-Steps-visitAppArgs_exists}
+  \lean{EraseProof.Steps.visitAppArgs_exists, EraseProof.Steps.constArgs_exists, EraseProof.Steps.constApp_exists, EraseProof.Steps.forallMonocular_inv, EraseProof.Steps.etaGo_exists, EraseProof.Steps.withAppEta_exists, EraseProof.Steps.visitConstructor_exists}
+  \leanok
+  \uses{def:EraseProof-Steps-ExistsSpec, lem:EraseProof-Steps-exists_split}
+  \srcloc{proof/EraseProof/Core/ExistsSteps.lean}{418}
+  \lead{In short} Every argument of an application is visited, the counter growing between them, and the $\eta$-loop of a constructor or a constant gives \code{MarkEta}.
+  \begin{itemize}
+  \item \code{visitAppArgs\_exists}, \code{constArgs\_exists}, \code{constApp\_exists}: \code{MarkList} of the arguments;
+  \item \code{etaGo\_exists}, \code{withAppEta\_exists}: the loop against \code{MarkEta}, given the continuation;
+  \item \code{visitConstructor\_exists}: the masks keep every field.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the number of arguments, with \code{travMonoAt} between siblings.
+\end{proof}
+
+\begin{lemma}[Existence at the term formers]
+  \label{lem:EraseProof-Steps-exists_lam_step}
+  \lean{EraseProof.Steps.exists_fvar_step, EraseProof.Steps.exists_fail_step, EraseProof.Steps.exists_mdata_step, EraseProof.Steps.exists_lam_step, EraseProof.Steps.exists_letE_step, EraseProof.Steps.exists_proj_step, EraseProof.Steps.exists_lit_step, EraseProof.Steps.exists_app_step, EraseProof.Steps.exists_ctor_step, EraseProof.Steps.exists_quot_step}
+  \leanok
+  \uses{def:EraseProof-Steps-ExistsSpec, lem:EraseProof-Steps-exists_split, lem:EraseProof-Steps-visitAppArgs_exists, lem:EraseProof-Steps-travMonoAt}
+  \srcloc{proof/EraseProof/Core/ExistsSteps.lean}{185}
+  \lead{In short} \code{ExistsSpec} at a free variable, \code{mdata}, $\lambda$, \code{let}, projection, literal, application, constructor and quotient constant.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Each step takes the induction hypothesis at smaller fuels and the dispatch of the term former.
+\end{proof}
+
+\begin{lemma}[Existence at recursors]
+  \label{lem:EraseProof-Steps-exists_rec_step}
+  \lean{EraseProof.Steps.split_at, EraseProof.Steps.MarkList.split, EraseProof.Steps.mapM_exists, EraseProof.Steps.exists_rec_step}
+  \leanok
+  \uses{def:EraseProof-Steps-ExistsSpec, lem:EraseProof-Steps-visitAppArgs_exists}
+  \srcloc{proof/EraseProof/Core/ExistsSpines.lean}{38}
+  \lead{In short} A recursor spine whose fixpoint is not kept constant has a marking: the registration loop keeps the counter and the masks, then the minor premises, indices and major premise are visited.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \code{visitRec} gives \code{recBlockOf?} and \code{recShape}; \code{withAppEta\_exists} closes the continuation.
+\end{proof}
+
+\begin{lemma}[Existence at \code{casesOn}]
+  \label{lem:EraseProof-Steps-exists_cases_step}
+  \lean{EraseProof.Steps.lambdaOrIntro_exists, EraseProof.Steps.visitAlt_exists, EraseProof.Steps.visitCasesOn_exists, EraseProof.Steps.visitCases_exists, EraseProof.Steps.exists_cases_step}
+  \leanok
+  \uses{def:EraseProof-Steps-ExistsSpec, lem:EraseProof-Steps-exists_rec_step}
+  \srcloc{proof/EraseProof/Core/ExistsSpines.lean}{291}
+  \lead{In short} A recognized \code{casesOn} spine has a marking: each alternative is visited against \code{MarkAlt}, in the cases, reduced and proof branches.
+  \begin{itemize}
+  \item \code{lambdaOrIntro\_exists}, \code{visitAlt\_exists}: one alternative;
+  \item \code{visitCasesOn\_exists}: one keep-mask per constructor, the alternatives by the zip loop;
+  \item \code{visitCases\_exists}: the three branches; \code{Nat.casesOn} under \code{.machine} is excluded by \code{NatPlain}.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The loops of the traversal against the rules of \code{MarkOf} (\code{casesProp}, \code{casesReduced}, \code{cases}).
+\end{proof}
+
+\begin{lemma}[The induction on the fuel]
+  \label{lem:EraseProof-Steps-existsSpec_of}
+  \lean{EraseProof.Steps.exprConsts_noStrLit, EraseProof.Steps.existsSpec_appLike, EraseProof.Steps.existsSpec_succ, EraseProof.Steps.existsSpec_of}
+  \leanok
+  \uses{lem:EraseProof-Steps-exists_lam_step, lem:EraseProof-Steps-exists_rec_step, lem:EraseProof-Steps-exists_cases_step, lem:EraseProof-coreEnv_of}
+  \srcloc{proof/EraseProof/Core/Exists.lean}{34}
+  \lead{In short} \code{ExistsSpec} at every fuel, by dispatch on the head (as \code{ExprSpec}): a recursor head goes to the recursor step, a recognized \code{casesOn} to its step, the rest to the step of the term former.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the fuel; the facts about the closure come from \code{coreEnvBase\_of}.
+\end{proof}
+
 \section*{Caveats}
 \begin{itemize}
 \item \code{collectDeps\_spec} takes the hypothesis that every recursor's type names its block's members.
 \item \code{register\_inductive\_ok} takes the block facts the run does not check as premises.
+\item The existence of a marking uses \code{ClosedDecls}, acceptance and the absence of mark keys; it does not use \code{NoPreDefs}.
 \item The \code{propositional} flag is the syntactic test; a sort \code{max 0 0} is outside the fragment (DV-14).
 \end{itemize}

@@ -8,7 +8,6 @@
   parameters (Section~\ref{sec:bridge-reading}); acceptance gives well-formedness, a model in every
   set theory and con-leche's claims (Section~\ref{sec:bridge-accept}), the stored records of the program (\code{CLStore}) and the names it binds (\code{CLNames}, Section~\ref{sec:bridge-store}).
 \item \lead{Status} \stProved{} every node of this chapter, from the axioms of Lean alone.
-  \stOpen{} \code{CLOk.wellDenoted} (planned).
 \item \lead{Nodes} \bpnodes{chap:bridge}
 \item \lead{Lean files} \leanfiles{proof/EraseProof/}{Spec, Bridge/CLRead, Bridge/CLAccept, Bridge/CLStore, Bridge/CLNames}.
 \item \lead{Reference} \leanfile{ConLeche/Frontend/ExportC.lean} (the reading), \leanfile{ConLeche/MainTheorem.lean}.
@@ -139,7 +138,7 @@ for a typing judgement.
   \item \code{CLCert}, \code{CtxBinder}, \code{lamTele}, \code{openLams}: a subterm under binders, closed by a telescope;
   \item \code{CLProofTerm}, \code{CLCertProof}: the proof verdict alone, for a closed term and for a subterm under binders;
   \item \code{IotaNoCertAt}, \code{FrozenFieldsCert}: con-leche's $\iota$ step fires on a constructor major without a certificate, resp. with the full-grade certificate of the constructor's fields at the projections of a proof;
-  \item \code{MarksCert}, \code{ProgCert}: every mark of the marked input, and a marking of the value of every constant of the closure, is certified (\code{ProgCert}'s third conjunct gives \code{ValuesMarkedOf}).
+  \item \code{MarksCert}, \code{ProgCert}: every mark of the marked input, and a marking of the value of every constant of the closure that the traversal erases (\code{ErasedValue}), is certified (\code{ProgCert}'s third conjunct gives \code{ValuesMarkedOf}).
   \end{itemize}
   \lead{Reference} \code{isErasable} (\code{MR E/Extract.v:18}), DV-33, DV-37.
 \end{definition}
@@ -149,7 +148,7 @@ for a typing judgement.
   \lean{EraseProof.Sound, EraseProof.CLStrictType, EraseProof.FirstOrderValue, EraseProof.peanoLB, EraseProof.foErase, EraseProof.FrozenLeaf}
   \leanok
   \uses{def:EraseProof-CLCert}
-  \srcloc{proof/EraseProof/Spec.lean}{1748}
+  \srcloc{proof/EraseProof/Spec.lean}{1760}
   \lead{In short} \code{Sound} says the source value means what the input means in every con-leche model of the environment.
   \begin{itemize}
   \item \code{Sound}: \code{unmark v} has a con-leche form that denotes what the input denotes, wherever that is not the proof point;
@@ -159,33 +158,20 @@ for a typing judgement.
   \lead{Reference} DV-27, DV-34.
 \end{definition}
 
-\begin{lemma}[Certified redexes denote]
-  \label{lem:EraseProof-CLOk-wellDenoted}
-  \lean{EraseProof.CLOk.wellDenoted}
-  \planned
-  \uses{lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-CLTyped-closed}
-  \lead{In short} A redex with a \code{CLOk} certificate is well denoted in every model of an accepted environment.
-
-\end{lemma}
-\begin{proof}
-  \uses{lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-CLTyped-closed}
-  \lead{Idea} The claims of \code{ConLecheAccepts.accepted} for inference on the redex.
-\end{proof}
-
 \section{What the fold stores}\label{sec:bridge-store}
 
 Each step of con-leche's pure fold installs the constants of its declaration under unbound names; the environment finds each of them, as the program's record read through \code{DeclsOf?}, and every name it binds is the program's.
 
 \begin{lemma}[Stored records of the program]
   \label{lem:EraseProof-ConLecheAccepts-stored}
-  \lean{EraseProof.eq_of_nodup_map, EraseProof.find?_pushDelta_old, EraseProof.find?_pushDelta_new, EraseProof.stdAxiomOk_sorryAx, EraseProof.checkDecl_pushes, EraseProof.foldlM_checkDecl_find?, EraseProof.checkDeclsPure_find?, EraseProof.mapM_eq_some, EraseProof.DeclsOf?.mem, EraseProof.cvOf?_eq_some, EraseProof.ConLecheAccepts.stored, EraseProof.find?_of_single, EraseProof.findDecl_mem, EraseProof.ConLecheAccepts.find?_defn, EraseProof.ConLecheAccepts.find?_thm, EraseProof.ConLecheAccepts.find?_opaque, EraseProof.quotAt_sound, EraseProof.ConLecheAccepts.find?_axiom, EraseProof.find?_ne_none, EraseProof.genRecCheck_recs_nodup, EraseProof.blockRun_nodup, EraseProof.blockSplitRecs_mem, EraseProof.blockSplitCtors_mem, EraseProof.blockSplit_mem, EraseProof.readBlock_rec_mem, EraseProof.recOf?_eq_some, EraseProof.blockOf?_records, EraseProof.ConLecheAccepts.block, EraseProof.ConLecheAccepts.find?_rec}
+  \lean{EraseProof.eq_of_nodup_map, EraseProof.find?_pushDelta_old, EraseProof.find?_pushDelta_new, EraseProof.stdAxiomOk_sorryAx, EraseProof.checkDecl_pushes, EraseProof.foldlM_checkDecl_find?, EraseProof.checkDeclsPure_find?, EraseProof.mapM_eq_some, EraseProof.DeclsOf?.mem, EraseProof.cvOf?_eq_some, EraseProof.ConLecheAccepts.stored, EraseProof.find?_of_single, EraseProof.findDecl_mem, EraseProof.ConLecheAccepts.find?_defn, EraseProof.ConLecheAccepts.find?_thm, EraseProof.quotAt_sound, EraseProof.ConLecheAccepts.find?_axiom, EraseProof.find?_ne_none, EraseProof.genRecCheck_recs_nodup, EraseProof.blockRun_nodup, EraseProof.blockSplitRecs_mem, EraseProof.blockSplitCtors_mem, EraseProof.blockSplit_mem, EraseProof.readBlock_rec_mem, EraseProof.recOf?_eq_some, EraseProof.blockOf?_records, EraseProof.ConLecheAccepts.block, EraseProof.ConLecheAccepts.find?_rec}
   \leanok
   \uses{def:EraseProof-DeclsOf, lem:EraseProof-ConLecheAccepts-accepted}
   \srcloc{proof/EraseProof/Bridge/CLStore.lean}{26}
   \lead{In short} \hl{The environment the fold returns holds each record of the program, translated}: definitions, theorems, opaques, axioms, and a block's recursors, former and constructors.
   \begin{itemize}
   \item \code{checkDeclsPure\_find?}, \code{checkDecl\_pushes}, \code{find?\_pushDelta\_*}: each step pushes its constants, and later steps keep them;
-  \item \code{ConLecheAccepts.find?\_defn}, \code{find?\_thm}, \code{find?\_opaque}, \code{find?\_axiom}: the record of a constant;
+  \item \code{ConLecheAccepts.find?\_defn}, \code{find?\_thm}, \code{find?\_axiom}: the record of a constant;
   \item \code{ConLecheAccepts.block}, \code{find?\_rec}: a block's recursors;
   \item \code{blockSplit*\_mem}, \code{readBlock\_*\_mem}, \code{genRecCheck\_recs\_nodup}, \code{quotAt\_sound}: the install-computed records.
   \end{itemize}

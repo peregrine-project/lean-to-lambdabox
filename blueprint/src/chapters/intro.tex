@@ -5,13 +5,12 @@
 \item \lead{Goal} A machine-checked theorem about the shipping eraser behind \code{\#erase},
   stated over con-leche's set-theoretic model of Lean's kernel, for every input in the scope of
   Chapter~\ref{chap:scope}.
-\item \lead{Status} \stProved{} \hl{\code{erases\_correct}, \code{erasePure\_erases}, \code{collectDeps\_ok\_of}, \code{collectDeps\_sub} and \code{markOf\_det}}, the proof package
+\item \lead{Status} \stProved{} \hl{\code{erase\_correct}} and the ten other pinned statements: the proof package
   builds, its checks pass, and the \hl{statements are pinned}: eleven definitions of type
-  \code{Prop} (Chapter~\ref{chap:statements}), each with the definitions it reads; the bridge to
-  con-leche, the marks, the source semantics, the relation lemmas, the simulation, the step lemmas of
-  the meaning of evaluation and the traversal's lemmas
-  (Chapters~\ref{chap:bridge}--\ref{chap:core}); the hypotheses of the final theorem on three
-  test programs (Chapter~\ref{chap:tests}). \stOpen{} the six other theorems. \stShipping{} the eraser.
+  \code{Prop} (Chapter~\ref{chap:statements}), each with the definitions it reads, and each proved; the bridge to
+  con-leche, the marks, the source semantics, the relation lemmas, the simulation, the meaning of evaluation and the traversal's lemmas
+  (Chapters~\ref{chap:bridge}--\ref{chap:core}); the final theorem (Chapter~\ref{chap:final}); the hypotheses of the final theorem, and the theorem itself, on six
+  test programs (Chapter~\ref{chap:tests}). \stShipping{} the eraser.
 \item \lead{Progress} the table at the end of Section~\ref{sec:intro-kinds} counts, per chapter,
   the proved results and tests, the formalized definitions and the planned nodes.
 \item \lead{Lean files} \leanfile{LeanToLambdaBox/} (the shipping code) and \leanfile{proof/} (the
@@ -28,7 +27,7 @@
   (\code{peregrine-tool}) reads and compiles.
 \item \lead{The object} \hl{the shipping eraser itself}, not an eraser written for the proof: the
   statements speak about the code that \code{\#erase} runs on the pure path.
-\item \lead{The theorem} \code{erase\_correct} (Section~\ref{sec:statements-final}): if
+\item \lead{The theorem} \code{erase\_correct} (Section~\ref{sec:final-theorem}): if
   \code{\#erase} returns a program for an in-scope term and the erased term evaluates, the
   program's main term evaluates in $\lambda_\Box$ to an erasure of the value, and the value means
   what the term means in every con-leche model. It mirrors MetaRocq's \code{erase\_correct}.
@@ -137,11 +136,12 @@ Chapter & Content \\
 \ref{chap:simulation} & The simulation \code{erases\_correct}: one lemma per group of rules \\
 \ref{chap:semantics} & The meaning of evaluation: the invariant, the step lemmas, the route through con-leche's rules tier \\
 \ref{chap:core} & The traversal and the fragment test: the closure, the state invariant, registration, the steps of the traversal, the oracle \\
-\ref{chap:statements} & The eleven statements, as definitions, and the theorems that are to prove them \\
-\ref{chap:tests} & The hypotheses of the final theorem on three programs \\
+\ref{chap:statements} & The eleven statements, as definitions, and the milestones and lemmas that prove them \\
+\ref{chap:final} & The final theorem and its first-order corollary \\
+\ref{chap:tests} & The hypotheses of the final theorem, and the theorem, on six programs; the rules of the source semantics they use \\
 \ref{chap:shipping-changes} & The register of shipping changes, rendered \\
 \ref{chap:divergences} & The register of divergences from the references, rendered \\
-\ref{chap:open} & What the theorems do not say, and what is open \\
+\ref{chap:limits} & What the theorem does not say \\
 \bottomrule
 \end{tabular}
 
@@ -155,7 +155,7 @@ Chapter & Content \\
   tag of \code{lean-toolchain}.
 \item \lead{Planned nodes} A node marked \stPlanned{} states a declaration of the design that does
   not exist; its \code{\textbackslash lean} names are its planned names, and they link
-  nowhere. Section~\ref{sec:open-planned} lists these nodes.
+  nowhere. No node is planned.
 \item \lead{Allowed axioms} \code{propext}, \code{Classical.choice} and \code{Quot.sound}; no
   \code{sorryAx}.
 \item \lead{Status words} in the prose: \stProved{} proved; \stShipping{} shipping code,

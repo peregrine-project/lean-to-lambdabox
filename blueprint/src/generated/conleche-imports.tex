@@ -13,7 +13,8 @@
     \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
-    \ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.CheckDecl}]
@@ -26,11 +27,12 @@
   \usedbystatements{\ref{def:EraseProof-DeclsOf}, \ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_value}}
-  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}, \ref{lem:EraseProof-markOf-read},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-CollectSub-closure-sub},
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
+    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-CollectSub-closure-sub},
     \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of},
     \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-ctorPropBoxed_of},
-    \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-Final-marksCert_of_progCert}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.CheckerBase}]
@@ -44,10 +46,12 @@
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_value},
     \ref{lem:EraseProof-ctorPropBoxed_of}}
-  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}, \ref{lem:EraseProof-markOf-read},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-CollectSub-closure-sub},
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
+    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-CollectSub-closure-sub},
     \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of},
-    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-Final-marksCert_of_progCert}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Core}]
@@ -59,39 +63,44 @@
   \lead{Used directly} 4 declarations: 3 definitions, 1 structure.
   \usedbystatements{\ref{def:EraseProof-DeclsOf}, \ref{def:EraseProof-CLCert},
     \ref{lem:EraseProof-ConLecheAccepts-stored}, \ref{def:EraseProof-SrcEval},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-ctorPropBoxed_of},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{lem:EraseProof-ctorPropBoxed_of},
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
-    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-markOf-read},
-    \ref{lem:EraseProof-SrcValue}, \ref{lem:EraseProof-SimCases-lbeval-app-congr},
+    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-SrcValue},
+    \ref{lem:EraseProof-SimCases-lbeval-app-congr},
     \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
-    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-CollectSub-closure-sub},
+    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{lem:EraseProof-CollectSub-closure-sub},
     \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of},
     \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-coreEnv_value},
-    \ref{thm:EraseProof-erases_correct}, \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{thm:EraseProof-erases_correct}, \ref{lem:EraseProof-collectDeps_sub},
+    \ref{lem:EraseProof-Final-marksCert_of_progCert},
+    \ref{lem:EraseProof-FirstOrder-SrcEval-certValue}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Env}]
   \label{imp:ConLeche-Kernel-Env}
   \lean{ConLeche.CheckMode, ConLeche.ConstantVal, ConLeche.instInhabitedConstantVal,
     ConLeche.RecRuleFire, ConLeche.instDecidableEqRecRuleFire, ConLeche.RecRule,
-    ConLeche.ReducibilityHint, ConLeche.BasisKind, ConLeche.IndCaps, ConLeche.ProjTable,
-    ConLeche.ProjEntry, ConLeche.ProjTable.entry, ConLeche.ConstantInfo, ConLeche.QuotKind,
-    ConLeche.Declaration, ConLeche.ConstantInfo.toConstantVal, ConLeche.ConstantInfo.name,
-    ConLeche.Declaration.names, ConLeche.Env, ConLeche.Env.empty, ConLeche.Env.find?,
-    ConLeche.Env.findTable?, ConLeche.Env.findProj?}
+    ConLeche.ReducibilityHint, ConLeche.BasisKind, ConLeche.instDecidableEqBasisKind,
+    ConLeche.IndCaps, ConLeche.ProjTable, ConLeche.ProjEntry, ConLeche.ProjTable.entry,
+    ConLeche.ConstantInfo, ConLeche.QuotKind, ConLeche.Declaration,
+    ConLeche.ConstantInfo.toConstantVal, ConLeche.ConstantInfo.name, ConLeche.Declaration.names,
+    ConLeche.Env, ConLeche.Env.empty, ConLeche.Env.find?, ConLeche.Env.findTable?,
+    ConLeche.Env.findProj?}
   \leanok
   \srcloc{ConLeche/Kernel/Env.lean}{20}
   \lead{In short} Environments (\code{Env}) of declarations, and the checker modes
   (\code{CheckMode}).
-  \lead{Used directly} 23 declarations: 10 definitions, 7 inductive types, 6 structures.
+  \lead{Used directly} 24 declarations: 11 definitions, 7 inductive types, 6 structures.
   \usedbystatements{\ref{def:EraseProof-toCL}, \ref{def:EraseProof-DeclsOf},
     \ref{def:EraseProof-RulesSelected}, \ref{lem:EraseProof-CLTyped-closed},
     \ref{lem:EraseProof-ConLecheAccepts-accepted}, \ref{def:EraseProof-CLCert},
     \ref{def:EraseProof-Sound}, \ref{lem:EraseProof-ConLecheAccepts-stored},
-    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-markOf-read},
-    \ref{def:EraseProof-SrcEval}, \ref{lem:EraseProof-SrcValue},
-    \ref{lem:EraseProof-SimCases-lam-inv}, \ref{lem:EraseProof-SimCases-lbeval-app-congr},
+    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{def:EraseProof-SrcEval},
+    \ref{lem:EraseProof-SrcValue}, \ref{lem:EraseProof-SimCases-lam-inv},
+    \ref{lem:EraseProof-SimCases-lbeval-app-congr},
     \ref{lem:EraseProof-SimCases-erases-correct-beta},
     \ref{lem:EraseProof-SimCases-erases-correct-ctor},
     \ref{lem:EraseProof-SimCases-erases-correct-quotMk},
@@ -102,19 +111,26 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{def:EraseProof-Resolved},
+    \ref{lem:EraseProof-Resolve-of_read}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{lem:EraseProof-semSim_of_srcEval},
     \ref{lem:EraseProof-CollectSub-closure-sub}, \ref{lem:EraseProof-collectDeps-spec},
     \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}, \ref{lem:EraseProof-coreEnv_of},
     \ref{lem:EraseProof-coreEnv_value}, \ref{lem:EraseProof-ctorPropBoxed_of},
-    \ref{def:EraseProof-erase_correct-statement}, \ref{def:EraseProof-erases_correct-statement},
-    \ref{def:EraseProof-erasePure_erases-statement}, \ref{def:EraseProof-srcEval_sound-statement},
-    \ref{def:EraseProof-collectDeps_ok_of-statement},
-    \ref{def:EraseProof-erase_correct_firstorder-statement},
+    \ref{def:EraseProof-erases_correct-statement}, \ref{def:EraseProof-erasePure_erases-statement},
+    \ref{def:EraseProof-srcEval_sound-statement}, \ref{def:EraseProof-collectDeps_ok_of-statement},
     \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{def:EraseProof-markOf_exists-statement},
-    \ref{def:EraseProof-collectDeps_sub-statement}}
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt},
+    \ref{def:EraseProof-markOf_exists-statement}, \ref{def:EraseProof-collectDeps_sub-statement},
+    \ref{def:EraseProof-erase_correct-statement}, \ref{lem:EraseProof-Final-marksCert_of_progCert},
+    \ref{lem:EraseProof-Final-Erases-toCert},
+    \ref{def:EraseProof-erase_correct_firstorder-statement},
+    \ref{def:EraseProof-FirstOrder-CertValue}, \ref{lem:EraseProof-FirstOrder-SrcEval-certValue}}
   \usedbyproofs{\ref{thm:EraseProof-erases_correct}, \ref{thm:EraseProof-erasePure_erases},
-    \ref{thm:EraseProof-collectDeps_ok_of}, \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{thm:EraseProof-srcEval_sound}, \ref{lem:EraseProof-collectDeps_ok_of},
+    \ref{lem:EraseProof-sound_nonvacuous}, \ref{lem:EraseProof-markOf_exists},
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{thm:EraseProof-erase_correct},
+    \ref{cor:EraseProof-erase_correct_firstorder}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Error}]
@@ -130,16 +146,20 @@
     \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-coreEnv_value},
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{lem:EraseProof-coreEnv_value},
     \ref{lem:EraseProof-ctorPropBoxed_of}, \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}, \ref{lem:EraseProof-ConLecheAccepts-accepted},
-    \ref{lem:EraseProof-markOf-read}, \ref{lem:EraseProof-SrcValue},
-    \ref{lem:EraseProof-SimCases-lam-inv}, \ref{lem:EraseProof-SimCases-lbeval-app-congr},
-    \ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-SrcValue}, \ref{lem:EraseProof-SimCases-lam-inv},
+    \ref{lem:EraseProof-SimCases-lbeval-app-congr}, \ref{lem:EraseProof-Sound-of-semSim},
+    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-Resolve-of_read},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-semSim_of_srcEval},
     \ref{lem:EraseProof-CollectSub-closure-sub}, \ref{lem:EraseProof-collectDeps-spec},
     \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{thm:EraseProof-erases_correct}, \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{thm:EraseProof-erases_correct}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-Final-marksCert_of_progCert},
+    \ref{lem:EraseProof-FirstOrder-SrcEval-certValue}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Expr}]
@@ -164,12 +184,17 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{lem:EraseProof-coreEnv_value}, \ref{lem:EraseProof-ctorPropBoxed_of},
-    \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{def:EraseProof-Resolved},
+    \ref{lem:EraseProof-Resolve-of_read}, \ref{lem:EraseProof-findProj_of_typed},
+    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-coreEnv_value},
+    \ref{lem:EraseProof-ctorPropBoxed_of}, \ref{def:EraseProof-sound_nonvacuous-statement},
+    \ref{lem:EraseProof-sound_nonvacuous}, \ref{def:EraseProof-clCert_proof_pt-statement},
+    \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-SrcValue}, \ref{lem:EraseProof-SimCases-lam-inv},
-    \ref{lem:EraseProof-SimCases-lbeval-app-congr}, \ref{thm:EraseProof-erases_correct}}
+    \ref{lem:EraseProof-SimCases-lbeval-app-congr}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{thm:EraseProof-erases_correct},
+    \ref{thm:EraseProof-srcEval_sound}, \ref{lem:EraseProof-Final-marksCert_of_progCert},
+    \ref{lem:EraseProof-FirstOrder-SrcEval-certValue}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.ExprOps}]
@@ -187,16 +212,18 @@
   instantiation of a bound variable.
   \lead{Used directly} 19 declarations: 16 definitions, 3 theorems.
   \usedbystatements{\ref{lem:EraseProof-toCL-instantiate1}, \ref{lem:EraseProof-CLTyped-closed},
-    \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound},
-    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-Erases-app-inv},
-    \ref{def:EraseProof-SemSim}, \ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-beta}, \ref{def:EraseProof-SemCases-CasesIotaAt},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-SemCases-red-betas},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
+    \ref{def:EraseProof-CLCert}, \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
+    \ref{lem:EraseProof-Erases-app-inv}, \ref{def:EraseProof-SemSim},
+    \ref{lem:EraseProof-SemCases-semSim-trans}, \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
+    \ref{def:EraseProof-SemCases-CasesIotaAt}, \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-SemCases-red-betas}, \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-ctorPropBoxed_of}}
-  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored}, \ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-Resolve-of_read},
+    \ref{lem:EraseProof-ctorPropBoxed_of}, \ref{lem:EraseProof-sound_nonvacuous}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored}, \ref{lem:EraseProof-Sound-of-semSim},
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{lem:EraseProof-semSim_of_srcEval},
+    \ref{thm:EraseProof-srcEval_sound}, \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Level}]
@@ -213,12 +240,13 @@
     \ref{lem:EraseProof-toCL-instantiate1}, \ref{def:EraseProof-CLCert},
     \ref{lem:EraseProof-SemCases-red-betas}, \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-Resolve-of_read}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-findProj_of_typed},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{lem:EraseProof-coreEnv_of},
+    \ref{lem:EraseProof-ctorPropBoxed_of}, \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Name}]
@@ -232,17 +260,19 @@
   \lead{Used directly} 5 declarations: 3 definitions, 1 theorem, 1 inductive type.
   \usedbystatements{\ref{def:EraseProof-toCL}, \ref{def:EraseProof-DeclsOf},
     \ref{def:EraseProof-RulesSelected}, \ref{lem:EraseProof-toCL-instantiate1},
-    \ref{def:EraseProof-CLCert}, \ref{def:EraseProof-Sound},
-    \ref{lem:EraseProof-ConLecheAccepts-stored}, \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
-    \ref{def:EraseProof-SemSim}, \ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-beta}, \ref{def:EraseProof-SemCases-CasesIotaAt},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-SemCases-red-betas},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
+    \ref{def:EraseProof-CLCert}, \ref{lem:EraseProof-ConLecheAccepts-stored},
+    \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{def:EraseProof-SemSim},
+    \ref{lem:EraseProof-SemCases-semSim-trans}, \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
+    \ref{def:EraseProof-SemCases-CasesIotaAt}, \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-SemCases-red-betas}, \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{lem:EraseProof-coreEnv_value}, \ref{lem:EraseProof-ctorPropBoxed_of}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-collectDeps-spec},
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-Resolve-of_read},
+    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-coreEnv_value},
+    \ref{lem:EraseProof-ctorPropBoxed_of}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-findProj_of_typed},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{lem:EraseProof-collectDeps-spec},
     \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}}
 \end{imported}
 
@@ -256,11 +286,12 @@
   \usedbystatements{\ref{def:EraseProof-DeclsOf}, \ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_value}}
-  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}, \ref{lem:EraseProof-markOf-read},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-CollectSub-closure-sub},
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
+    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-CollectSub-closure-sub},
     \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of},
     \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-ctorPropBoxed_of},
-    \ref{lem:EraseProof-collectDeps_sub}}
+    \ref{lem:EraseProof-collectDeps_sub}, \ref{lem:EraseProof-Final-marksCert_of_progCert}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.TypeChecker}]
@@ -275,12 +306,15 @@
     \ref{def:EraseProof-SemSim}, \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
-    \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{def:EraseProof-sound_nonvacuous-statement},
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed}, \ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-SrcValue},
     \ref{lem:EraseProof-SimCases-lam-inv}, \ref{lem:EraseProof-SimCases-lbeval-app-congr},
-    \ref{lem:EraseProof-Sound-of-semSim}, \ref{thm:EraseProof-erases_correct}}
+    \ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-Resolve-of_read},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{thm:EraseProof-erases_correct},
+    \ref{lem:EraseProof-sound_nonvacuous}, \ref{lem:EraseProof-Final-marksCert_of_progCert},
+    \ref{lem:EraseProof-FirstOrder-SrcEval-certValue}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Capstone}]
@@ -294,7 +328,8 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
     \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Claims}]
@@ -319,6 +354,19 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
+\begin{imported}[\code{ConLeche.Model.CtxOkKit}]
+  \label{imp:ConLeche-Model-CtxOkKit}
+  \lean{ConLeche.Model.CtxOkS.of_subset, ConLeche.Model.CtxOkS.lam_ty,
+    ConLeche.Model.CtxOkS.lam_body, ConLeche.Model.CtxOkS.openS, ConLeche.Model.LeavesGr.of_subset,
+    ConLeche.Model.LeavesGr.lam_ty, ConLeche.Model.LeavesGr.lam_body, ConLeche.Model.LeavesGr.open}
+  \leanok
+  \srcloc{ConLeche/Model/CtxOkKit.lean}{285}
+  \lead{In short} The context discipline of a telescope (\code{CtxOkS}): the domains of an opened
+  binder (\code{CtxOkS.lam\_ty}, \code{lam\_body}).
+  \lead{Used directly} 8 declarations: 8 theorems.
+  \usedbyproofs{\ref{lem:EraseProof-clCert_proof_pt}}
+\end{imported}
+
 \begin{imported}[\code{ConLeche.Model.Denotes}]
   \label{imp:ConLeche-Model-Denotes}
   \lean{ConLeche.Model.cvalOf, ConLeche.Model.Denotes_of_denote, ConLeche.Model.Model.ofEnvModelM}
@@ -330,7 +378,8 @@
   \usedbystatements{\ref{def:EraseProof-Sound}, \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{def:EraseProof-sound_nonvacuous-statement},
     \ref{def:EraseProof-clCert_proof_pt-statement}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Env.EnvModelM}]
@@ -347,9 +396,9 @@
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
     \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
-    \ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Fold}]
@@ -373,6 +422,16 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted}}
 \end{imported}
 
+\begin{imported}[\code{ConLeche.Semantics.Frame}]
+  \label{imp:ConLeche-Semantics-Frame}
+  \lean{ConLeche.Semantics.frame_open2}
+  \leanok
+  \srcloc{ConLeche/Semantics/Frame.lean}{19}
+  \lead{In short} The frame conditions of an opened binder (\code{frame\_open2}).
+  \lead{Used directly} 1 declaration: 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-clCert_proof_pt}}
+\end{imported}
+
 \begin{imported}[\code{ConLeche.Semantics.DeclWF}]
   \label{imp:ConLeche-Semantics-DeclWF}
   \lean{ConLeche.Semantics.checkDeclsPure_envWF}
@@ -384,6 +443,17 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}}
+\end{imported}
+
+\begin{imported}[\code{ConLeche.Verify.BasisBlock}]
+  \label{imp:ConLeche-Verify-BasisBlock}
+  \lean{ConLeche.BasisKind.storedAt, ConLeche.blockInstall_pinned}
+  \leanok
+  \srcloc{ConLeche/Verify/BasisBlock.lean}{24}
+  \lead{In short} What the install of a pinned block stores (\code{BasisKind.storedAt},
+  \code{blockInstall\_pinned}).
+  \lead{Used directly} 2 declarations: 1 definition, 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-defn_safe}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Core}]
@@ -400,9 +470,9 @@
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
     \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-accepted},
-    \ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Derive.Pt}]
@@ -418,8 +488,8 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
     \ref{def:EraseProof-sound_nonvacuous-statement},
-    \ref{def:EraseProof-clCert_proof_pt-statement}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{def:EraseProof-clCert_proof_pt-statement}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.EnvWF}]
@@ -435,7 +505,8 @@
     \ref{lem:EraseProof-ConLecheAccepts-stored}, \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-coreEnv_value}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{lem:EraseProof-coreEnv_value}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Inductives.RecCheckScope}]
@@ -459,7 +530,9 @@
   \usedbyproofs{\ref{lem:EraseProof-CLTyped-closed},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed}, \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-Resolve-of_read},
+    \ref{lem:EraseProof-findProj_of_typed}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Subst}]
@@ -485,7 +558,7 @@
   \code{bv}).
   \lead{Used directly} 15 declarations: 15 definitions.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-coreEnv_of}}
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-coreEnv_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Basis.Nat}]
@@ -496,7 +569,7 @@
   \srcloc{ConLeche/Kernel/Basis/Nat.lean}{21}
   \lead{In short} The pinned \code{Nat} basis (\code{natA}, \code{natBasis}, \code{natRecA}).
   \lead{Used directly} 8 declarations: 8 definitions.
-  \usedbyproofs{\ref{lem:EraseProof-coreEnv_of}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-coreEnv_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Basis.Quot}]
@@ -556,24 +629,26 @@
 
 \begin{imported}[\code{ConLeche.Model.Rules.RedSound}]
   \label{imp:ConLeche-Model-Rules-RedSound}
-  \lean{ConLeche.Model.Rules.Red.trans_sound}
+  \lean{ConLeche.Model.Rules.Red.trans_sound, ConLeche.Model.Rules.Red.zeta_soundU}
   \leanok
   \srcloc{ConLeche/Model/Rules/RedSound.lean}{55}
   \lead{In short} The soundness of transitivity of the reduction relation
   (\code{Red.trans\_sound}).
-  \lead{Used directly} 1 declaration: 1 theorem.
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+  \lead{Used directly} 2 declarations: 2 theorems.
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.EnvPreds}]
   \label{imp:ConLeche-Verify-EnvPreds}
-  \lean{ConLeche.uN, ConLeche.vN}
+  \lean{ConLeche.uN, ConLeche.vN, ConLeche.natI}
   \leanok
   \srcloc{ConLeche/Verify/EnvPreds.lean}{27}
   \lead{In short} The universe-level shorthands of the environment predicates (\code{uN},
   \code{vN}).
-  \lead{Used directly} 2 declarations: 2 definitions.
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_recIota}}
+  \lead{Used directly} 3 declarations: 3 definitions.
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Inductives.ClassMatchRun}]
@@ -638,7 +713,8 @@
   \lead{In short} The bridge theorems of the rules tier (\code{DefEqBridge}, \code{InferBridge},
   \code{InferIOBridge}).
   \lead{Used directly} 5 declarations: 5 definitions.
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-findProj_of_typed}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Basis}]
@@ -656,7 +732,9 @@
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-coreEnv_of}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_recIota}, \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-semSim_of_srcEval},
+    \ref{lem:EraseProof-ctorPropBoxed_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Basis.Names}]
@@ -673,8 +751,10 @@
   \usedbystatements{\ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_recIota}}
-  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_of}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_recIota}, \ref{lem:EraseProof-findProj_of_typed}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-recIotaAt},
+    \ref{lem:EraseProof-Resolve-of_read}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-coreEnv_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Canon}]
@@ -714,7 +794,8 @@
     \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-coreEnv_value}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
-    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt}, \ref{lem:EraseProof-findProj_of_typed},
+    \ref{lem:EraseProof-semSim_of_srcEval}, \ref{lem:EraseProof-ctorPropBoxed_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.FEnv}]
@@ -774,8 +855,8 @@
     \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_of},
     \ref{lem:EraseProof-ctorPropBoxed_of}}
-  \usedbyproofs{\ref{lem:EraseProof-collectDeps-spec},
-    \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}}
+  \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.Inductives.BlockTail}]
@@ -880,9 +961,9 @@
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}}
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
-    \ref{lem:EraseProof-collectDeps-spec}, \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of},
-    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-coreEnv_value},
-    \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-ConLecheAccepts-defn_safe}, \ref{lem:EraseProof-collectDeps-spec},
+    \ref{lem:EraseProof-CollectOk-Frag-closure_ok_of}, \ref{lem:EraseProof-coreEnv_of},
+    \ref{lem:EraseProof-coreEnv_value}, \ref{lem:EraseProof-ctorPropBoxed_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Kernel.PropRead}]
@@ -947,9 +1028,10 @@
   \lead{In short} Read by the proof: \code{Model.CtxOkS}, \code{Model.LeavesGr},
   \code{Model.WellDenotedTy}.
   \lead{Used directly} 3 declarations: 3 definitions.
-  \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
+  \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
+    \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Env.EnvModel}]
@@ -963,8 +1045,8 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Inductives.BlockCover}]
@@ -997,7 +1079,8 @@
   \lead{In short} Read by the proof: \code{Model.Rules.RulesInputs}.
   \lead{Used directly} 1 declaration: 1 structure.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Rules.Motive}]
@@ -1008,19 +1091,21 @@
   \srcloc{ConLeche/Model/Rules/Motive.lean}{54}
   \lead{In short} Read by the proof: \code{Model.Rules.Frame}, \code{Model.Rules.LeavesSub}.
   \lead{Used directly} 5 declarations: 5 definitions.
-  \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+  \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
+    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Rules.RedSoundKit}]
   \label{imp:ConLeche-Model-Rules-RedSoundKit}
-  \lean{ConLeche.Model.Rules.denote_unfoldDefinition}
+  \lean{ConLeche.Model.Rules.denote_unfoldDefinition, ConLeche.Model.Rules.interp_mkAppN_of_pt}
   \leanok
   \srcloc{ConLeche/Model/Rules/RedSoundKit.lean}{732}
   \lead{In short} Read by the proof: \code{Model.Rules.denote\_unfoldDefinition}.
-  \lead{Used directly} 1 declaration: 1 theorem.
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta}}
+  \lead{Used directly} 2 declarations: 2 theorems.
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta},
+    \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Rules.Sound}]
@@ -1035,7 +1120,8 @@
   \lead{Used directly} 6 declarations: 6 theorems.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Model.Tiers}]
@@ -1066,8 +1152,11 @@
     \ref{lem:EraseProof-SemCases-semSim-trans}, \ref{lem:EraseProof-SemCases-red-betas},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-findProj_of_typed}}
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta},
+    \ref{lem:EraseProof-Resolve-of_read}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Semantics.Bridge.Sound}]
@@ -1081,8 +1170,8 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
-    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-ctorPropBoxed_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Semantics.Decl}]
@@ -1109,8 +1198,8 @@
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-stored},
     \ref{lem:EraseProof-ConLecheAccepts-namesClosed},
     \ref{lem:EraseProof-ConLecheAccepts-casesIotaAt},
-    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-coreEnv_of},
-    \ref{lem:EraseProof-ctorPropBoxed_of}}
+    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-ConLecheAccepts-defn_safe},
+    \ref{lem:EraseProof-coreEnv_of}, \ref{lem:EraseProof-ctorPropBoxed_of}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Semantics.Inductives.DeclBlock}]
@@ -1129,56 +1218,58 @@
 
 \begin{imported}[\code{ConLeche.Semantics.Interp}]
   \label{imp:ConLeche-Semantics-Interp}
-  \lean{ConLeche.Semantics.cons, ConLeche.Semantics.interp, ConLeche.Semantics.interp_sort}
+  \lean{ConLeche.Semantics.cons, ConLeche.Semantics.interp, ConLeche.Semantics.interp_sort,
+    ConLeche.Semantics.interp_lam}
   \leanok
   \srcloc{ConLeche/Semantics/Interp.lean}{61}
   \lead{In short} Read by the proof: \code{Semantics.cons}, \code{Semantics.interp},
   \code{Semantics.interp\_sort}.
-  \lead{Used directly} 3 declarations: 2 definitions, 1 theorem.
+  \lead{Used directly} 4 declarations: 2 definitions, 2 theorems.
   \usedbystatements{\ref{def:EraseProof-SemSim}, \ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Semantics.Sat}]
   \label{imp:ConLeche-Semantics-Sat}
-  \lean{ConLeche.Semantics.Sat, ConLeche.Semantics.Sat_nil}
+  \lean{ConLeche.Semantics.Sat, ConLeche.Semantics.Sat_nil, ConLeche.Semantics.Sat_cons}
   \leanok
   \srcloc{ConLeche/Semantics/Sat.lean}{26}
   \lead{In short} Read by the proof: \code{Semantics.Sat}, \code{Semantics.Sat\_nil}.
-  \lead{Used directly} 2 declarations: 1 definition, 1 theorem.
+  \lead{Used directly} 3 declarations: 1 definition, 2 theorems.
+  \usedbystatements{\ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Semantics.WellDenoted}]
   \label{imp:ConLeche-Semantics-WellDenoted}
-  \lean{ConLeche.Semantics.WellDenoted, ConLeche.Semantics.WellDenoted_app,
-    ConLeche.Semantics.WellDenoted_fst, ConLeche.Semantics.WellDenoted_snd,
-    ConLeche.Semantics.WellDenoted_letE}
+  \lean{ConLeche.Semantics.WellDenoted, ConLeche.Semantics.WellDenoted_lam,
+    ConLeche.Semantics.WellDenoted_app, ConLeche.Semantics.WellDenoted_fst,
+    ConLeche.Semantics.WellDenoted_snd, ConLeche.Semantics.WellDenoted_letE}
   \leanok
   \srcloc{ConLeche/Semantics/WellDenoted.lean}{47}
   \lead{In short} Read by the proof: \code{Semantics.WellDenoted},
   \code{Semantics.WellDenoted\_app}, \code{Semantics.WellDenoted\_fst}.
-  \lead{Used directly} 5 declarations: 1 definition, 4 theorems.
+  \lead{Used directly} 6 declarations: 1 definition, 5 theorems.
   \usedbystatements{\ref{def:EraseProof-SemSim}, \ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
+    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-clCert_proof_pt}}
   \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim},
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetModel.Ops}]
   \label{imp:ConLeche-SetModel-Ops}
-  \lean{ConLeche.SetModel.AppliesTo}
+  \lean{ConLeche.SetModel.AppliesTo, ConLeche.SetModel.lamV, ConLeche.SetModel.lamV_eq_pt}
   \leanok
   \srcloc{ConLeche/SetModel/Ops.lean}{200}
   \lead{In short} Read by the proof: \code{SetModel.AppliesTo}.
-  \lead{Used directly} 1 declaration: 1 definition.
-  \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans}}
+  \lead{Used directly} 3 declarations: 2 definitions, 1 theorem.
+  \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans}, \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Derive.Graphs}]
@@ -1216,18 +1307,21 @@
   \lead{Used directly} 5 declarations: 2 definitions, 3 theorems.
   \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.SetTheory.Derive.Univ}]
   \label{imp:ConLeche-SetTheory-Derive-Univ}
-  \lean{ConLeche.SetTheory.univ, ConLeche.SetTheory.univ_zero, ConLeche.SetTheory.IsTy_of_mem_univ}
+  \lean{ConLeche.SetTheory.univ, ConLeche.SetTheory.univ_zero, ConLeche.SetTheory.IsTy_of_mem_univ,
+    ConLeche.SetTheory.ne_pt_of_mem_univ}
   \leanok
   \srcloc{ConLeche/SetTheory/Derive/Univ.lean}{34}
   \lead{In short} Read by the proof: \code{SetTheory.IsTy\_of\_mem\_univ}, \code{SetTheory.univ}.
-  \lead{Used directly} 3 declarations: 1 definition, 2 theorems.
+  \lead{Used directly} 4 declarations: 1 definition, 3 theorems.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Term.Syntax}]
@@ -1241,8 +1335,8 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Cached.BlockPushes}]
@@ -1299,22 +1393,24 @@
     \ref{lem:EraseProof-SemCases-srcEval-sound-beta},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
-  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-clCert_proof_pt}}
+  \usedbyproofs{\ref{lem:EraseProof-Sound-of-semSim}, \ref{lem:EraseProof-sound_nonvacuous}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Denote.Lemmas}]
   \label{imp:ConLeche-Verify-Denote-Lemmas}
   \lean{ConLeche.Verify.denote_app_inv, ConLeche.Verify.denote_proj_inv,
-    ConLeche.Verify.denote_letE_inv, ConLeche.Verify.DenoteSpine, ConLeche.Verify.denote_mkAppN}
+    ConLeche.Verify.denote_lam_inv, ConLeche.Verify.denote_letE_inv, ConLeche.Verify.DenoteSpine,
+    ConLeche.Verify.denote_mkAppN_inv, ConLeche.Verify.denote_mkAppN}
   \leanok
   \srcloc{ConLeche/Verify/Denote/Lemmas.lean}{30}
   \lead{In short} Read by the proof: \code{Verify.denote\_app\_inv},
   \code{Verify.denote\_letE\_inv}, \code{Verify.denote\_proj\_inv}.
-  \lead{Used directly} 5 declarations: 4 theorems, 1 inductive type.
+  \lead{Used directly} 7 declarations: 6 theorems, 1 inductive type.
   \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
+    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Inductives.BlockInv}]
@@ -1375,7 +1471,7 @@
   \lead{In short} Read by the proof: \code{NestedRead}.
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbyproofs{\ref{lem:EraseProof-ConLecheAccepts-namesClosed},
-    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}}
+    \ref{lem:EraseProof-ConLecheAccepts-recIotaAt}, \ref{lem:EraseProof-semSim_of_srcEval}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Inductives.PositivityInv}]
@@ -1420,7 +1516,8 @@
   \lead{Used directly} 1 declaration: 1 definition.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.InferLemmas}]
@@ -1460,7 +1557,8 @@
   \lead{Used directly} 1 declaration: 1 theorem.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-semSim-trans},
     \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Level}]
@@ -1472,19 +1570,21 @@
   \lead{Used directly} 2 declarations: 2 definitions.
   \usedbystatements{\ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta},
-    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}}
+    \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Rules.RedBridge}]
   \label{imp:ConLeche-Verify-Rules-RedBridge}
-  \lean{ConLeche.Rules.peelPis_isSome_instantiateLevelParams}
+  \lean{ConLeche.Rules.peelPis_isSome_instantiateLevelParams, ConLeche.Rules.iotaCaseAt_bridge}
   \leanok
   \srcloc{ConLeche/Verify/Rules/RedBridge.lean}{189}
   \lead{In short} Read by the proof: \code{Rules.peelPis\_isSome\_instantiateLevelParams}.
-  \lead{Used directly} 1 declaration: 1 theorem.
+  \lead{Used directly} 2 declarations: 2 theorems.
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
     \ref{lem:EraseProof-SemCases-srcEval_sound_recIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen},
+    \ref{lem:EraseProof-findProj_of_typed}}
 \end{imported}
 
 \begin{imported}[\code{ConLeche.Verify.Shift}]
@@ -1499,5 +1599,6 @@
   \usedbystatements{\ref{lem:EraseProof-SemCases-semSim-trans}}
   \usedbyproofs{\ref{lem:EraseProof-SemCases-srcEval-sound-beta},
     \ref{lem:EraseProof-SemCases-red-betas}, \ref{lem:EraseProof-SemCases-srcEval-sound-casesIota},
-    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}}
+    \ref{lem:EraseProof-SemCases-srcEval_sound_casesFrozen}, \ref{lem:EraseProof-sound_nonvacuous},
+    \ref{lem:EraseProof-clCert_proof_pt}}
 \end{imported}

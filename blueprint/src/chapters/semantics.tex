@@ -3,10 +3,10 @@
 \section*{At a glance}
 \begin{itemize}
 \item \lead{Goal} Prove \code{srcEval\_sound}: a marked evaluation preserves meaning in every con-leche model of the accepted program.
-\item \lead{Main results} The invariant \code{SemSim} (Section~\ref{sec:semantics-inv}); the cases $\beta$, $\zeta$, $\delta$, constructors, application congruence, frozen application, $\iota$ on a constructor, on a \code{Nat} literal and on a recursor, projections, quotients and \code{casesOn} on a frozen proof (Sections~\ref{sec:semantics-cases}--\ref{sec:semantics-iota}); the decodes of the stored records; the passage to \code{Sound}.
-\item \lead{Status} \stProved{} every node: a step lemma for every rule of \code{SrcEval}. \stOpen{} \code{srcEval\_sound} (Chapter~\ref{chap:statements}), the induction that assembles them.
+\item \lead{Main results} The invariant \code{SemSim} (Section~\ref{sec:semantics-inv}); the cases $\beta$, $\zeta$, $\delta$, constructors, application congruence, frozen application, $\iota$ on a constructor, on a \code{Nat} literal and on a recursor, projections, quotients and \code{casesOn} on a frozen proof (Sections~\ref{sec:semantics-cases}--\ref{sec:semantics-iota}); the decodes of the stored records; the passage to \code{Sound}; the induction (Section~\ref{sec:semantics-induction}).
+\item \lead{Status} \stProved{} every node: a step lemma for every rule of \code{SrcEval}, and \hl{\code{srcEval\_sound}} (Chapter~\ref{chap:statements}), the induction that assembles them.
 \item \lead{Nodes} \bpnodes{chap:semantics}
-\item \lead{Lean files} \leanfiles{proof/EraseProof/Semantics/}{Cases, Iota, Decode, DecodeAt, Rec, Frozen}.
+\item \lead{Lean files} \leanfiles{proof/EraseProof/Semantics/}{Cases, Iota, Decode, DecodeAt, Rec, Frozen, Sound, Cert, NonVacuous}.
 \item \lead{Route} A step is a derivation of con-leche's rules tier (\code{Red}, \leanfile{ConLeche/Rules/Rel.lean}), built from syntax; its soundness \code{red\_sound} (\leanfile{ConLeche/Model/Rules/Sound.lean}), at the inputs of the model (\code{Rules.RulesInputs.ofSem}), gives the equation of denotations wherever the redex is not the proof point.
 \end{itemize}
 
@@ -73,7 +73,7 @@ A term is read in con-leche through its marks: \code{toCL?} is transparent to me
   \begin{itemize}
   \item \code{betaRed}, \code{zetaRed}, \code{etaBetaRed}: the \code{Red} derivation of the step;
   \item \code{etaLams\_*}, \code{isLambda\_*}, \code{inst\_absent}: \code{eta} marks survive substitution;
-  \item \code{delta}: the body's reading, by \code{markOf\_read\_delta}.
+  \item \code{delta}: the body's reading, by \code{markOf\_read} at the closure.
   \end{itemize}
   \lead{Reference} DV-33, DV-34.
 \end{lemma}
@@ -214,6 +214,106 @@ A term is read in con-leche through its marks: \code{toCL?} is transparent to me
 \begin{proof}
   \leanok
   \lead{Idea} Reduce by $\delta$ and $\beta$ to the recursor at the discriminant, and apply the semantic $\iota$ at a constructor application built for the step.
+\end{proof}
+
+\section{The induction}\label{sec:semantics-induction}
+
+\code{srcEval\_sound} is the induction on \code{SrcEval} over the invariant \code{Resolved}: the term reads in con-leche with its constants stored. Each rule applies its step lemma; the stored records come from acceptance.
+
+\begin{definition}[Resolved subjects]
+  \label{def:EraseProof-Resolved}
+  \lean{EraseProof.Resolved}
+  \leanok
+  \uses{def:EraseProof-toCL}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{24}
+  \lead{In short} \code{Resolved env t}: \code{unmark t} reads in con-leche and its constants, projection structures and literal supports are stored in \code{env}.
+  \begin{itemize}
+  \item \lead{Holds of} the marked input, which con-leche types; of a subterm, a stored value (for $\delta$) and a part of a certified redex.
+  \end{itemize}
+\end{definition}
+
+\begin{lemma}[Resolved subjects: algebra]
+  \label{lem:EraseProof-Resolve-of_read}
+  \lean{EraseProof.Resolve.clResolves_inst, EraseProof.Resolve.clResolves_instLP, EraseProof.Resolve.typed_read, EraseProof.Resolve.of_ok, EraseProof.Resolve.erase, EraseProof.Resolve.reduced, EraseProof.Resolve.app, EraseProof.Resolve.foldl, EraseProof.Resolve.appN, EraseProof.Resolve.proj, EraseProof.Resolve.const, EraseProof.Resolve.head, EraseProof.Resolve.etaContract_read, EraseProof.Resolve.unmark_mdata, EraseProof.Resolve.of_read, EraseProof.Resolve.inst, EraseProof.Resolve.natLitCtor, EraseProof.Resolve.read_spine, EraseProof.Resolve.lamInst, EraseProof.Resolve.beta}
+  \leanok
+  \uses{def:EraseProof-Resolved, lem:EraseProof-unmark-instantiate1, lem:EraseProof-toCL-instantiate1}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{36}
+  \lead{In short} \hl{\code{Resolved} is decomposed by every term former and kept by substitution}, so each continuation of a rule is resolved.
+  \begin{itemize}
+  \item \code{app}, \code{foldl}, \code{appN}, \code{proj}, \code{erase}, \code{reduced}, \code{const}, \code{head}: decompositions;
+  \item \code{typed\_read}, \code{of\_ok}, \code{of\_read}: a typed term, a \code{CLOk} redex and a reading whose constants are stored are resolved;
+  \item \code{inst}, \code{lamInst}, \code{beta}, \code{natLitCtor}, \code{clResolves\_inst*}: the contractum of a typed redex.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the reading; substitution of stored constants stores them.
+\end{proof}
+
+\begin{lemma}[Lookups through the closure]
+  \label{lem:EraseProof-Lookup-findDecl_sub}
+  \lean{EraseProof.Lookup.findDecl_sub, EraseProof.Lookup.ctorAlts_sub, EraseProof.Lookup.blockCtorCount_sub, EraseProof.Lookup.casesInfo?_sub, EraseProof.Lookup.casesOnOf?_sub, EraseProof.Lookup.mapM_sub, EraseProof.Lookup.recBlockOf?_sub, EraseProof.Lookup.unfold?_spec}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-stored}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{282}
+  \lead{In short} A lookup that succeeds in the closure \code{D} succeeds in the program \code{P} with the same answer, where acceptance states its records.
+  \begin{itemize}
+  \item \code{findDecl\_sub}, \code{casesInfo?\_sub}, \code{casesOnOf?\_sub}, \code{recBlockOf?\_sub}, \code{ctorAlts\_sub}, \code{blockCtorCount\_sub}: the lookups of the recognizer;
+  \item \code{unfold?\_spec}: what $\delta$ unfolds is a definition of the closure.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} A sub-environment keeps every record it holds.
+\end{proof}
+
+\begin{lemma}[Facts of an accepted program the induction reads]
+  \label{lem:EraseProof-ConLecheAccepts-defn_safe}
+  \lean{EraseProof.ConLecheAccepts.defn_safe, EraseProof.ConLecheAccepts.ctorsListed, EraseProof.ConLecheAccepts.natCtors, EraseProof.ConLecheAccepts.ind_stored}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-ConLecheAccepts-namesClosed}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{393}
+  \lead{In short} \hl{A definition whose name con-leche stores is safe}, so $\delta$ unfolds only checked values; the constructor lists and the \code{Nat} constructors are as the rules read them.
+  \begin{itemize}
+  \item \code{defn\_safe}: from the names of each block's records;
+  \item \code{ctorsListed}, \code{natCtors}: \code{CtorsListed}, and \code{Nat.zero}, \code{Nat.succ} at indices 0 and 1, from the stored basis block;
+  \item \code{ind\_stored}: a projection's structure is stored.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} The fold stores exactly the records of the program, under the names acceptance lists.
+\end{proof}
+
+\begin{lemma}[Projections and quotients]
+  \label{lem:EraseProof-findProj_of_typed}
+  \lean{EraseProof.findProj_of_typed, EraseProof.quotCase}
+  \leanok
+  \uses{lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-SemCases-srcEval_sound_recIota}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{537}
+  \lead{In short} A projection that con-leche types has a stored projection table; the $\iota$ case split of \code{Quot.lift} follows from con-leche's quotient rule.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Invert \code{Infer.proj} in the rule's certificate; split \code{iotaCaseAt} on the quotient's recursor.
+\end{proof}
+
+\begin{lemma}[The induction on the evaluation]
+  \label{lem:EraseProof-semSim_of_srcEval}
+  \lean{EraseProof.semSim_of_srcEval}
+  \leanok
+  \uses{def:EraseProof-Resolved, def:EraseProof-SemSim, lem:EraseProof-Resolve-of_read, lem:EraseProof-Lookup-findDecl_sub, lem:EraseProof-ConLecheAccepts-defn_safe, lem:EraseProof-findProj_of_typed, lem:EraseProof-SemCases-srcEval-sound-beta, lem:EraseProof-SemCases-srcEval-sound-casesIota, lem:EraseProof-SemCases-srcEval_sound_recIota, lem:EraseProof-SemCases-srcEval_sound_casesFrozen, lem:EraseProof-ConLecheAccepts-casesIotaAt, lem:EraseProof-ConLecheAccepts-recIotaAt, lem:EraseProof-markOf-read}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{580}
+  \lead{In short} \hl{A source evaluation of a resolved subject keeps \code{SemSim}}, in the closure of an accepted program.
+  \begin{itemize}
+  \item \lead{Given} acceptance, \code{SubEnv}, no mark key in the closure, a source evaluation of a resolved term.
+  \item \lead{Then} \code{SemSim env t v}.
+  \end{itemize}
+  \lead{Reference} the induction of subject reduction (\code{MR P/PCUICSR.v}); DV-33, DV-34.
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} One case per rule: the step lemma, the decode of its records, the grading of its certificate and the resolution of each continuation.
 \end{proof}
 
 \section*{Caveats}

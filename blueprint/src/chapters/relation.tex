@@ -65,7 +65,7 @@
 
 \begin{definition}[The erasure relation]
   \label{def:EraseProof-Erases}
-  \lean{EraseProof.Erases, EraseProof.BoxCert, EraseProof.noCert, EraseProof.ErasesAlt, EraseProof.ErasesInd, EraseProof.ErasesDecl, EraseProof.ErasesDeps}
+  \lean{EraseProof.Erases, EraseProof.BoxCert, EraseProof.noCert, EraseProof.ErasesAlt, EraseProof.ErasesInd, EraseProof.ErasedValue, EraseProof.ErasesDecl, EraseProof.ErasesDeps}
   \leanok
   \uses{def:EraseProof-SrcEval, def:EraseProof-CLCert, def:EraseProof-LBEval}
   \srcloc{proof/EraseProof/Spec.lean}{1531}
@@ -73,7 +73,7 @@
   \begin{itemize}
   \item \code{BoxCert}, \code{noCert}: what a mark asks of its \code{box} --- nothing, or con-leche's certificate;
   \item \code{Erases}: one rule per term former; a mark is related to $\Box$ only, a reduced \code{casesOn} to its alternative;
-  \item \code{ErasesAlt}, \code{ErasesInd}, \code{ErasesDecl}, \code{ErasesDeps}: alternatives, inductives, constants and the environment.
+  \item \code{ErasesAlt}, \code{ErasesInd}, \code{ErasesDecl}, \code{ErasesDeps}: alternatives, inductives, constants and the environment; \code{ErasedValue}: a constant the traversal erases by its value (not a theorem, not a recognized \code{casesOn}), whose body \code{ErasesDecl} relates to a marking.
   \end{itemize}
   \lead{Reference} \code{MR E/Extract.v:erases}, \code{erases\_deps}; DV-16, DV-25, DV-32.
 \end{definition}

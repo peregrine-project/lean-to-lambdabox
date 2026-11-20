@@ -7,7 +7,7 @@
 \item \lead{Main results} A program is covered when con-leche accepts it, the shipping router sends
   it to the pure path, no declaration of its closure is erased through a compiled
   pre-definition, and con-leche certifies its marked input (Section~\ref{sec:scope-principle}).
-\item \lead{Status} \stOpen{} no statement of the scope is proved; the fragment test accepts what the scope admits on the closure's declarations (\code{collectDeps\_ok\_of}, proved). \stShipping{} the fragment test
+\item \lead{Status} \stProved{} the fragment test accepts what the scope admits on the closure's declarations (\code{collectDeps\_ok\_of}). \stShipping{} the fragment test
   \code{collectDeps}, which the hypothesis \code{hfrag} names.
 \item \lead{Reference} MetaRocq \code{erase\_correct}'s hypotheses \code{wf\_ext},
   \code{welltyped}.
@@ -38,7 +38,7 @@ hypothesis.
 Lean feature & Scope & Reason \\
 \midrule
 $\lambda$, application, $\Pi$, \code{Sort}, universe polymorphism, \code{let}, definitions & in & \\
-Theorems & in & stored by statement, never unfolded; their proofs are marked \\
+Theorems & in & stored by statement, never unfolded; the traversal erases no theorem by its value, so \code{hcert} asks no marking of one \\
 Inductive types: mutual, indexed, parameters & in & \\
 Constructors, canonical \code{casesOn}, projections & in & \\
 Reduced \code{casesOn} (one constructor) & in & the fields must be marked \\
@@ -64,7 +64,7 @@ A whole file's environment & out & \code{Init} holds axioms and \code{unsafe} de
 \section*{Caveats}
 \begin{itemize}
 \item The theorem is about programs: a closure of declarations, never a file's environment.
-\item The test programs with an inductive type (NV-1, NV-2) rest on a compiled check of con-leche's fold (DV-40, Chapter~\ref{chap:trust}).
+\item The test programs with an inductive type (NV-1 to NV-5) rest on a compiled check of con-leche's fold, and NV-3 and NV-4 on compiled inference facts (DV-40, Chapter~\ref{chap:trust}).
 \item A vacuous entry is in scope, and its programs are covered because the source cannot evaluate
   through it.
 \item A program that evaluates through an opaque, a theorem, an \code{@[extern]} atom or

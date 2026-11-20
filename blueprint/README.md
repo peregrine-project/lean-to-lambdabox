@@ -5,7 +5,7 @@ A [leanblueprint](https://github.com/PatrickMassot/leanblueprint) of the verific
 Lean checker proved sound by a set-theoretic model. It is a picture of the commit it is built from: the scope,
 the trust boundary, the definitions and theorems with their status (proved, or planned: stated
 under the name the declaration will have), the registers (`doc/SHIPPING-CHANGES.md`,
-`doc/DIVERGENCES.md`, each rendered when the commit contains it) and what is open. It describes the present state only; the history is in
+`doc/DIVERGENCES.md`, each rendered when the commit contains it) and what it does not say. It describes the present state only; the history is in
 git. The Lean code it documents is the shipping code (`LeanToLambdaBox/`) and the proof package
 (`proof/`, library `EraseProof`).
 
@@ -30,7 +30,7 @@ STYLE.md                how chapters and nodes are written (binding)
 src/content.tex         chapter order
 src/chapters/*.tex      hand-written chapters: intro, scope, trust, resolution,
                         bridge, source, relation, simulation, semantics, core,
-                        statements, tests, open
+                        statements, final, tests, limits
 src/generated/*.tex     generated chapters, tables and imported nodes (never edit them)
 src/macros/             common.tex (shared macros), web.tex, print.tex
 src/web.tex, print.tex  drivers of the web and print versions

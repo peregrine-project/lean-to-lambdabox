@@ -8,8 +8,7 @@
 \item \lead{Main results} The axiom footprint of every declaration is within \code{propext},
   \code{Classical.choice} and \code{Quot.sound}; the model hypothesis is an argument, never an
   axiom.
-\item \lead{Status} \stProved{} the checks pass on the statement definitions, the five proved theorems and the tests;
-  \stOpen{} the six other theorems. \stShipping{} the eraser, trusted as built.
+\item \lead{Status} \stProved{} the checks pass on the statement definitions, the eleven proved theorems, the final theorem and the tests. \stShipping{} the eraser, trusted as built.
 \item \lead{Nodes} \bpnodes{chap:trust}
 \item \lead{Lean files} \leanfile{proof/EraseProof/} (the verification library);
   \leanfile{LeanToLambdaBox/} (the shipping code); \leanfile{LeanToLambdaBox/ConLeche.lean} (the
@@ -93,10 +92,9 @@ The \code{Meta} path & out-of-fragment inputs keep the traversal with the elabor
 \begin{itemize}
 \item \lead{The gap} the kernel cannot run con-leche's fold on an inductive block: the installer
   hashes names with an opaque hash, and $\iota$ and level comparison use well-founded functions.
-  The programs with an inductive type, NV-1 and NV-2, take the fold equation of \code{hacc} as a
-  premise of the theorem \code{Test.NV1.hacc}, \code{Test.NV2.hacc}, and a compiled \code{\#guard}
-  checks it, which trusts Lean's compiler (DV-40). Any certificate that needs $\iota$ is
-  checked by compiled evaluation as well. NV-0 has no inductive type and is kernel-checked.
+  The programs with an inductive type, NV-1 to NV-5, take the fold equation of \code{hacc} (\code{hfold}) as a
+  premise of the theorems \code{Test.NV}$k$\code{.hacc} and \code{Test.NV}$k$\code{.final}, and a compiled \code{\#guard}
+  checks it. NV-3 and NV-4 take the facts \code{hg} the same way: con-leche's inference where its binder congruence compares two $\Pi$s with different bodies. A compiled \code{\#guard} trusts Lean's compiler and con-leche's compiled code, including its \code{@[implemented\_by]} and \code{@[extern]} escapes (\leanfiles{ConLeche/Kernel/}{Exclusive, NatHash}), \hl{for those checks only}: no theorem of the library depends on them (DV-40). NV-0 has no inductive type and is kernel-checked.
 \item \lead{What the kernel checks} every other hypothesis; inductive-free programs are
   kernel-checked end to end.
 \end{itemize}
@@ -126,7 +124,7 @@ C7 & no leaves: every declaration is reachable from a root of \code{proof/ROOTS.
 C10 & the shipping regression tests \\
 C11 & \code{NVEmit}: the entry point of \code{\#erase} emits, byte for byte, the programs the
   test instances compute \\
-C12 & the twelve statement definitions exist; each theorem that is proved has a type
+C12 & the eleven statement definitions exist; each theorem that is proved has a type
   definitionally equal to its statement \\
 C12b & the statement definitions and the definitions they reach have the digests of
   \code{proof/spec.pin}, every pinned constant exists, and the toolchain and dependency revisions

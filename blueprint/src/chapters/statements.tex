@@ -4,23 +4,25 @@
 \begin{itemize}
 \item \lead{Goal} State the eleven results that make up the verification, as definitions of type
   \code{Prop} that \code{proof/spec.pin} pins.
-\item \lead{Main results} The final theorem \code{erase\_correct} (Section~\ref{sec:statements-final}),
-  three milestones, a corollary and six lemmas.
+\item \lead{Main results} The three milestones \code{erases\_correct}, \code{erasePure\_erases} and
+  \code{srcEval\_sound}, and the lemmas \code{collectDeps\_ok\_of}, \code{collectDeps\_sub}, \code{markOf\_det}, \code{markOf\_exists},
+  \code{sound\_nonvacuous} and \code{clCert\_proof\_pt}; the final theorem \code{erase\_correct} and its
+  first-order corollary are in Chapter~\ref{chap:final}.
 \item \lead{Status} \stProved{} the eleven definitions, sorry-free and pinned (checks C12, C12b), and
-  \hl{five theorems: \code{erases\_correct}, \code{erasePure\_erases}, \code{collectDeps\_ok\_of}, \code{collectDeps\_sub} and \code{markOf\_det}}. \stOpen{} the six others, each with a planned node.
+  \hl{all eleven theorems they state}; the checks compare each theorem's type with its definition.
 \item \lead{Nodes} \bpnodes{chap:statements}
 \item \lead{Lean files} \leanfile{proof/EraseProof/Statements.lean}.
 \end{itemize}
 
 Each statement is a definition node that cites the \code{\_statement} definition. Beside it, a
-node states the theorem the definition is the type of: proved, or planned.
+node states the theorem the definition is the type of.
 
 \begin{tabular}{p{0.28\linewidth}p{0.64\linewidth}}
 \toprule
 Condition & Meaning \\
 \midrule
 \code{NoMarkKeys}, \code{NoMarkKeysDecls} & no \code{mdata} with the marks' key in the input, resp. in the types and values of the closure (\code{hclean}; acceptance gives the second) \\
-\code{ValuesMarkedOf} & every value of a constant of the closure has a marking in the empty context (\code{erasePure\_erases}; \code{ProgCert} gives it to the final theorem) \\
+\code{ValuesMarkedOf} & every value of a constant of the closure that the traversal erases (\code{ErasedValue}) has a marking in the empty context (\code{erasePure\_erases}; \code{ProgCert} gives it to the final theorem) \\
 \code{SubEnv}, \code{NoPreDefs} & the closure is part of the accepted program; no closure declaration has a compiled pre-definition \\
 \code{ClosedDecls} & no free variable in the closure's types and values (\code{markOf\_det}, \code{markOf\_exists}) \\
 \code{CtorsListed}, \code{NatShaped}, \code{NatCtors}, \code{RecsShaped} & shape of constructors, \code{Nat} and recursors (\code{erases\_correct}; Definition~\ref{def:EraseProof-CtorsListed}) \\
@@ -28,34 +30,7 @@ Condition & Meaning \\
 \bottomrule
 \end{tabular}
 
-\section{The final theorem}\label{sec:statements-final}
-
-\begin{definition}[Final theorem: statement]
-  \label{def:EraseProof-erase_correct-statement}
-  \lean{EraseProof.erase_correct_statement}
-  \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{96}
-  \lead{In short} The statement of \code{erase\_correct}, a definition of type \code{Prop}.
-\end{definition}
-
-\begin{theorem}[Final theorem]
-  \label{thm:EraseProof-erase_correct}
-  \lean{EraseProof.erase_correct}
-  \planned
-  \uses{def:EraseProof-erase_correct-statement, thm:EraseProof-erases_correct, thm:EraseProof-erasePure_erases, thm:EraseProof-srcEval_sound, thm:EraseProof-collectDeps_ok_of, lem:EraseProof-markOf_det, lem:EraseProof-collectDeps_sub, def:EraseProof-SrcEval}
-  \lead{In short} Partial correctness of \code{\#erase} against con-leche: the emitted main term evaluates in $\lambda_\Box$ to an erasure of the source value, and the value means what the input means.
-  \begin{itemize}
-  \item \lead{Given} \code{hacc}: con-leche accepts the program; \code{hty}: it types the input; \code{hclean}: the input carries no mark key; \code{hview}, \code{hfrag}, \code{hnopre}: the view, the fragment test and the pre-definitions;
-  \item \lead{Given} \code{hrun}: the entry point returns the program; \code{hmark}: the marking of the input; \code{hcert}: con-leche certifies every mark of the input and of a marking of each value of the closure; \code{hev}: the marked input evaluates in the closure;
-  \item \lead{Then} the program is untyped, its main term erases the marked input with certified boxes, its environment erases the dependencies, the value erases to the evaluated term, and \code{Sound} holds.
-  \end{itemize}
-\end{theorem}
-\begin{proof}
-  \uses{def:EraseProof-erase_correct-statement, lem:EraseProof-collectDeps-spec, lem:EraseProof-eraseEntry-pure}
-  \lead{Idea} Compose the pure-path correctness, the fragment lemmas, the marking lemmas, the simulation and the meaning of the evaluation.
-\end{proof}
-
-\section{Milestones and the corollary}\label{sec:statements-milestones}
+\section{Milestones}\label{sec:statements-milestones}
 
 \begin{definition}[Simulation: statement]
   \label{def:EraseProof-erases_correct-statement}
@@ -89,7 +64,7 @@ Condition & Meaning \\
   \lean{EraseProof.erasePure_erases_statement, EraseProof.ValuesMarkedOf}
   \leanok
   \srcloc{proof/EraseProof/Statements.lean}{61}
-  \lead{In short} The statement of \code{erasePure\_erases}, a definition of type \code{Prop}; \code{ValuesMarkedOf}: every value of a constant of the closure has a marking in the empty context.
+  \lead{In short} The statement of \code{erasePure\_erases}, a definition of type \code{Prop}; \code{ValuesMarkedOf}: every value of a constant of the closure that the traversal erases has a marking in the empty context.
 \end{definition}
 
 \begin{theorem}[Pure traversal]
@@ -100,7 +75,7 @@ Condition & Meaning \\
   \srcloc{proof/EraseProof/Core/Assemble.lean}{159}
   \lead{In short} \hl{The output of the pure traversal on the closure the fragment test returns is an erasure of the marking of the input}, with erased dependencies, in a closed environment.
   \begin{itemize}
-  \item \lead{Given} an accepted program of which the closure is part; no compiled pre-definition in the closure; a marking of every value of the closure and of the input.
+  \item \lead{Given} an accepted program of which the closure is part; no compiled pre-definition in the closure; a marking of every value of the closure that the traversal erases and of the input.
   \item \lead{Then} the program is untyped, its main term erases the marking, its environment erases the dependencies and is closed.
   \end{itemize}
   \lead{Reference} \code{erases\_erase} (\code{MR E/ErasureFunction.v:1228}); DV-32, DV-35.
@@ -122,16 +97,18 @@ Condition & Meaning \\
 \begin{theorem}[Meaning of evaluation]
   \label{thm:EraseProof-srcEval_sound}
   \lean{EraseProof.srcEval_sound}
-  \planned
-  \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-toCL-instantiate1, lem:EraseProof-unmark-instantiate1}
+  \leanok
+  \uses{def:EraseProof-srcEval_sound-statement}
+  \srcloc{proof/EraseProof/Semantics/Sound.lean}{762}
   \lead{In short} The marked source evaluation preserves meaning in every con-leche model of the accepted program, except where the input denotes the proof point.
   \begin{itemize}
   \item \lead{Given} con-leche accepts the program and types the input; the input and the closure carry no mark key; the input has a marking that evaluates.
   \end{itemize}
 \end{theorem}
 \begin{proof}
-  \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-ConLecheAccepts-accepted, lem:EraseProof-toCL-instantiate1, lem:EraseProof-unmark-instantiate1, lem:EraseProof-SemCases-srcEval-sound-beta, lem:EraseProof-Sound-of-semSim, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-SemCases-srcEval-sound-casesIota, lem:EraseProof-markOf-read, def:EraseProof-SemSim, lem:EraseProof-ConLecheAccepts-casesIotaAt, lem:EraseProof-SemCases-srcEval_sound_recIota, lem:EraseProof-SemCases-srcEval_sound_casesFrozen, lem:EraseProof-ConLecheAccepts-recIotaAt}
-  \lead{Idea} Induction on the marked evaluation; each rule follows from con-leche's claims for conversion and inference and from its recursor and quotient laws.
+  \uses{def:EraseProof-srcEval_sound-statement, lem:EraseProof-Sound-of-semSim, lem:EraseProof-semSim_of_srcEval, lem:EraseProof-ConLecheAccepts-namesClosed, lem:EraseProof-Resolve-of_read, lem:EraseProof-markOf-read}
+  \leanok
+  \lead{Idea} Induction on the marked evaluation with the invariant that the marked term reads in con-leche; each rule follows from the step lemma of Chapter~\ref{chap:semantics}.
 \end{proof}
 
 \begin{definition}[Lower bound of the fragment test: statement]
@@ -142,8 +119,8 @@ Condition & Meaning \\
   \lead{In short} The statement of \code{collectDeps\_ok\_of}, a definition of type \code{Prop}.
 \end{definition}
 
-\begin{theorem}[Lower bound of the fragment test]
-  \label{thm:EraseProof-collectDeps_ok_of}
+\begin{lemma}[Lower bound of the fragment test]
+  \label{lem:EraseProof-collectDeps_ok_of}
   \lean{EraseProof.collectDeps_ok_of}
   \leanok
   \uses{def:EraseProof-collectDeps_ok_of-statement}
@@ -152,34 +129,11 @@ Condition & Meaning \\
   \begin{itemize}
   \item \lead{Why} it shows that \code{hfrag} does not make the final theorem empty.
   \end{itemize}
-\end{theorem}
+\end{lemma}
 \begin{proof}
   \uses{def:EraseProof-collectDeps_ok_of-statement, lem:EraseProof-ConLecheAccepts-stored, lem:EraseProof-collectDeps-spec, lem:EraseProof-CollectOk-Frag-closure_ok_of}
   \leanok
   \lead{Idea} The fragment test succeeds when every declaration of the closure is in the fragment and the fuel suffices.
-\end{proof}
-
-\begin{definition}[First-order corollary: statement]
-  \label{def:EraseProof-erase_correct_firstorder-statement}
-  \lean{EraseProof.erase_correct_firstorder_statement}
-  \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{184}
-  \lead{In short} The statement of \code{erase\_correct\_firstorder}, a definition of type \code{Prop}.
-\end{definition}
-
-\begin{corollary}[First-order corollary]
-  \label{cor:EraseProof-erase_correct_firstorder}
-  \lean{EraseProof.erase_correct_firstorder}
-  \planned
-  \uses{def:EraseProof-erase_correct_firstorder-statement, thm:EraseProof-erase_correct}
-  \lead{In short} Under the hypotheses of the final theorem other than \code{hcert}, and with a closure free of mark keys, a first-order value erases to the structural erasure of the value.
-  \begin{itemize}
-  \item \lead{Then} each box stands for a subterm certified as a proof or a type former, and the value means what the input means.
-  \end{itemize}
-\end{corollary}
-\begin{proof}
-  \uses{def:EraseProof-erase_correct_firstorder-statement, thm:EraseProof-erase_correct}
-  \lead{Idea} The final theorem and the meaning of the evaluation give the structural erasure of a constructor tree.
 \end{proof}
 
 \section{Lemmas}\label{sec:statements-lemmas}
@@ -188,39 +142,43 @@ Condition & Meaning \\
   \label{def:EraseProof-sound_nonvacuous-statement}
   \lean{EraseProof.sound_nonvacuous_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{209}
+  \srcloc{proof/EraseProof/Statements.lean}{211}
   \lead{In short} The statement of \code{sound\_nonvacuous}, a definition of type \code{Prop}.
 \end{definition}
 
 \begin{lemma}[Meaning has content]
   \label{lem:EraseProof-sound_nonvacuous}
-  \lean{EraseProof.sound_nonvacuous}
-  \planned
+  \lean{EraseProof.sound_nonvacuous, EraseProof.looseBVarsBounded_mkAppN_head}
+  \leanok
   \uses{def:EraseProof-sound_nonvacuous-statement}
-  \lead{In short} If con-leche types an application of the input with a type whose members are never the proof point, the input has a reading that is not the proof point in every model.
+  \srcloc{proof/EraseProof/Semantics/NonVacuous.lean}{31}
+  \lead{In short} If con-leche types an application of the input with a sort, the input has a reading that is not the proof point in every model.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-sound_nonvacuous-statement}
-  \lead{Idea} A member of a strict type is never the proof point, and applying the proof point gives the proof point.
+  \leanok
+  \lead{Idea} A member of a sort is a type, never the proof point, and applying the proof point gives the proof point.
 \end{proof}
 
 \begin{definition}[Proof certificate: statement]
   \label{def:EraseProof-clCert_proof_pt-statement}
   \lean{EraseProof.clCert_proof_pt_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{225}
+  \srcloc{proof/EraseProof/Statements.lean}{228}
   \lead{In short} The statement of \code{clCert\_proof\_pt}, a definition of type \code{Prop}.
 \end{definition}
 
 \begin{lemma}[Proof certificate]
   \label{lem:EraseProof-clCert_proof_pt}
-  \lean{EraseProof.clCert_proof_pt}
-  \planned
+  \lean{EraseProof.clCert_proof_pt, EraseProof.proof_ptAt, EraseProof.openLams_pt}
+  \leanok
   \uses{def:EraseProof-clCert_proof_pt-statement}
+  \srcloc{proof/EraseProof/Semantics/Cert.lean}{103}
   \lead{In short} A subterm certified as a proof denotes the proof point under every valuation of its binders.
 \end{lemma}
 \begin{proof}
   \uses{def:EraseProof-clCert_proof_pt-statement}
+  \leanok
   \lead{Idea} The claims for inference on the subterm and its type, and the fact that a member of a proposition is the proof point.
 \end{proof}
 
@@ -228,7 +186,7 @@ Condition & Meaning \\
   \label{def:EraseProof-markOf_det-statement}
   \lean{EraseProof.markOf_det_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{248}
+  \srcloc{proof/EraseProof/Statements.lean}{251}
   \lead{In short} The statement of \code{markOf\_det}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -250,27 +208,29 @@ Condition & Meaning \\
   \label{def:EraseProof-markOf_exists-statement}
   \lean{EraseProof.markOf_exists_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{258}
-  \lead{In short} The statement of \code{markOf\_exists}, a definition of type \code{Prop}.
+  \srcloc{proof/EraseProof/Statements.lean}{261}
+  \lead{In short} The statement of \code{markOf\_exists}, a definition of type \code{Prop}: \code{hmark} follows from \code{hfrag} and \code{hrun}.
 \end{definition}
 
 \begin{lemma}[Marking exists]
   \label{lem:EraseProof-markOf_exists}
   \lean{EraseProof.markOf_exists}
-  \planned
-  \uses{def:EraseProof-markOf_exists-statement}
-  \lead{In short} Wherever the pure traversal erases an input without mark keys, over a closed closure that is part of an accepted program, the input has a marking.
+  \leanok
+  \uses{def:EraseProof-markOf_exists-statement, lem:EraseProof-Steps-existsSpec_of, lem:EraseProof-coreEnv_of}
+  \srcloc{proof/EraseProof/Core/Exists.lean}{138}
+  \lead{In short} \hl{Wherever the pure traversal erases an input without mark keys}, over a closed closure that is part of an accepted program, the input has a marking: \code{hmark} excludes no program.
 \end{lemma}
 \begin{proof}
-  \uses{def:EraseProof-markOf_exists-statement}
-  \lead{Idea} The traversal returns a result only along a derivation of the marking.
+  \uses{def:EraseProof-markOf_exists-statement, lem:EraseProof-Steps-existsSpec_of, lem:EraseProof-coreEnv_of}
+  \leanok
+  \lead{Idea} Induction on the fuel: each successful step of \code{visitExpr} yields the marking rule of its case (Section~\ref{sec:core-exists}).
 \end{proof}
 
 \begin{definition}[Closure inside the program: statement]
   \label{def:EraseProof-collectDeps_sub-statement}
   \lean{EraseProof.collectDeps_sub_statement}
   \leanok
-  \srcloc{proof/EraseProof/Statements.lean}{271}
+  \srcloc{proof/EraseProof/Statements.lean}{274}
   \lead{In short} The statement of \code{collectDeps\_sub}, a definition of type \code{Prop}.
 \end{definition}
 
@@ -290,10 +250,10 @@ Condition & Meaning \\
 
 \section*{Caveats}
 \begin{itemize}
-\item A statement definition is a type; it is not evidence that the theorem holds.
+\item A statement definition is a type; the checks C12 and C12b compare each theorem's type with it and pin what it reads.
 \item The statements read the shipping functions \code{collectDeps}, \code{erasePure} and
   \code{eraseEntry} by their logical definitions.
 \item The hypotheses of \code{erase\_correct} are discharged on concrete programs by the tests of
-  the proof package; the programs with an inductive type rely on compiled evaluation
+  the proof package (Chapter~\ref{chap:tests}); for the programs with an inductive type, the fold equation of \code{hacc} and a few certificates rest on compiled evaluation
   (Section~\ref{sec:trust-gap}).
 \end{itemize}

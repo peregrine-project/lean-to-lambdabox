@@ -68,7 +68,7 @@ Certificates & decidable runs of con-leche's verified checker. Two are premises 
   against the argument position it fills.
 \item \lead{Every mark} con-leche certifies every mark and every reduced discriminant in the
   context of its enclosing binders (opened as con-leche opens them; a \code{let} with its value).
-  The same holds for a marking of the value of every constant of the closure that has one,
+  The same holds for a marking of the value of every constant of the closure that the traversal erases by its value (\code{ErasedValue}: not a theorem, not a recognized \code{casesOn}),
   whether or not the emitted program holds a body for it (\code{ProgCert}, DV-37).
 \item \lead{Proof verdict} a certified proof denotes the proof point under every valuation of its
   binders (\code{clCert\_proof\_pt}).

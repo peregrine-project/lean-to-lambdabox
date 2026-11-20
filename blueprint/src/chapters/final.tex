@@ -1,0 +1,159 @@
+\chapter{The final theorem}\label{chap:final}
+
+\section*{At a glance}
+\begin{itemize}
+\item \lead{Goal} Compose the milestones into \code{erase\_correct}, and derive its first-order corollary.
+\item \lead{Main results} \code{erase\_correct} (Section~\ref{sec:final-theorem}); \code{erase\_correct\_firstorder} (Section~\ref{sec:final-firstorder}).
+\item \lead{Status} \stProved{} both, sorry-free, with the axiom footprint \code{propext}, \code{Classical.choice}, \code{Quot.sound}; \code{erase\_correct} is the only root of \code{proof/ROOTS.txt}.
+\item \lead{Nodes} \bpnodes{chap:final}
+\item \lead{Lean files} \leanfiles{proof/EraseProof/}{Final, FirstOrder}.
+\item \lead{Reference} \code{erase\_correct} (\code{MR E/ErasureFunctionProperties.v:657}), \code{erase\_correct\_strong} (\code{MR E/ErasureFunctionProperties.v:2269}).
+\end{itemize}
+
+\section{The composition}\label{sec:final-theorem}
+
+The theorem runs six steps over the closure the fragment test returns: the entry point gives the pure path, the closure is part of the program, the traversal's output erases the marking, the simulation evaluates the main term, the meaning of evaluation relates the value to the input, and the certificates turn the relations into certified ones.
+
+\begin{definition}[Final theorem: statement]
+  \label{def:EraseProof-erase_correct-statement}
+  \lean{EraseProof.erase_correct_statement}
+  \leanok
+  \srcloc{proof/EraseProof/Statements.lean}{96}
+  \lead{In short} The statement of \code{erase\_correct}, a definition of type \code{Prop}.
+\end{definition}
+
+\begin{lemma}[Certificates of the composition]
+  \label{lem:EraseProof-Final-marksCert_of_progCert}
+  \lean{EraseProof.Final.marksCert_foldl, EraseProof.Final.marksCert_arg, EraseProof.Final.CLCertProof.cert, EraseProof.Final.marksCert_of_progCert, EraseProof.Final.noMarkKeysDecls_of}
+  \leanok
+  \uses{def:EraseProof-CLCert, lem:EraseProof-markOf_det, lem:EraseProof-ConLecheAccepts-accepted}
+  \srcloc{proof/EraseProof/Final.lean}{35}
+  \lead{In short} \hl{Every marking of a closure value is the certified one}, because the marking is a function (\code{markOf\_det}); the closure of an accepted program has no mark key.
+  \begin{itemize}
+  \item \code{marksCert\_foldl}, \code{marksCert\_arg}: certified marks of a spine are those of its head and arguments;
+  \item \code{CLCertProof.cert}: a proof certificate is a certificate;
+  \item \code{marksCert\_of\_progCert}: \code{ProgCert}'s third conjunct certifies the marks of every marking of a value;
+  \item \code{noMarkKeysDecls\_of}: acceptance gives \code{NoMarkKeysDecls} (\code{srcEval\_sound} takes it).
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} \code{markOf\_det} identifies any marking of the value with the certified one.
+\end{proof}
+
+\begin{lemma}[From erasure to certified erasure]
+  \label{lem:EraseProof-Final-Erases-toCert}
+  \lean{EraseProof.Final.Erases.toCert, EraseProof.Final.ErasesDecl.toCert, EraseProof.Final.ErasesDeps.toCert}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-CLCert, lem:EraseProof-Final-marksCert_of_progCert}
+  \srcloc{proof/EraseProof/Final.lean}{57}
+  \lead{In short} \hl{An erasure without certificates is an erasure with con-leche's certificates} if every mark of the term is certified in the context of its binders.
+  \begin{itemize}
+  \item \code{Erases.toCert}: the \code{box} rule asks \code{CLCert} of an \code{erase} mark, and \code{casesReduced} asks a proof certificate of the discriminant;
+  \item \code{ErasesDecl.toCert}, \code{ErasesDeps.toCert}: the same for the bodies of the environment, whose constants are values the traversal erases.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the erasure; each rule keeps its premises and adds the certificate of its mark.
+\end{proof}
+
+\begin{theorem}[Final theorem]
+  \label{thm:EraseProof-erase_correct}
+  \lean{EraseProof.erase_correct}
+  \leanok
+  \uses{def:EraseProof-erase_correct-statement}
+  \srcloc{proof/EraseProof/Final.lean}{176}
+  \lead{In short} Partial correctness of \code{\#erase} against con-leche: \hl{the emitted main term evaluates in $\lambda_\Box$ to an erasure of the source value, and the value means what the input means}.
+  \begin{itemize}
+  \item \lead{Given} \code{hacc}: con-leche accepts the program; \code{hty}: it types the input; \code{hclean}: no mark key; \code{hview}, \code{hfrag}, \code{hnopre}: the view, the fragment test, no pre-definition; \code{hrun}: the entry point returns the program;
+  \item \lead{Given} \code{hmark}: the marking of the input; \code{hcert}: con-leche types it, certifies its marks, and types and certifies a marking of each closure value the traversal erases; \code{hev}: the marked input evaluates in the closure;
+  \item \lead{Then} the program is untyped; its main term erases the marked input and its environment erases the dependencies, with certified boxes; the value erases to \code{vb}; the main term evaluates to \code{vb}; \code{Sound} holds.
+  \end{itemize}
+  \lead{Reference} \code{erase\_correct} (\code{MR E/ErasureFunctionProperties.v:657}); MC \S7.3--7.4.
+\end{theorem}
+\begin{proof}
+  \uses{def:EraseProof-erase_correct-statement, thm:EraseProof-erases_correct, thm:EraseProof-erasePure_erases, thm:EraseProof-srcEval_sound, lem:EraseProof-collectDeps_sub, lem:EraseProof-collectDeps-spec, lem:EraseProof-eraseEntry-pure, lem:EraseProof-coreEnv_of, lem:EraseProof-Final-marksCert_of_progCert, lem:EraseProof-Final-Erases-toCert, lem:EraseProof-DepClosed, lem:EraseProof-Steps-visitExpr_app_step}
+  \leanok
+  \lead{Idea} Compose the entry point, the closure facts, \code{erasePure\_erases}, \code{erases\_correct}, \code{srcEval\_sound} and the certificates.
+\end{proof}
+
+\section{The first-order corollary}\label{sec:final-firstorder}
+
+\begin{definition}[First-order corollary: statement]
+  \label{def:EraseProof-erase_correct_firstorder-statement}
+  \lean{EraseProof.erase_correct_firstorder_statement}
+  \leanok
+  \srcloc{proof/EraseProof/Statements.lean}{182}
+  \lead{In short} The statement of \code{erase\_correct\_firstorder}, a definition of type \code{Prop}.
+\end{definition}
+
+\begin{lemma}[Structural erasure of a first-order value]
+  \label{lem:EraseProof-FirstOrder-Erases-firstOrder}
+  \lean{EraseProof.FirstOrder.foErase_foldl, EraseProof.FirstOrder.Erases.lit_peano, EraseProof.FirstOrder.Erases.firstOrder}
+  \leanok
+  \uses{def:EraseProof-Erases, def:EraseProof-Sound}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{28}
+  \lead{In short} \hl{An erasure of a first-order value is its structural erasure \code{foErase}}: constructor trees map to constructor trees, frozen leaves to $\Box$, literals to Peano numerals.
+  \begin{itemize}
+  \item \code{Erases.lit\_peano}: an erasure of a \code{Nat} literal is its Peano numeral;
+  \item \code{Erases.firstOrder}: by inversion on constructor spines, literals and frozen leaves; it needs no $\lambda_\Box$ evaluation.
+  \end{itemize}
+  \lead{Reference} \code{erase\_correct\_strong} (\code{MR E/ErasureFunctionProperties.v:2269}).
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Induction on the first-order value.
+\end{proof}
+
+\begin{definition}[Certified values]
+  \label{def:EraseProof-FirstOrder-CertValue}
+  \lean{EraseProof.FirstOrder.CertValue}
+  \leanok
+  \uses{def:EraseProof-SrcEval, def:EraseProof-CLCert}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{91}
+  \lead{In short} \code{CertValue}: a source value whose constructor spines and literals are typed by con-leche and whose frozen terms are certified erasable.
+\end{definition}
+
+\begin{lemma}[Evaluation results are certified values]
+  \label{lem:EraseProof-FirstOrder-SrcEval-certValue}
+  \lean{EraseProof.FirstOrder.CertValue.ctor_inv, EraseProof.FirstOrder.CertValue.frozen_inv, EraseProof.FirstOrder.CertValue.lit_inv, EraseProof.FirstOrder.CertValue.atomSpine, EraseProof.FirstOrder.SrcEval.certValue, EraseProof.FirstOrder.frozenLeaf_foldl, EraseProof.FirstOrder.CertValue.firstOrder}
+  \leanok
+  \uses{def:EraseProof-FirstOrder-CertValue, def:EraseProof-SrcEval}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{110}
+  \lead{In short} \hl{Every result of \code{SrcEval} is a \code{CertValue}}, so a first-order result is typed and each frozen leaf is a proof or a type former.
+  \begin{itemize}
+  \item \code{CertValue.*\_inv}, \code{atomSpine}: inversions of the three value forms;
+  \item \code{SrcEval.certValue}: induction on the evaluation;
+  \item \code{CertValue.firstOrder}, \code{frozenLeaf\_foldl}: for a first-order value, \code{CLTyped} and \code{CLErasable} of its frozen leaves.
+  \end{itemize}
+\end{lemma}
+\begin{proof}
+  \leanok
+  \lead{Idea} Each rule of \code{SrcEval} forms its value from certified parts.
+\end{proof}
+
+\begin{corollary}[First-order corollary]
+  \label{cor:EraseProof-erase_correct_firstorder}
+  \lean{EraseProof.erase_correct_firstorder}
+  \leanok
+  \uses{def:EraseProof-erase_correct_firstorder-statement, thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct, thm:EraseProof-srcEval_sound, lem:EraseProof-FirstOrder-Erases-firstOrder, lem:EraseProof-FirstOrder-SrcEval-certValue}
+  \srcloc{proof/EraseProof/FirstOrder.lean}{227}
+  \lead{In short} Under the hypotheses of \code{erase\_correct} but \code{hcert}, with a marking of every value the traversal erases (\code{hvals}) and a closure free of mark keys, \hl{a first-order value evaluates to its structural erasure}.
+  \begin{itemize}
+  \item \lead{Then} the main term evaluates to \code{foErase} of the value; con-leche types the value; each leaf erased to $\Box$ is a proof or a type former; \code{Sound} holds.
+  \end{itemize}
+  \lead{Reference} \code{erase\_correct\_strong} (\code{MR E/ErasureFunctionProperties.v:2269}).
+\end{corollary}
+\begin{proof}
+  \uses{def:EraseProof-erase_correct_firstorder-statement, thm:EraseProof-erasePure_erases, thm:EraseProof-erases_correct, thm:EraseProof-srcEval_sound, lem:EraseProof-FirstOrder-Erases-firstOrder, lem:EraseProof-FirstOrder-SrcEval-certValue}
+  \leanok
+  \lead{Idea} The chain of \code{erase\_correct} without the certified conjuncts, then \code{Erases.firstOrder} on the value and \code{CertValue.firstOrder} on the evaluation.
+\end{proof}
+
+\section*{Caveats}
+\begin{itemize}
+\item The theorem is partial correctness: \code{hev} is assumed. Chapter~\ref{chap:limits} lists what it does not say.
+\item \code{hcert} is a hypothesis about the oracle's marks on each program; the tests discharge it on six programs (Chapter~\ref{chap:tests}).
+\item The first-order corollary takes \code{hvals} and \code{hcleanD} where the final theorem takes \code{hcert} and derives the second.
+\end{itemize}
