@@ -1,0 +1,3 @@
+Compiling:
+Compiled successfully:
+(LAM z [((LAM a [(Rel 0)]) @ (Rel 0))])

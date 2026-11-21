@@ -1,0 +1,1 @@
+(Untyped ((((MPdot (MPfile ()) "ER") "pid") (ConstantDecl (constant_body (Some (tLambda nAnon (tLambda (nNamed "a") (tRel 0)))))))) (Some (tConst ((MPdot (MPfile ()) "ER") "pid"))))

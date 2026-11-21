@@ -38,6 +38,9 @@ open Lean.Compiler.LCNF
 
 namespace Erasure.FromLCNF
 
+/-- The monad of the translation: the erasure traversal's monad over `CoreM`, the backend of `#erase`. -/
+abbrev EraseM := EraseT CoreM
+
 /-- Keep the name if it is ASCII graphic, as in `fvar_to_name`. -/
 def binder (n : Name) : BinderName :=
   let s := n.toString
@@ -309,7 +312,7 @@ def addComponent (phase : Phase) (g : Std.HashMap Name Node) (comp : List Name) 
       -- Not at the mono phase: there the callers expect mono's types, e.g. a `Bool` where the
       -- kernel value of `Nat.decEq` builds a `Decidable`.
       if phase matches .base && ((← getEnv).find? n).any (·.hasValue (allowOpaque := true)) then
-        discard <| Erasure.erase.get_constant_kername n
+        discard <| get_constant_kername (m := CoreM) travFuel n
       else
         logInfo s!"No compiled code for {n}, emitting axiom."
         addAxiom n
