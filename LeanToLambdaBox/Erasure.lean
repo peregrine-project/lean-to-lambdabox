@@ -292,6 +292,26 @@ def register_inductive (indinfo: InductiveVal): EraseM (InductiveId × Inductive
     modify (fun s => { s with gdecls := s.gdecls.cons (mutualBlockName, .inductiveDecl mutual_body) })
     return (← get).inductives[indinfo.name]!
 
+/-- Inductives whose constructors an axiom can return and that the erased program must declare:
+the backend implementing the axiom builds their values, also when the erased code never inspects
+them. A `Decidable` value holds a `Bool` (`Decidable.intro`), so `Decidable` brings `Bool`. -/
+def axiomResultInductives : List (Name × List Name) :=
+  [(``Bool, [``Bool]), (``Decidable, [``Bool, ``Decidable])]
+
+/-- Add an axiom for the constant `name`, and register the inductives that `axiomResultInductives`
+lists for its result type. Without this, a program that only returns or passes on the result
+of `Nat.beq` gets a λ□ environment without `Bool`, and the constructor that the axiom returns is
+not declared. -/
+def addAxiomWithResult (name : Name) : EraseM Unit := do
+  addAxiom name
+  let some ci := (← getEnv).find? name | return
+  let res ← liftMetaM <| Meta.forallTelescopeReducing ci.type fun _ b => Meta.whnf b
+  let .const ind _ := res.getAppFn | return
+  let some (_, regs) := axiomResultInductives.find? (·.1 == ind) | return
+  for r in regs do
+    let some (.inductInfo iv) := (← getEnv).find? r | continue
+    discard <| register_inductive iv
+
 def fvar_to_name (x: FVarId): EraseM BinderName := do
   let n := (← read).lctx.fvarIdToDecl |>.find! x |>.userName
   let s: String := n.toString
@@ -910,11 +930,11 @@ where
       match ci.value? (allowOpaque := true), isExtern (← getEnv) name, (← read).config.extern with
       | .none, _, _ =>
         logInfo s!"No value found for name {name}, emitting axiom."
-        return ← addAxiom name
+        return ← addAxiomWithResult name
       | .some _, false, _ => pure ()
       | .some _, true, .preferAxiom =>
         logInfo s!"Name {name} has a value but is tagged @[extern], emitting axiom."
-        return ← addAxiom name
+        return ← addAxiomWithResult name
       | .some _, true, .preferLogical =>
         logInfo s!"Name {name} is tagged @[extern] but has a value, using value."
         pure ()
